@@ -78,7 +78,14 @@ from fastapi.testclient import TestClient
 
 from backend.app import create_app
 from backend.settings import WebSettings, get_settings
-from bot.application import AdminQueryService, PointService, TokenCodec, WebAuthService
+from bot.application import (
+    AdminQueryService,
+    PointService,
+    ReliabilityService,
+    TaskService,
+    TokenCodec,
+    WebAuthService,
+)
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.sql_helper import Base
 from bot.sql_helper.sql_emby import Emby
@@ -146,6 +153,14 @@ class WebAuthRouteTests(unittest.TestCase):
             patch(
                 "backend.api.admin.points",
                 PointService(self.uow_factory),
+            ),
+            patch(
+                "backend.api.tasks.tasks",
+                TaskService(self.uow_factory),
+            ),
+            patch(
+                "backend.api.tasks.reliability",
+                ReliabilityService(self.uow_factory),
             ),
         ]
         for item in self.patches:
@@ -247,6 +262,10 @@ class WebAuthRouteTests(unittest.TestCase):
             "sakura_session",
             telegram_session.data["session_token"],
         )
+        self.client.cookies.set(
+            "sakura_csrf",
+            telegram_session.data["csrf_token"],
+        )
         allowed = self.client.get("/api/v1/admin/users")
         self.assertEqual(allowed.status_code, 200)
         overview = self.client.get("/api/v1/admin/overview")
@@ -255,6 +274,22 @@ class WebAuthRouteTests(unittest.TestCase):
         detail = self.client.get("/api/v1/admin/users/1001")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("roles", detail.json())
+        created_task = self.client.post(
+            "/api/v1/admin/tasks",
+            headers={
+                "X-CSRF-Token": telegram_session.data["csrf_token"],
+                "Idempotency-Key": "web-route-task-1",
+            },
+            json={
+                "task_type": "sync.favorites",
+                "payload": {},
+                "confirm": True,
+            },
+        )
+        self.assertEqual(created_task.status_code, 202)
+        listed_tasks = self.client.get("/api/v1/admin/tasks")
+        self.assertEqual(listed_tasks.status_code, 200)
+        self.assertEqual(listed_tasks.json()["total"], 1)
 
 
 if __name__ == "__main__":

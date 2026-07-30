@@ -1,6 +1,11 @@
 import asyncio
+from datetime import timezone
+from functools import partial
+
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bot import LOGGER
+from bot.application.task_service import TaskService
 from bot.func_helper.utils import Singleton
 
 
@@ -9,6 +14,11 @@ class Scheduler(metaclass=Singleton):
         # 创建一个AsyncIOScheduler对象，并传入时区、容忍度和事件循环参数
         self.SCHEDULER = AsyncIOScheduler(timezone=timezone, misfire_grace_time=misfire_grace_time, max_instances=5,
                                           event_loop=event_loop or asyncio.get_event_loop())
+        self._task_service = TaskService()
+        self.SCHEDULER.add_listener(
+            self._record_job_event,
+            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
+        )
         # 启动调度器
         self.SCHEDULER.start()
         # 设置日志级别为INFO
@@ -18,6 +28,9 @@ class Scheduler(metaclass=Singleton):
     def add_job(self, func, trigger, **kwargs):
         # 调用调度器的add_job方法，添加定时任务
         try:
+            kwargs.setdefault("coalesce", True)
+            if kwargs.get("id"):
+                kwargs.setdefault("replace_existing", True)
             self.SCHEDULER.add_job(func, trigger, **kwargs)
             LOGGER.info(f"Added a job: {func.__name__} with {trigger} trigger and {kwargs} arguments.")
         except Exception as e:
@@ -72,6 +85,36 @@ class Scheduler(metaclass=Singleton):
             LOGGER.info(f"Modified a job: {job_id} with {changes} changes.")
         except Exception as e:
             LOGGER.error(f"Failed to modify a job: {e}")
+
+    def _record_job_event(self, event):
+        if event.code == EVENT_JOB_EXECUTED:
+            status = "succeeded"
+            error_message = None
+        elif event.code == EVENT_JOB_MISSED:
+            status = "missed"
+            error_message = "Scheduled execution was missed"
+        else:
+            status = "failed"
+            error_message = str(getattr(event, "exception", "Unknown scheduler error"))
+        scheduled_at = getattr(event, "scheduled_run_time", None)
+        if scheduled_at is not None:
+            scheduled_at = scheduled_at.astimezone(timezone.utc).replace(tzinfo=None)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.run_in_executor(
+                None,
+                partial(
+                    self._task_service.record_job_run,
+                    job_name=str(getattr(event, "job_id", "unknown")),
+                    trigger_kind="scheduler",
+                    status=status,
+                    started_at=scheduled_at,
+                    summary={"scheduled_run_time": str(scheduled_at)},
+                    error_message=error_message,
+                ),
+            )
+        except Exception as error:
+            LOGGER.error("Failed to persist scheduler job result: %s", error)
 
 scheduler = Scheduler()
 # scheduler.add_job(check_expired, 'cron', hour=1, id='check_expired')

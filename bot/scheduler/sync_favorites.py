@@ -10,11 +10,13 @@ async def sync_favorites():
     """
     LOGGER.info("开始同步用户Emby收藏记录...")
     try:
+        synced_users = 0
+        synced_items = 0
         # 获取所有Emby用户
         users = get_all_emby(Emby.embyid is not None)
         if not users:
             LOGGER.warning("没有找到Emby用户")
-            return
+            return {"users": 0, "items": 0}
 
         for user in users:
             # 获取用户的收藏列表
@@ -41,8 +43,12 @@ async def sync_favorites():
                     item_id=item_id,
                     item_name=item_name,
                 )
+                synced_items += 1
+            synced_users += 1
 
         LOGGER.info("Emby收藏记录同步完成")
+        return {"users": synced_users, "items": synced_items}
 
     except Exception as e:
         LOGGER.error(f"同步Emby收藏记录时出错: {str(e)}")
+        raise

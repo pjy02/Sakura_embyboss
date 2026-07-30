@@ -76,8 +76,13 @@ async def sync_download_tasks():
                     transfer_count += 1
         if download_count > 0 or transfer_count > 0:
             LOGGER.info(f"[MoviePilot] 同步了 {download_count} 个下载任务状态, {transfer_count} 个转移任务状态")
+        return {
+            "download_tasks": download_count,
+            "transfer_tasks": transfer_count,
+        }
     except Exception as e:
         LOGGER.error(f"[MoviePilot] 同步下载任务状态时出错: {str(e)}")
+        raise
 # 如果MoviePilot功能开启，添加定时任务
 if config.moviepilot.status:
     scheduler.add_job(sync_download_tasks, 'interval',

@@ -1,3 +1,5 @@
+import os
+
 import uvicorn
 
 from backend.settings import get_settings
@@ -10,7 +12,10 @@ def main():
         host=settings.host,
         port=settings.port,
         proxy_headers=True,
-        forwarded_allow_ips="127.0.0.1",
+        forwarded_allow_ips=os.getenv(
+            "SAKURA_FORWARDED_ALLOW_IPS",
+            "127.0.0.1",
+        ),
         log_level="info",
     )
 

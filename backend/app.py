@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, HTTPException
@@ -7,10 +8,18 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from backend.api import admin_router, auth_router, me_router
+from backend.api import (
+    admin_router,
+    auth_router,
+    events_router,
+    me_router,
+    tasks_router,
+)
+from backend.event_relay import EventRelay
 from backend.middleware import SecurityHeadersMiddleware
 from backend.settings import WebSettings, get_settings
 from bot.sql_helper import Session
+from bot.application import ReliabilityService
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -61,14 +70,26 @@ def _runtime_script(settings: WebSettings, area: str) -> Response:
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
     settings = settings or get_settings()
+    relay = EventRelay()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        await relay.start()
+        try:
+            yield
+        finally:
+            await relay.stop()
+
     app = FastAPI(
         title="Sakura EmbyBoss API",
         version="2.0.0",
         docs_url="/api/docs" if settings.docs_enabled else None,
         redoc_url="/api/redoc" if settings.docs_enabled else None,
         openapi_url="/api/openapi.json" if settings.docs_enabled else None,
+        lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.event_relay = relay
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         TrustedHostMiddleware,
@@ -87,6 +108,8 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     api_v1.include_router(auth_router)
     api_v1.include_router(me_router)
     api_v1.include_router(admin_router)
+    api_v1.include_router(tasks_router)
+    api_v1.include_router(events_router)
     app.include_router(api_v1)
 
     @app.get("/healthz", tags=["health"])
@@ -98,9 +121,23 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         try:
             with Session() as session:
                 session.execute(text("SELECT 1"))
-            return {"status": "ready"}
+            reliability = ReliabilityService().status()
+            return {
+                "status": "ready",
+                "components": {
+                    "database": "ready",
+                    "task_worker": reliability["status"],
+                    "event_relay": "running",
+                },
+            }
         except Exception:
-            return JSONResponse(status_code=503, content={"status": "not_ready"})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "not_ready",
+                    "components": {"database": "unavailable"},
+                },
+            )
 
     @app.get(
         f"/{settings.admin_path}/runtime-config.js",

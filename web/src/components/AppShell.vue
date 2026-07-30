@@ -11,6 +11,7 @@ import {
   Menu,
   ShieldCheck,
   Sparkles,
+  Workflow,
   UserCog,
   Users,
   X,
@@ -44,6 +45,7 @@ const nav = computed(() =>
     ? [
         { to: "/", label: "运营概览", icon: House },
         { to: "/users", label: "用户管理", icon: Users },
+        { to: "/tasks", label: "任务中心", icon: Workflow, permission: "tasks:read" },
         { to: "/roles", label: "角色权限", icon: UserCog, permission: "roles:read" },
         { to: "/audit", label: "审计日志", icon: Activity, permission: "audit:read" },
       ]

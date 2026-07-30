@@ -6,6 +6,7 @@ working without causing import-time side effects in the standalone API.
 """
 
 import asyncio
+import os
 
 from bot import LOGGER, api as config_api
 
@@ -17,7 +18,13 @@ class Web:
         self.task = None
 
     async def start(self):
-        if not config_api.status:
+        embedded_enabled = os.getenv("SAKURA_EMBEDDED_WEB_ENABLED")
+        enabled = (
+            config_api.status
+            if embedded_enabled is None
+            else embedded_enabled.strip().lower() in {"1", "true", "yes", "on"}
+        )
+        if not enabled:
             LOGGER.info("【Web API】未启用，跳过内嵌服务")
             return
         try:

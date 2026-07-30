@@ -2,6 +2,7 @@
 .github
 .idea
 .test-deps
+.pytest_cache
 __pycache__
 *.pyc
 *.pyo
@@ -14,3 +15,4 @@ log
 db_backup
 web/node_modules
 web/dist
+web/.vite

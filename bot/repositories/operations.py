@@ -2,15 +2,19 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from bot.domain import Actor
 from bot.sql_helper.sql_application import (
     AuditLog,
     IdempotencyRecord,
+    JobRun,
+    OperationTask,
     PointTransaction,
     SecurityEvent,
     SystemEvent,
+    WorkerHeartbeat,
 )
 
 
@@ -135,4 +139,213 @@ class OperationRepository:
                 ip_address=ip_address,
                 detail_json=_json(detail),
             )
+        )
+
+    def get_task(self, task_id: str, *, for_update: bool = False):
+        query = self.session.query(OperationTask).filter(OperationTask.id == task_id)
+        if for_update:
+            query = query.with_for_update()
+        return query.first()
+
+    def get_task_by_idempotency_key(self, key: Optional[str]):
+        if not key:
+            return None
+        return (
+            self.session.query(OperationTask)
+            .filter(OperationTask.idempotency_key == key)
+            .first()
+        )
+
+    def add_task(self, task: OperationTask) -> None:
+        self.session.add(task)
+
+    def list_tasks(
+        self,
+        *,
+        statuses: Optional[list[str]] = None,
+        task_type: Optional[str] = None,
+        owner_id: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ):
+        query = self.session.query(OperationTask)
+        if statuses:
+            query = query.filter(OperationTask.status.in_(statuses))
+        if task_type:
+            query = query.filter(OperationTask.task_type == task_type)
+        if owner_id:
+            query = query.filter(OperationTask.owner_id == owner_id)
+        total = query.count()
+        rows = (
+            query.order_by(OperationTask.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return rows, total
+
+    def recover_expired_task_leases(self, now: datetime):
+        return (
+            self.session.query(OperationTask)
+            .filter(
+                OperationTask.status == "running",
+                OperationTask.lease_expires_at.isnot(None),
+                OperationTask.lease_expires_at < now,
+            )
+            .with_for_update()
+            .all()
+        )
+
+    def claim_next_task(
+        self,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_expires_at: datetime,
+    ):
+        candidate_ids = [
+            row[0]
+            for row in (
+                self.session.query(OperationTask.id)
+                .filter(
+                    OperationTask.status.in_(("pending", "retrying")),
+                    OperationTask.next_run_at <= now,
+                    OperationTask.cancel_requested.is_(False),
+                    or_(
+                        OperationTask.lease_expires_at.is_(None),
+                        OperationTask.lease_expires_at < now,
+                    ),
+                )
+                .order_by(OperationTask.next_run_at.asc(), OperationTask.created_at.asc())
+                .limit(10)
+                .all()
+            )
+        ]
+        for task_id in candidate_ids:
+            updated = (
+                self.session.query(OperationTask)
+                .filter(
+                    OperationTask.id == task_id,
+                    OperationTask.status.in_(("pending", "retrying")),
+                    OperationTask.cancel_requested.is_(False),
+                    or_(
+                        OperationTask.lease_expires_at.is_(None),
+                        OperationTask.lease_expires_at < now,
+                    ),
+                )
+                .update(
+                    {
+                        OperationTask.status: "running",
+                        OperationTask.locked_by: worker_id,
+                        OperationTask.lease_expires_at: lease_expires_at,
+                        OperationTask.last_heartbeat_at: now,
+                        OperationTask.started_at: now,
+                        OperationTask.updated_at: now,
+                    },
+                    synchronize_session=False,
+                )
+            )
+            if updated:
+                self.session.flush()
+                return self.get_task(task_id)
+        return None
+
+    def list_events_after(
+        self,
+        *,
+        after_id: int,
+        limit: int,
+        aggregate_type: Optional[str] = None,
+        aggregate_id: Optional[str] = None,
+    ):
+        query = self.session.query(SystemEvent).filter(SystemEvent.id > after_id)
+        if aggregate_type:
+            query = query.filter(SystemEvent.aggregate_type == aggregate_type)
+        if aggregate_id:
+            query = query.filter(SystemEvent.aggregate_id == aggregate_id)
+        return query.order_by(SystemEvent.id.asc()).limit(limit).all()
+
+    def list_unpublished_events(self, limit: int = 100):
+        return (
+            self.session.query(SystemEvent)
+            .filter(SystemEvent.published_at.is_(None))
+            .order_by(SystemEvent.id.asc())
+            .limit(limit)
+            .all()
+        )
+
+    def mark_events_published(self, event_ids: list[int], published_at: datetime) -> int:
+        if not event_ids:
+            return 0
+        return (
+            self.session.query(SystemEvent)
+            .filter(
+                SystemEvent.id.in_(event_ids),
+                SystemEvent.published_at.is_(None),
+            )
+            .update(
+                {SystemEvent.published_at: published_at},
+                synchronize_session=False,
+            )
+        )
+
+    def add_job_run(self, run: JobRun) -> None:
+        self.session.add(run)
+
+    def list_job_runs(self, limit: int, offset: int):
+        query = self.session.query(JobRun)
+        total = query.count()
+        rows = (
+            query.order_by(JobRun.started_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return rows, total
+
+    def upsert_worker_heartbeat(
+        self,
+        *,
+        worker_id: str,
+        worker_kind: str,
+        hostname: str,
+        process_id: int,
+        status: str,
+        current_task_id: Optional[str],
+        metadata: Any,
+        now: datetime,
+    ) -> None:
+        row = (
+            self.session.query(WorkerHeartbeat)
+            .filter(WorkerHeartbeat.worker_id == worker_id)
+            .first()
+        )
+        if not row:
+            self.session.add(
+                WorkerHeartbeat(
+                    worker_id=worker_id,
+                    worker_kind=worker_kind,
+                    hostname=hostname,
+                    process_id=process_id,
+                    status=status,
+                    current_task_id=current_task_id,
+                    metadata_json=_json(metadata),
+                    started_at=now,
+                    last_seen_at=now,
+                )
+            )
+            return
+        row.worker_kind = worker_kind
+        row.hostname = hostname
+        row.process_id = process_id
+        row.status = status
+        row.current_task_id = current_task_id
+        row.metadata_json = _json(metadata)
+        row.last_seen_at = now
+
+    def list_worker_heartbeats(self):
+        return (
+            self.session.query(WorkerHeartbeat)
+            .order_by(WorkerHeartbeat.last_seen_at.desc())
+            .all()
         )

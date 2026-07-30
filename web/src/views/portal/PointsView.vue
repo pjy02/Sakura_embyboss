@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Coins, RefreshCw } from "lucide-vue-next";
 import EmptyState from "@/components/EmptyState.vue";
 import LoadingBlock from "@/components/LoadingBlock.vue";
 import { api } from "@/lib/api";
+import { useRealtimeEvents } from "@/composables/useRealtime";
 import { formatDate, formatNumber } from "@/lib/format";
 import type { PointTransaction, UserProfile } from "@/types";
 
@@ -34,6 +35,7 @@ function page(delta: number) {
 }
 
 onMounted(load);
+useRealtimeEvents(["points.changed"], () => load());
 </script>
 
 <template>

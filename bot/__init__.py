@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 # -*- coding: utf-8 -*-
 import contextlib
+import os
 
 from .func_helper.logger_config import logu, Now
 
@@ -41,13 +42,16 @@ emby_block = config.emby_block
 extra_emby_libs = config.extra_emby_libs
 partition_libs = config.partition_libs
 # # 数据库
-db_host = config.db_host
-db_user = config.db_user
-db_pwd = config.db_pwd
-db_name = config.db_name
-db_port = config.db_port
-db_is_docker = config.db_is_docker
-db_docker_name = config.db_docker_name
+db_host = os.getenv("SAKURA_DB_HOST", config.db_host)
+db_user = os.getenv("SAKURA_DB_USER", config.db_user)
+db_pwd = os.getenv("SAKURA_DB_PASSWORD", config.db_pwd)
+db_name = os.getenv("SAKURA_DB_NAME", config.db_name)
+db_port = int(os.getenv("SAKURA_DB_PORT", str(config.db_port)))
+db_is_docker = os.getenv(
+    "SAKURA_DB_IS_DOCKER",
+    "1" if config.db_is_docker else "0",
+).strip().lower() in {"1", "true", "yes", "on"}
+db_docker_name = os.getenv("SAKURA_DB_CONTAINER", config.db_docker_name)
 db_backup_dir = config.db_backup_dir
 db_backup_maxcount = config.db_backup_maxcount
 # 探针
@@ -67,7 +71,13 @@ red_envelope = config.red_envelope
 moviepilot = config.moviepilot
 auto_update = config.auto_update
 api = config.api
-save_config()
+if os.getenv("SAKURA_CONFIG_SAVE_ON_START", "1").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}:
+    save_config()
 
 LOGGER.info("配置文件加载完毕")
 from pyrogram.types import BotCommand

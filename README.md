@@ -1,6 +1,8 @@
 # 🌸 Sakura_embyboss 初学练习版（重构中）
 
 > Vue 用户中心与管理后台的功能、构建和安全说明见 [docs/web-ui.md](docs/web-ui.md)。
+> 后台任务、实时同步和可靠性说明见 [docs/task-reliability.md](docs/task-reliability.md)。
+> Docker、GitHub Actions、Docker Hub 发布与生产上线说明见 [docs/deployment.md](docs/deployment.md)。
 
 <p align="center">
 <img src="image/bot2.png" alt="bot"><br>

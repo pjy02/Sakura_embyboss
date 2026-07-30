@@ -89,6 +89,8 @@ class OperationTask(Base):
         UniqueConstraint("idempotency_key", name="uq_operation_tasks_idempotency_key"),
         Index("ix_operation_tasks_status_created", "status", "created_at"),
         Index("ix_operation_tasks_owner", "owner_kind", "owner_id"),
+        Index("ix_operation_tasks_next_run", "status", "next_run_at"),
+        Index("ix_operation_tasks_lease", "status", "lease_expires_at"),
     )
 
     id = Column(String(36), primary_key=True)
@@ -102,6 +104,12 @@ class OperationTask(Base):
     result_json = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
     retry_count = Column(Integer, nullable=False, default=0)
+    max_retries = Column(Integer, nullable=False, default=3)
+    next_run_at = Column(DateTime, nullable=False, default=utcnow)
+    locked_by = Column(String(128), nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+    last_heartbeat_at = Column(DateTime, nullable=True)
+    cancel_requested = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, nullable=False, default=utcnow)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
@@ -136,6 +144,23 @@ class JobRun(Base):
     error_message = Column(Text, nullable=True)
     started_at = Column(DateTime, nullable=False, default=utcnow)
     finished_at = Column(DateTime, nullable=True)
+
+
+class WorkerHeartbeat(Base):
+    __tablename__ = "worker_heartbeats"
+    __table_args__ = (
+        Index("ix_worker_heartbeats_kind_seen", "worker_kind", "last_seen_at"),
+    )
+
+    worker_id = Column(String(128), primary_key=True)
+    worker_kind = Column(String(64), nullable=False)
+    hostname = Column(String(255), nullable=False)
+    process_id = Column(Integer, nullable=False)
+    status = Column(String(32), nullable=False, default="starting")
+    current_task_id = Column(String(36), nullable=True)
+    metadata_json = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=False, default=utcnow)
+    last_seen_at = Column(DateTime, nullable=False, default=utcnow)
 
 
 class SecurityEvent(Base):

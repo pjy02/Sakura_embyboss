@@ -34,6 +34,13 @@ def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, value))
 
 
+def _env_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
 def _normalize_path(value: str, *, admin: bool = False) -> str:
     normalized = value.strip().strip("/")
     if not _PATH_PATTERN.fullmatch(normalized):
@@ -97,12 +104,20 @@ def get_settings() -> WebSettings:
     if admin_path == user_path:
         raise ValueError("WEB_ADMIN_PATH and WEB_USER_PATH must be different")
 
-    origins = tuple(
+    configured_origins = tuple(
         str(item).rstrip("/")
         for item in (config_api.allow_origins or [])
         if str(item) != "*"
     )
-    trusted_hosts = tuple(str(item) for item in (config_api.trusted_hosts or ["*"]))
+    origins = tuple(
+        item.rstrip("/")
+        for item in _env_csv("SAKURA_CORS_ORIGINS", configured_origins)
+        if item != "*"
+    )
+    trusted_hosts = _env_csv(
+        "SAKURA_TRUSTED_HOSTS",
+        tuple(str(item) for item in (config_api.trusted_hosts or ["*"])),
+    )
     legacy_token = os.getenv("SAKURA_LEGACY_API_TOKEN")
     legacy_enabled = _env_bool(
         "SAKURA_LEGACY_API_ENABLED",

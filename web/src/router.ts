@@ -10,12 +10,14 @@ import AdminHome from "@/views/admin/AdminHome.vue";
 import UsersView from "@/views/admin/UsersView.vue";
 import RolesView from "@/views/admin/RolesView.vue";
 import AuditView from "@/views/admin/AuditView.vue";
+import TasksView from "@/views/admin/TasksView.vue";
 
 const childRoutes =
   runtime.area === "admin"
     ? [
         { path: "", name: "admin-home", component: AdminHome },
         { path: "users", name: "users", component: UsersView },
+        { path: "tasks", name: "tasks", component: TasksView, meta: { permission: "tasks:read" } },
         { path: "roles", name: "roles", component: RolesView, meta: { permission: "roles:read" } },
         { path: "audit", name: "audit", component: AuditView, meta: { permission: "audit:read" } },
       ]

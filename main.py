@@ -11,6 +11,8 @@ from bot.modules.commands import *
 from bot.modules.extra import *
 from bot.modules.callback import *
 from bot.web import schedule_embedded_web
+from bot.workers import schedule_task_worker
 
 schedule_embedded_web()
+schedule_task_worker()
 bot.run()

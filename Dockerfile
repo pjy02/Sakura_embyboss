@@ -1,45 +1,88 @@
-FROM node:22-alpine AS web-builder
+# syntax=docker/dockerfile:1.7
+
+ARG NODE_VERSION=22
+ARG PYTHON_VERSION=3.10
+
+FROM node:${NODE_VERSION}-alpine AS web-builder
 
 WORKDIR /web
-COPY web/package*.json ./
-RUN npm install --no-audit --no-fund
+COPY web/package.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --no-audit --no-fund
 COPY web/ ./
-RUN npm run build
+RUN npm run typecheck && npm run build
 
 
-FROM python:3.10.11-alpine AS python-builder
+FROM python:${PYTHON_VERSION}-alpine AS python-builder
 
-RUN apk add --no-cache --virtual .build-deps gcc musl-dev openssl-dev coreutils
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN find . -type f -name "*.pyc" -delete
-RUN apk del --purge .build-deps
-RUN rm -rf /tmp/* /root/.cache /var/cache/apk/*
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PATH=/opt/venv/bin:${PATH}
+
+RUN apk add --no-cache --virtual .build-deps \
+    build-base \
+    cargo \
+    coreutils \
+    freetype-dev \
+    jpeg-dev \
+    libffi-dev \
+    openssl-dev \
+    zlib-dev
+RUN python -m venv /opt/venv
+COPY requirements.lock ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.lock && \
+    pip check
 
 
-FROM python:3.10.11-alpine
+FROM python:${PYTHON_VERSION}-alpine AS runtime
+
+ARG BUILD_DATE=""
+ARG VERSION="dev"
+ARG VCS_REF=""
+
+LABEL org.opencontainers.image.title="Sakura EmbyBoss" \
+      org.opencontainers.image.description="Telegram Bot and Web management center for Emby" \
+      org.opencontainers.image.licenses="GPL-3.0-only" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.created="${BUILD_DATE}"
 
 ENV TZ=Asia/Shanghai \
     DOCKER_MODE=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PATH=/opt/venv/bin:${PATH} \
     WORKDIR=/app
 
 RUN apk add --no-cache \
+    freetype \
+    git \
+    libffi \
+    libjpeg-turbo \
+    libstdc++ \
+    mariadb-client \
     mariadb-connector-c \
+    openssl \
+    tini \
     tzdata \
-    mysql-client \
-    git && \
-    ln -snf Asia/Shanghai /etc/localtime && echo Asia/Shanghai > /etc/timezone
+    zlib && \
+    ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && \
+    echo "${TZ}" > /etc/timezone
 
 WORKDIR ${WORKDIR}
 
-COPY --from=python-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY --from=python-builder /usr/local/bin /usr/local/bin
+COPY --from=python-builder /opt/venv /opt/venv
 COPY . .
 COPY --from=web-builder /web/dist ./web/dist
 
-# Only the default Bot picture is needed at runtime; Web assets live under web/dist.
-RUN find ./image -type f ! -name "bot2.png" -delete
+RUN mkdir -p ./log ./db_backup && \
+    find ./image -type f ! -name "bot2.png" -delete && \
+    python -m compileall -q backend bot scripts/container_healthcheck.py
 
-ENTRYPOINT ["python3"]
+STOPSIGNAL SIGTERM
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD ["python3", "scripts/container_healthcheck.py"]
+
+ENTRYPOINT ["/sbin/tini", "--", "python3"]
 CMD ["main.py"]

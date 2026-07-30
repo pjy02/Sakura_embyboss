@@ -5,6 +5,7 @@ import { ArrowRight, CalendarDays, CheckCircle2, Coins, Crown, Film, Sparkles } 
 import LoadingBlock from "@/components/LoadingBlock.vue";
 import { api } from "@/lib/api";
 import { daysUntil, formatDate, formatNumber, initials, levelLabel } from "@/lib/format";
+import { useRealtimeEvents } from "@/composables/useRealtime";
 import type { PointTransaction, UserProfile } from "@/types";
 
 const profile = ref<UserProfile | null>(null);
@@ -20,7 +21,8 @@ const expiryTone = computed(() => {
   return "good";
 });
 
-onMounted(async () => {
+async function load(silent = false) {
+  if (!silent) loading.value = true;
   try {
     const [user, history] = await Promise.all([
       api<UserProfile>("/me"),
@@ -33,7 +35,13 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+
+onMounted(load);
+useRealtimeEvents(
+  ["user.updated", "points.changed", "partition.changed"],
+  () => load(true),
+);
 </script>
 
 <template>

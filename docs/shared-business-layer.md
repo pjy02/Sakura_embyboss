@@ -45,7 +45,7 @@ Telegram / Web API / Worker / Scheduler
 - 动态配置：`dynamic_settings`、`config_revisions`。
 - Web 登录与权限：`web_sessions`、`web_login_requests`、`web_roles`、`web_role_members`。
 
-`system_events` 是事务内事件箱：业务提交时只写数据库，后续 worker 再发布到 Redis/SSE，并填写 `published_at`。这样即使进程在提交后重启，Web 页面仍可补发更新。
+`system_events` 是事务内事件箱：业务提交时只写数据库，Event Relay 再发布到 SSE，并填写 `published_at`。这样即使进程在提交后重启，Web 页面仍可按事件 ID 补发更新。任务执行和可靠性设计见 [task-reliability.md](task-reliability.md)。
 
 ## 兼容策略
 
