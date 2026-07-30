@@ -16,11 +16,22 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers[
             "Content-Security-Policy"
-        ] = "default-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+        ] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
         if request.url.scheme == "https":
             response.headers[
                 "Strict-Transport-Security"
             ] = "max-age=31536000; includeSubDomains"
         if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+        elif "/assets/" in request.url.path:
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response

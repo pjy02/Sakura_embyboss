@@ -162,6 +162,10 @@ class WebAuthRouteTests(unittest.TestCase):
     def test_custom_admin_path_and_common_decoys(self):
         self.assertEqual(self.client.get("/hidden-console").status_code, 200)
         self.assertEqual(self.client.get("/app").status_code, 200)
+        runtime = self.client.get("/hidden-console/runtime-config.js")
+        self.assertEqual(runtime.status_code, 200)
+        self.assertIn('"basePath": "/hidden-console"', runtime.text)
+        self.assertNotIn(self.settings.session_secret, runtime.text)
         self.assertEqual(self.client.get("/admin").status_code, 404)
         self.assertEqual(self.client.get("/manage").status_code, 404)
         health = self.client.get("/healthz")
@@ -245,6 +249,12 @@ class WebAuthRouteTests(unittest.TestCase):
         )
         allowed = self.client.get("/api/v1/admin/users")
         self.assertEqual(allowed.status_code, 200)
+        overview = self.client.get("/api/v1/admin/overview")
+        self.assertEqual(overview.status_code, 200)
+        self.assertEqual(overview.json()["users_total"], 2)
+        detail = self.client.get("/api/v1/admin/users/1001")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn("roles", detail.json())
 
 
 if __name__ == "__main__":

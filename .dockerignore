@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.test-deps
+__pycache__
+*.pyc
+*.pyo
+*.sql
+.env
+.env.*
+!.env.web.example
+config.json
+log
+db_backup
+web/node_modules
+web/dist

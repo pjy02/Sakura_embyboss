@@ -1,6 +1,9 @@
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -10,13 +13,50 @@ from backend.settings import WebSettings, get_settings
 from bot.sql_helper import Session
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+WEB_DIST_ROOT = PROJECT_ROOT / "web" / "dist"
+
+
 def _placeholder_html(title: str, area: str) -> str:
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{title}</title></head>
-<body><main><h1>{title}</h1><p>{area} API 已就绪，前端界面将在下一阶段接入。</p></main></body>
+<body><main><h1>{title}</h1><p>{area}前端资源尚未构建，请先执行 Web 构建。</p></main></body>
 </html>"""
+
+
+def _spa_response(area: str, asset_path: str = ""):
+    root = (WEB_DIST_ROOT / area).resolve()
+    requested = (root / asset_path).resolve() if asset_path else root / "index.html"
+    if root not in requested.parents and requested != root:
+        raise HTTPException(status_code=404)
+    if asset_path and requested.is_file():
+        return FileResponse(requested)
+    index = root / "index.html"
+    if index.is_file():
+        return FileResponse(index, media_type="text/html")
+    title = "Sakura 管理中心" if area == "admin" else "Sakura 用户中心"
+    return HTMLResponse(_placeholder_html(title, title))
+
+
+def _runtime_script(settings: WebSettings, area: str) -> Response:
+    content = {
+        "apiBase": "/api/v1",
+        "area": area,
+        "basePath": (
+            f"/{settings.admin_path}" if area == "admin" else f"/{settings.user_path}"
+        ),
+        "portalPath": f"/{settings.user_path}",
+        "adminPath": f"/{settings.admin_path}",
+        "botUsername": settings.bot_username,
+        "csrfCookieName": settings.csrf_cookie_name,
+    }
+    return Response(
+        content=f"window.__SAKURA_CONFIG__={json.dumps(content)};",
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def create_app(settings: WebSettings | None = None) -> FastAPI:
@@ -62,39 +102,37 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
         except Exception:
             return JSONResponse(status_code=503, content={"status": "not_ready"})
 
-    @app.get(f"/{settings.user_path}", response_class=HTMLResponse, include_in_schema=False)
-    def user_portal_placeholder():
-        return _placeholder_html("Sakura 用户中心", "用户中心")
-
-    @app.get(
-        f"/{settings.admin_path}",
-        response_class=HTMLResponse,
-        include_in_schema=False,
-    )
-    def admin_placeholder():
-        return _placeholder_html("Sakura 管理中心", "管理中心")
-
     @app.get(
         f"/{settings.admin_path}/runtime-config.js",
         include_in_schema=False,
     )
     def admin_runtime_config():
-        content = (
-            "window.__SAKURA_CONFIG__="
-            '{"apiBase":"/api/v1","area":"admin"};'
-        )
-        return HTMLResponse(content=content, media_type="application/javascript")
+        return _runtime_script(settings, "admin")
 
     @app.get(
         f"/{settings.user_path}/runtime-config.js",
         include_in_schema=False,
     )
     def user_runtime_config():
-        content = (
-            "window.__SAKURA_CONFIG__="
-            '{"apiBase":"/api/v1","area":"portal"};'
-        )
-        return HTMLResponse(content=content, media_type="application/javascript")
+        return _runtime_script(settings, "portal")
+
+    @app.get(f"/{settings.user_path}", include_in_schema=False)
+    @app.get(f"/{settings.user_path}/", include_in_schema=False)
+    def user_portal():
+        return _spa_response("portal")
+
+    @app.get(f"/{settings.admin_path}", include_in_schema=False)
+    @app.get(f"/{settings.admin_path}/", include_in_schema=False)
+    def admin_portal():
+        return _spa_response("admin")
+
+    @app.get(f"/{settings.user_path}/{{asset_path:path}}", include_in_schema=False)
+    def user_portal_assets(asset_path: str):
+        return _spa_response("portal", asset_path)
+
+    @app.get(f"/{settings.admin_path}/{{asset_path:path}}", include_in_schema=False)
+    def admin_portal_assets(asset_path: str):
+        return _spa_response("admin", asset_path)
 
     def hidden_management_path():
         raise HTTPException(status_code=404)

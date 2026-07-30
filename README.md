@@ -1,5 +1,7 @@
 # 🌸 Sakura_embyboss 初学练习版（重构中）
 
+> Vue 用户中心与管理后台的功能、构建和安全说明见 [docs/web-ui.md](docs/web-ui.md)。
+
 <p align="center">
 <img src="image/bot2.png" alt="bot"><br>
 <a href="https://github.com/berry8838/Sakura_embyboss/stargazers"><img src="https://img.shields.io/github/stars/berry8838/Sakura_embyboss" alt="stars"></a> 

@@ -31,6 +31,15 @@ class RoleAssignmentRequest(BaseModel):
     enabled: bool
 
 
+@router.get("/overview")
+async def overview(
+    _identity: WebIdentity = Depends(
+        require_permission("users:read", telegram_only=True)
+    ),
+):
+    return await run_in_threadpool(queries.overview)
+
+
 @router.get("/users")
 async def list_users(
     search: Optional[str] = Query(None, max_length=255),
@@ -64,6 +73,7 @@ async def get_user(
     user = await run_in_threadpool(queries.get_user, tg)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+    user["roles"] = await run_in_threadpool(get_auth_service().roles_for_user, tg)
     return user
 
 

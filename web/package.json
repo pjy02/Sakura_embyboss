@@ -1,0 +1,34 @@
+{
+  "name": "sakura-embyboss-web",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:portal": "vite --mode portal",
+    "dev:admin": "vite --mode admin",
+    "build:portal": "vite build --mode portal",
+    "build:admin": "vite build --mode admin",
+    "build": "npm run build:portal && npm run build:admin",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.2.6",
+    "@fontsource/noto-sans-sc": "^5.2.6",
+    "lucide-vue-next": "^0.468.0",
+    "pinia": "^2.3.0",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/qrcode": "^1.5.5",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.5",
+    "vue-tsc": "^2.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

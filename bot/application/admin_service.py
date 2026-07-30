@@ -1,10 +1,11 @@
 import json
+from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from bot.repositories import SqlAlchemyUnitOfWork
-from bot.sql_helper.sql_application import AuditLog, PointTransaction
+from bot.sql_helper.sql_application import AuditLog, PointTransaction, utcnow
 from bot.sql_helper.sql_emby import Emby
 
 
@@ -96,6 +97,56 @@ class AdminQueryService:
         with self._uow_factory() as uow:
             rows = uow.auth.list_audit_logs(limit, offset)
             return [self._serialize_audit(row) for row in rows]
+
+    def overview(self) -> dict:
+        now = utcnow()
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        with self._uow_factory() as uow:
+            session = uow.users.session
+            users_total = session.query(func.count(Emby.tg)).scalar() or 0
+            accounts_active = (
+                session.query(func.count(Emby.tg))
+                .filter(Emby.embyid.isnot(None), Emby.embyid != "")
+                .scalar()
+                or 0
+            )
+            expiring_soon = (
+                session.query(func.count(Emby.tg))
+                .filter(Emby.ex >= now, Emby.ex <= now + timedelta(days=7))
+                .scalar()
+                or 0
+            )
+            level_rows = (
+                session.query(Emby.lv, func.count(Emby.tg))
+                .group_by(Emby.lv)
+                .all()
+            )
+            coins_total = session.query(func.coalesce(func.sum(Emby.iv), 0)).scalar() or 0
+            point_changes_today = (
+                session.query(func.count(PointTransaction.id))
+                .filter(PointTransaction.created_at >= today)
+                .scalar()
+                or 0
+            )
+            audit_events_today = (
+                session.query(func.count(AuditLog.id))
+                .filter(AuditLog.created_at >= today)
+                .scalar()
+                or 0
+            )
+            levels = {"a": 0, "b": 0, "c": 0, "d": 0}
+            for name, count in level_rows:
+                if name in levels:
+                    levels[name] = int(count)
+            return {
+                "users_total": int(users_total),
+                "accounts_active": int(accounts_active),
+                "expiring_soon": int(expiring_soon),
+                "levels": levels,
+                "coins_total": int(coins_total),
+                "point_changes_today": int(point_changes_today),
+                "audit_events_today": int(audit_events_today),
+            }
 
     @staticmethod
     def _serialize_point_transaction(row: PointTransaction) -> dict:

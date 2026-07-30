@@ -447,6 +447,11 @@ class WebAuthService:
                 )
             return result
 
+    def roles_for_user(self, tg: int) -> list[str]:
+        with self._uow_factory() as uow:
+            roles, _permissions = self._resolve_roles(uow, tg)
+            return sorted(roles)
+
     def set_role(
         self,
         *,
