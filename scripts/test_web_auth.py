@@ -145,6 +145,7 @@ class WebAuthRouteTests(unittest.TestCase):
         self.app.dependency_overrides[get_settings] = lambda: self.settings
         self.patches = [
             patch("backend.api.auth.get_auth_service", return_value=self.auth),
+            patch("backend.api.admin.get_auth_service", return_value=self.auth),
             patch("backend.dependencies.get_auth_service", return_value=self.auth),
             patch(
                 "backend.api.admin.queries",
