@@ -13,6 +13,10 @@ class PartitionCode(Base):
     partition = Column(String(64), nullable=False)
     duration_days = Column(Integer, nullable=False, default=1)
     created_by = Column(BigInteger, nullable=True)
+    status = Column(String(20), nullable=False, default="available", index=True)
+    reserved_by = Column(BigInteger, nullable=True)
+    reserved_at = Column(DateTime, nullable=True)
+    reservation_token = Column(String(36), nullable=True, unique=True)
     created_at = Column(DateTime, default=datetime.now)
 
 class PartitionGrant(Base):
@@ -244,9 +248,10 @@ def sql_clear_used_partition_grants() -> int:
 def sql_clear_all_partition_data() -> int:
     with Session() as session:
         try:
-            count = session.query(PartitionCode).delete(synchronize_session=False)
+            code_count = session.query(PartitionCode).delete(synchronize_session=False)
+            grant_count = session.query(PartitionGrant).delete(synchronize_session=False)
             session.commit()
-            return count
+            return code_count + grant_count
         except Exception:
             session.rollback()
             return 0 
@@ -267,7 +272,10 @@ def sql_redeem_partition_code_atomic(
         try:
             record = (
                 session.query(PartitionCode)
-                .filter(PartitionCode.code == code)
+                .filter(
+                    PartitionCode.code == code,
+                    PartitionCode.status == "available",
+                )
                 .with_for_update()
                 .first()
             )

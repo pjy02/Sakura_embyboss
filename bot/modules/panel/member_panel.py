@@ -6,18 +6,19 @@
 有 -> 账户续期，重置密码，删除账户，显隐媒体库
 """
 import asyncio
-import datetime
 import math
 import random
 from datetime import timedelta, datetime
 from bot.schemas import ExDate, Yulv
 from bot import bot, LOGGER, _open, emby_line, sakura_b, ranks, group, config, bot_name, schedall
+from bot.application import CodeService, PointService
+from bot.domain import Actor
 from pyrogram import filters
 from bot.func_helper.concurrency import get_user_lock
 from bot.func_helper.emby import emby
 from bot.func_helper.register_queue import get_register_queue_manager, RegisterJob
 from bot.func_helper.filters import user_in_group_on_filter
-from bot.func_helper.utils import members_info, cr_link_one, judge_admins, tem_deluser, pwd_create
+from bot.func_helper.utils import members_info, judge_admins, tem_deluser, pwd_create
 from bot.func_helper.fix_bottons import members_ikb, back_members_ikb, del_me_ikb, re_delme_ikb, \
     re_reset_ikb, re_changetg_ikb, emby_block_ikb, user_emby_block_ikb, user_emby_unblock_ikb, re_exchange_b_ikb, \
     store_ikb, re_bindtg_ikb, close_it_ikb, store_query_page, re_born_ikb, send_changetg_ikb, favorites_page_ikb
@@ -28,6 +29,10 @@ from bot.modules.commands.exchange import rgs_code
 from bot.sql_helper.sql_code import sql_count_c_code
 from bot.sql_helper.sql_emby import sql_get_emby, sql_update_emby, Emby
 from bot.sql_helper.sql_emby2 import sql_get_emby2, sql_delete_emby2
+
+
+point_service = PointService()
+code_service = CodeService()
 
 # 创号函数
 async def create_user(_, call, stats):
@@ -662,9 +667,20 @@ async def do_store_whitelist(_, call):
                                     f'🏪 兑换规则：\n当前兑换白名单需要 {_open.whitelist_cost} {sakura_b}，已有白名单无法再次消费。勉励',
                                     True)
         await callAnswer(call, f'🏪 您已满足 {_open.whitelist_cost} {sakura_b}要求', True)
-        sql_update_emby(Emby.tg == call.from_user.id, lv='a', iv=e.iv - _open.whitelist_cost)
+        result = point_service.purchase_level(
+            tg=call.from_user.id,
+            target_level="a",
+            cost=_open.whitelist_cost,
+            actor=Actor.telegram(call.from_user.id, call.from_user.first_name),
+            reason="purchase_whitelist",
+            idempotency_key=f"telegram:{call.from_user.id}:whitelist:{call.id}",
+        )
+        if result.status in {"insufficient_balance", "already_owned"}:
+            return await callAnswer(call, '⚠️ 账户状态或余额已变化，请重新打开兑换商店。', True)
+        if not result.ok:
+            return await callAnswer(call, '⚠️ 兑换失败，请稍后重试。', True)
         send = await call.message.edit(f'**{random.choice(Yulv.load_yulv().wh_msg)}**\n\n'
-                                       f'🎉 恭喜[{call.from_user.first_name}](tg://user?id={call.from_user.id}) 今日晋升，{ranks["logo"]}白名单')
+                                       f'🎉 恭喜[{call.from_user.first_name}](tg://user?id={call.from_user.id}) 今日晋升，{ranks.logo}白名单')
         await send.forward(group[0])
         LOGGER.info(f'【兑换白名单】- {call.from_user.id} 已花费 9999{sakura_b}，晋升白名单')
     else:
@@ -704,6 +720,8 @@ async def do_store_invite(_, call):
             times, count, method = content.text.split()
             days = getattr(ExDate(), times)
             count = int(count)
+            if count < 1 or count > 100:
+                raise ValueError
             cost = math.floor((days * count / 30) * _open.invite_cost)
             if e.iv < cost:
                 return await asyncio.gather(content.delete(),
@@ -717,10 +735,33 @@ async def do_store_invite(_, call):
                                         do_store(_, call),
                                         content.delete())
         else:
-            sql_update_emby(Emby.tg == call.from_user.id, iv=e.iv - cost)
-            links = await cr_link_one(call.from_user.id, days, count, days, method)
-            if links is None:
-                return await editMessage(call, '⚠️ 数据库插入失败，请检查数据库')
+            code_values = []
+            rendered_links = []
+            for _index in range(count):
+                suffix = await pwd_create(10)
+                code_value = f'{ranks.logo}-{days}-Register_{suffix}'
+                code_values.append(code_value)
+                if method == "code":
+                    rendered_links.append(f'`{code_value}`')
+                else:
+                    rendered_links.append(f't.me/{bot_name}?start={code_value}')
+
+            purchase = code_service.purchase_registration_codes(
+                tg=call.from_user.id,
+                codes=code_values,
+                days=days,
+                cost=cost,
+                maximum_level=_open.invite_lv,
+                actor=Actor.telegram(call.from_user.id, call.from_user.first_name),
+                idempotency_key=f"telegram:{call.from_user.id}:invite:{content.id}",
+            )
+            if purchase.status == "insufficient_balance":
+                return await editMessage(call, '⚠️ 余额已经发生变化，请重新进入兑换商店。')
+            if not purchase.ok:
+                return await editMessage(call, '⚠️ 数据库写入失败，未扣除积分，请稍后重试。')
+            if purchase.replayed:
+                return await editMessage(call, 'ℹ️ 该兑换请求已经处理，系统未重复扣款。请在“兑换记录”中查看注册码。')
+            links = "\n".join(rendered_links)
             links = f"🎯 {bot_name}已为您生成了 **{days}天** 注册码 {count} 个\n\n" + links
             chunks = [links[i:i + 4096] for i in range(0, len(links), 4096)]
             for chunk in chunks:

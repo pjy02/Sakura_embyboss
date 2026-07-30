@@ -2,17 +2,19 @@
 兑换注册码exchange
 """
 import random
-from datetime import timedelta, datetime
 
 from bot import bot, _open, LOGGER, bot_photo, ranks
+from bot.application import CodeService
+from bot.domain import Actor, secret_fingerprint
 from bot.schemas import Yulv
 from bot.func_helper.emby import emby
 from bot.func_helper.concurrency import get_user_lock
 from bot.func_helper.fix_bottons import register_code_ikb
 from bot.func_helper.msg_utils import sendMessage, sendPhoto
-from bot.sql_helper.sql_code import Code
-from bot.sql_helper.sql_emby import sql_get_emby, Emby
-from bot.sql_helper import Session
+from bot.sql_helper.sql_emby import sql_get_emby
+
+
+code_service = CodeService()
 
 
 def is_renew_code(input_string):
@@ -27,95 +29,34 @@ def is_whitelist_code(input_string):
 
 
 def _redeem_whitelist_code_atomic(register_code: str, user_id: int):
-    now = datetime.now()
-    with Session() as session:
-        user = session.query(Emby).filter(Emby.tg == user_id).with_for_update().first()
-        if not user:
-            return {"status": "no_user"}
-        if not user.embyid:
-            return {"status": "no_account"}
-
-        code = session.query(Code).filter(Code.code == register_code).with_for_update().first()
-        if not code:
-            return {"status": "invalid_code"}
-        if code.used is not None:
-            return {"status": "used", "used": code.used}
-
-        already_wl = user.lv == 'a'
-        if already_wl:
-            return {"status": "already_wl"}
-        user.lv = 'a'
-        code.used = user_id
-        code.usedtime = now
-        session.commit()
-        return {"status": "ok", "issuer_tg": code.tg}
+    result = code_service.redeem_whitelist(
+        code_value=register_code,
+        tg=user_id,
+        actor=Actor.telegram(user_id),
+        idempotency_key=f"telegram:{user_id}:{secret_fingerprint(register_code)}",
+    )
+    return {"status": result.status, **result.data}
 
 
 def _redeem_register_code_atomic(register_code: str, user_id: int):
-    now = datetime.now()
-    with Session() as session:
-        user = session.query(Emby).filter(Emby.tg == user_id).with_for_update().first()
-        if not user:
-            return {"status": "no_user"}
-        if user.embyid:
-            return {"status": "has_account"}
-        if int(user.us or 0) > 0:
-            return {"status": "already_qualified"}
-
-        code = session.query(Code).filter(Code.code == register_code).with_for_update().first()
-        if not code:
-            return {"status": "invalid_code"}
-
-        code_prefix = register_code.split('-')[0]
-        if code_prefix not in ranks.logo and code_prefix != str(user_id):
-            return {"status": "forbidden"}
-        if code.used is not None:
-            return {"status": "used", "used": code.used}
-
-        code.used = user_id
-        code.usedtime = now
-        user.us = int(user.us or 0) + int(code.us or 0)
-        session.commit()
-        return {"status": "ok", "issuer_tg": code.tg, "days": code.us}
+    result = code_service.redeem_registration(
+        code_value=register_code,
+        tg=user_id,
+        logo=ranks.logo,
+        actor=Actor.telegram(user_id),
+        idempotency_key=f"telegram:{user_id}:{secret_fingerprint(register_code)}",
+    )
+    return {"status": result.status, **result.data}
 
 
 def _redeem_renew_code_atomic(register_code: str, user_id: int):
-    now = datetime.now()
-    with Session() as session:
-        user = session.query(Emby).filter(Emby.tg == user_id).with_for_update().first()
-        if not user:
-            return {"status": "no_user"}
-        if not user.embyid:
-            return {"status": "no_account"}
-
-        code = session.query(Code).filter(Code.code == register_code).with_for_update().first()
-        if not code:
-            return {"status": "invalid_code"}
-        if code.used is not None:
-            return {"status": "used", "used": code.used}
-
-        code.used = user_id
-        code.usedtime = now
-
-        current_ex = user.ex or now
-        expired = now > current_ex
-        if expired:
-            ex_new = now + timedelta(days=code.us)
-            if user.lv == 'c':
-                user.lv = 'b'
-        else:
-            ex_new = current_ex + timedelta(days=code.us)
-
-        user.ex = ex_new
-        session.commit()
-        return {
-            "status": "ok",
-            "issuer_tg": code.tg,
-            "days": code.us,
-            "ex_new": ex_new,
-            "embyid": user.embyid,
-            "restore_policy": expired,
-        }
+    result = code_service.redeem_renewal(
+        code_value=register_code,
+        tg=user_id,
+        actor=Actor.telegram(user_id),
+        idempotency_key=f"telegram:{user_id}:{secret_fingerprint(register_code)}",
+    )
+    return {"status": result.status, **result.data}
 
 
 async def rgs_code(_, msg, register_code):

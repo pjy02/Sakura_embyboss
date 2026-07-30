@@ -4,7 +4,15 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from bot.sql_helper import Base
-from bot.sql_helper import sql_code, sql_emby, sql_emby2, sql_favorites, sql_partition, sql_request_record  # noqa: F401
+from bot.sql_helper import (  # noqa: F401
+    sql_application,
+    sql_code,
+    sql_emby,
+    sql_emby2,
+    sql_favorites,
+    sql_partition,
+    sql_request_record,
+)
 
 config = context.config
 
