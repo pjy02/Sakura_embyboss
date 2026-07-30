@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy.orm import Session as OrmSession
 
 from bot.sql_helper import Session
+from bot.repositories.auth import AuthRepository
 from bot.repositories.codes import CodeRepository
 from bot.repositories.operations import OperationRepository
 from bot.repositories.partitions import PartitionRepository
@@ -18,6 +19,7 @@ class SqlAlchemyUnitOfWork:
 
     def __enter__(self) -> "SqlAlchemyUnitOfWork":
         self.session = self._session_factory()
+        self.auth = AuthRepository(self.session)
         self.users = UserRepository(self.session)
         self.codes = CodeRepository(self.session)
         self.partitions = PartitionRepository(self.session)

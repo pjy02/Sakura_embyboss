@@ -9,6 +9,7 @@ from bot.sql_helper.sql_application import (
     AuditLog,
     IdempotencyRecord,
     PointTransaction,
+    SecurityEvent,
     SystemEvent,
 )
 
@@ -112,5 +113,26 @@ class OperationRepository:
                 aggregate_id=aggregate_id,
                 payload_json=_json(payload),
                 created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            )
+        )
+
+    def security_event(
+        self,
+        *,
+        event_type: str,
+        severity: str = "info",
+        subject_kind: Optional[str] = None,
+        subject_id: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        detail: Any = None,
+    ) -> None:
+        self.session.add(
+            SecurityEvent(
+                event_type=event_type,
+                severity=severity,
+                subject_kind=subject_kind,
+                subject_id=subject_id,
+                ip_address=ip_address,
+                detail_json=_json(detail),
             )
         )

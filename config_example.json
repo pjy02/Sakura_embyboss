@@ -3,9 +3,9 @@
   "bot_token": "5701:AAEvAHzsg30",
   "owner_api": 73711,
   "owner_hash": "",
-  "owner": xxxxxxx,
+  "owner": 123456789,
   "group": [
-    -100xxxxxx
+    -1001234567890
   ],
   "main_group": "Aaaaa_su",
   "chanel": "su_yxfy",
@@ -104,7 +104,7 @@
   },
   "moviepilot": {
     "status": false,
-    "host": null,
+    "url": null,
     "username": null,
     "password": null,
     "access_token": null,
@@ -123,8 +123,17 @@
     "status": true,
     "http_url": "0.0.0.0",
     "http_port": 8838,
-    "allow_origins": [
-      "*"
+    "allow_origins": [],
+    "admin_path": "sakura-console-k7fd92",
+    "user_path": "app",
+    "public_base_url": "https://emby.example.com",
+    "cookie_secure": true,
+    "session_ttl_hours": 168,
+    "login_ttl_seconds": 300,
+    "legacy_api_enabled": false,
+    "docs_enabled": false,
+    "trusted_hosts": [
+      "emby.example.com"
     ]
   }
 }

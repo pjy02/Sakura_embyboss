@@ -48,7 +48,14 @@ from bot.sql_helper.sql_application import AuditLog, PointTransaction
 from bot.sql_helper.sql_code import Code
 from bot.sql_helper.sql_emby import Emby
 from bot.sql_helper.sql_partition import PartitionCode, PartitionGrant
-from bot.application import CodeService, PartitionService, PointService, UserService
+from bot.application import (
+    CodeService,
+    PartitionService,
+    PointService,
+    TokenCodec,
+    UserService,
+    WebAuthService,
+)
 from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
 
@@ -68,6 +75,12 @@ class ApplicationServiceTests(unittest.TestCase):
         self.points = PointService(self.uow_factory)
         self.codes = CodeService(self.uow_factory)
         self.partitions = PartitionService(self.uow_factory)
+        self.auth = WebAuthService(
+            token_codec=TokenCodec("test-web-session-secret-long-enough"),
+            owner_tg=9001,
+            admin_tg_ids=[9002],
+            uow_factory=self.uow_factory,
+        )
 
     def tearDown(self):
         Base.metadata.drop_all(self.engine)
@@ -209,6 +222,70 @@ class ApplicationServiceTests(unittest.TestCase):
         with self.session_factory() as session:
             self.assertIsNone(session.get(PartitionCode, "PARTITION-1"))
             self.assertEqual(session.query(PartitionGrant).count(), 1)
+
+    def test_telegram_login_is_confirmed_before_session_creation(self):
+        self._add_user(embyid="emby-1", name="alice", lv="b")
+        started = self.auth.create_telegram_login(ip_address="127.0.0.1")
+        raw_token = started.data["request_token"]
+
+        before_approval = self.auth.exchange_telegram_login(
+            raw_token=raw_token,
+            user_agent="test",
+            ip_address="127.0.0.1",
+        )
+        self.assertEqual(before_approval.status, "not_approved")
+
+        claimed = self.auth.claim_telegram_login(
+            raw_token=raw_token,
+            tg=1001,
+            display_name="alice",
+        )
+        self.assertTrue(claimed.ok)
+        approved = self.auth.decide_telegram_login(
+            request_id=claimed.data["request_id"],
+            tg=1001,
+            approve=True,
+        )
+        self.assertTrue(approved.ok)
+
+        exchanged = self.auth.exchange_telegram_login(
+            raw_token=raw_token,
+            user_agent="test",
+            ip_address="127.0.0.1",
+        )
+        self.assertTrue(exchanged.ok)
+        identity = self.auth.authenticate(exchanged.data["session_token"])
+        self.assertEqual(identity.tg, 1001)
+        self.assertEqual(identity.auth_method, "telegram")
+        self.assertTrue(
+            self.auth.verify_csrf(identity, exchanged.data["csrf_token"])
+        )
+
+    def test_telegram_login_rejects_a_different_requested_identity(self):
+        self._add_user(tg=1001, embyid="emby-1", name="alice", lv="b")
+        self._add_user(tg=1002, embyid="emby-2", name="bob", lv="b")
+        started = self.auth.create_telegram_login(
+            ip_address="127.0.0.1",
+            requested_tg=1001,
+        )
+        claimed = self.auth.claim_telegram_login(
+            raw_token=started.data["request_token"],
+            tg=1002,
+        )
+        self.assertEqual(claimed.status, "identity_mismatch")
+
+    def test_owner_permissions_and_emby_auth_method_are_distinct(self):
+        self._add_user(tg=9001, embyid="owner-emby", name="owner", lv="a")
+        result = self.auth.create_emby_session(
+            embyid="owner-emby",
+            username="owner",
+            user_agent="test",
+            ip_address="127.0.0.1",
+        )
+        identity = self.auth.authenticate(result.data["session_token"])
+        self.assertEqual(identity.auth_method, "emby")
+        self.assertTrue(identity.has_permission("users:read"))
+        self.assertTrue(identity.is_owner)
 
 
 if __name__ == "__main__":

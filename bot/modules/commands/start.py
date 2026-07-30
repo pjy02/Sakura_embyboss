@@ -10,6 +10,7 @@ from pyrogram import filters
 from bot.application import UserService
 from bot.domain import Actor
 from bot.func_helper.emby import Embyservice
+from bot.func_helper.web_login import handle_web_login_start
 from bot.func_helper.utils import judge_admins, members_info, open_check
 from bot.modules.commands.exchange import rgs_code
 from bot.sql_helper.sql_emby import sql_get_emby
@@ -51,6 +52,8 @@ async def count_info(_, msg):
 # 私聊开启面板
 @bot.on_message(filters.command('start', prefixes) & filters.private)
 async def p_start(_, msg):
+    if len(msg.command) > 1 and msg.command[1].startswith("web_"):
+        return await handle_web_login_start(msg, msg.command[1][4:])
     if not await user_in_group_filter(_, msg):
         return await asyncio.gather(deleteMessage(msg),
                                     sendMessage(msg,

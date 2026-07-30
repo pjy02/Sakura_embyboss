@@ -10,6 +10,7 @@ from bot.modules.commands import *
 # 其他
 from bot.modules.extra import *
 from bot.modules.callback import *
-from bot.web import *
+from bot.web import schedule_embedded_web
 
+schedule_embedded_web()
 bot.run()
