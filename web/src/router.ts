@@ -3,6 +3,7 @@ import { runtime } from "@/lib/runtime";
 import { useSessionStore } from "@/stores/session";
 
 const LoginView = () => import("@/views/LoginView.vue");
+const RegisterView = () => import("@/views/RegisterView.vue");
 const AppShell = () => import("@/components/AppShell.vue");
 
 const childRoutes =
@@ -172,6 +173,16 @@ export const router = createRouter({
   history: createWebHistory(`${runtime.basePath}/`),
   routes: [
     { path: "/login", name: "login", component: LoginView, meta: { public: true } },
+    ...(runtime.area === "portal"
+      ? [
+          {
+            path: "/register",
+            name: "register",
+            component: RegisterView,
+            meta: { public: true, title: "注册中心" },
+          },
+        ]
+      : []),
     {
       path: "/",
       component: AppShell,

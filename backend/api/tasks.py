@@ -109,7 +109,7 @@ async def enqueue_task(
     ),
 ):
     definition = TASK_DEFINITIONS.get(payload.task_type)
-    if not definition:
+    if not definition or not definition.admin_exposed:
         raise HTTPException(status_code=400, detail="不支持此任务类型")
     if definition.risk in {"warning", "danger"} and not payload.confirm:
         raise HTTPException(status_code=409, detail="此任务需要明确确认后才能执行")

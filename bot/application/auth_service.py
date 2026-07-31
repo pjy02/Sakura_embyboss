@@ -159,6 +159,7 @@ class WebIdentity:
     roles: tuple[str, ...]
     permissions: frozenset[str]
     csrf_hash: str
+    purpose: str = "login"
 
     @property
     def is_owner(self) -> bool:
@@ -194,7 +195,10 @@ class WebAuthService:
         *,
         ip_address: str,
         requested_tg: Optional[int] = None,
+        purpose: str = "login",
     ) -> ServiceResult:
+        if purpose not in {"login", "registration"}:
+            raise ValueError("Unsupported Telegram verification purpose")
         now = utcnow()
         with self._uow_factory() as uow:
             recent_count = uow.auth.recent_login_request_count(
@@ -218,6 +222,7 @@ class WebAuthService:
                 WebLoginRequest(
                     id=request_id,
                     request_token_hash=self.codec.digest(raw_token),
+                    purpose=purpose,
                     status="pending",
                     requested_tg=requested_tg,
                     ip_address=ip_address,
@@ -231,6 +236,7 @@ class WebAuthService:
                     "request_id": request_id,
                     "request_token": raw_token,
                     "expires_at": expires_at,
+                    "purpose": purpose,
                 },
             )
 
@@ -240,6 +246,7 @@ class WebAuthService:
         raw_token: str,
         tg: int,
         display_name: Optional[str] = None,
+        expected_purpose: str = "login",
     ) -> ServiceResult:
         now = utcnow()
         with self._uow_factory() as uow:
@@ -249,6 +256,8 @@ class WebAuthService:
             )
             if not request:
                 return ServiceResult("invalid_request")
+            if request.purpose != expected_purpose:
+                return ServiceResult("purpose_mismatch")
             if request.expires_at <= now:
                 request.status = "expired"
                 return ServiceResult("expired")
@@ -266,8 +275,29 @@ class WebAuthService:
                 return ServiceResult("identity_mismatch")
 
             user = uow.users.get(tg)
-            if not user and tg != self.owner_tg and tg not in self.admin_tg_ids:
+            if (
+                not user
+                and expected_purpose != "registration"
+                and tg != self.owner_tg
+                and tg not in self.admin_tg_ids
+            ):
                 return ServiceResult("user_not_found")
+            if not user and expected_purpose == "registration":
+                _user, created = uow.users.add_if_missing(tg)
+                if created:
+                    uow.operations.audit(
+                        actor=Actor.telegram(tg, display_name),
+                        action="user.create",
+                        resource_type="user",
+                        resource_id=str(tg),
+                        detail={"source": "web-registration"},
+                    )
+                    uow.operations.event(
+                        "user.created",
+                        "user",
+                        str(tg),
+                        {"tg": tg, "source": "web-registration"},
+                    )
 
             request.requested_tg = tg
             request.status = "claimed"
@@ -278,7 +308,10 @@ class WebAuthService:
                 resource_type="web_login_request",
                 resource_id=request.id,
             )
-            return ServiceResult("ok", {"request_id": request.id})
+            return ServiceResult(
+                "ok",
+                {"request_id": request.id, "purpose": request.purpose},
+            )
 
     def decide_telegram_login(
         self,
@@ -326,6 +359,7 @@ class WebAuthService:
                 {
                     "status": request.status,
                     "expires_at": request.expires_at,
+                    "purpose": request.purpose,
                 },
             )
 
@@ -335,6 +369,7 @@ class WebAuthService:
         raw_token: str,
         user_agent: Optional[str],
         ip_address: str,
+        expected_purpose: str = "login",
     ) -> ServiceResult:
         now = utcnow()
         with self._uow_factory() as uow:
@@ -344,6 +379,8 @@ class WebAuthService:
             )
             if not request:
                 return ServiceResult("invalid_request")
+            if request.purpose != expected_purpose:
+                return ServiceResult("purpose_mismatch")
             if request.expires_at <= now:
                 request.status = "expired"
                 return ServiceResult("expired")
@@ -359,6 +396,7 @@ class WebAuthService:
                 user_agent=user_agent,
                 ip_address=ip_address,
                 now=now,
+                purpose=expected_purpose,
             )
             request.status = "consumed"
             request.consumed_at = now
@@ -410,11 +448,17 @@ class WebAuthService:
         user_agent: Optional[str],
         ip_address: str,
         now: datetime,
+        purpose: str = "login",
     ) -> ServiceResult:
         raw_session = self.codec.generate(48)
         raw_csrf = self.codec.generate(24)
         session_id = str(uuid4())
-        expires_at = now + self.session_ttl
+        ttl = (
+            min(self.session_ttl, timedelta(minutes=15))
+            if purpose == "registration"
+            else self.session_ttl
+        )
+        expires_at = now + ttl
         uow.auth.add_session(
             WebSession(
                 id=session_id,
@@ -422,6 +466,7 @@ class WebAuthService:
                 token_hash=self.codec.digest(raw_session),
                 csrf_hash=self.codec.digest(raw_csrf),
                 auth_method=auth_method,
+                purpose=purpose,
                 ip_address=ip_address,
                 user_agent=(user_agent or "")[:512],
                 created_at=now,
@@ -486,7 +531,10 @@ class WebAuthService:
                 return None
             if not session.last_seen_at or session.last_seen_at <= now - timedelta(minutes=5):
                 session.last_seen_at = now
-            roles, permissions = self._resolve_roles(uow, session.tg)
+            if session.purpose == "registration":
+                roles, permissions = {"member"}, set()
+            else:
+                roles, permissions = self._resolve_roles(uow, session.tg)
             return WebIdentity(
                 session_id=session.id,
                 tg=session.tg,
@@ -494,6 +542,7 @@ class WebAuthService:
                 roles=tuple(sorted(roles)),
                 permissions=frozenset(permissions),
                 csrf_hash=session.csrf_hash,
+                purpose=session.purpose,
             )
 
     def verify_csrf(self, identity: WebIdentity, raw_csrf: str) -> bool:

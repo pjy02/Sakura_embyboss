@@ -45,10 +45,60 @@ async def backup_database_handler(_payload: dict) -> dict:
     }
 
 
+async def registration_account_handler(payload: dict) -> dict:
+    from bot.application.registration_service import RegistrationService
+
+    result = await RegistrationService().execute(payload)
+    if payload.get("channel") == "telegram":
+        await _notify_registration_result(payload, result)
+    return result
+
+
+async def _notify_registration_result(payload: dict, result: dict) -> None:
+    chat_id = payload.get("notification_chat_id")
+    message_id = payload.get("notification_message_id")
+    if not chat_id:
+        return
+    if result.get("ok"):
+        text = (
+            "账号创建成功\n\n"
+            f"用户名：{result.get('username')}\n"
+            f"Emby 密码：{result.get('emby_password')}\n"
+            f"安全码：{payload.get('safety_code')}\n"
+            f"到期时间：{result.get('expires_at')}\n\n"
+            "请妥善保存密码，之后可在 Bot 或 Web 用户中心管理账号。"
+        )
+    else:
+        text = (
+            "账号创建失败\n\n"
+            f"{result.get('message') or '请稍后重新提交注册任务。'}"
+        )
+    try:
+        from bot import bot
+
+        if message_id:
+            await bot.edit_message_text(
+                int(chat_id),
+                int(message_id),
+                text,
+                parse_mode=None,
+            )
+        else:
+            await bot.send_message(int(chat_id), text, parse_mode=None)
+    except Exception:
+        try:
+            from bot import bot
+
+            await bot.send_message(int(chat_id), text, parse_mode=None)
+        except Exception:
+            pass
+
+
 TASK_HANDLERS: dict[str, TaskHandler] = {
     "sync.favorites": sync_favorites_handler,
     "sync.moviepilot": sync_moviepilot_handler,
     "maintenance.partition_access": partition_access_handler,
     "maintenance.expired_accounts": expired_accounts_handler,
     "maintenance.backup_database": backup_database_handler,
+    "registration.account": registration_account_handler,
 }

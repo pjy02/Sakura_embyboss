@@ -29,6 +29,13 @@ bot_stub.owner = 9001
 bot_stub.admins = [9002]
 bot_stub.bot_name = "sakura_test_bot"
 bot_stub.bot_token = "test-token"
+bot_stub._open = SimpleNamespace(
+    stat=True,
+    open_us=30,
+    all_user=100,
+    register_queue_limit=10,
+)
+bot_stub.ranks = SimpleNamespace(logo="SAKURA")
 bot_stub.LOGGER = SimpleNamespace(
     debug=lambda *args, **kwargs: None,
     info=lambda *args, **kwargs: None,
@@ -82,6 +89,7 @@ from backend.settings import WebSettings, get_settings
 from bot.application import (
     AdminQueryService,
     PointService,
+    RegistrationService,
     ReliabilityService,
     TaskService,
     TokenCodec,
@@ -147,6 +155,7 @@ class WebAuthRouteTests(unittest.TestCase):
         self.app.dependency_overrides[get_settings] = lambda: self.settings
         self.patches = [
             patch("backend.api.auth.get_auth_service", return_value=self.auth),
+            patch("backend.api.registration.get_auth_service", return_value=self.auth),
             patch("backend.api.admin.get_auth_service", return_value=self.auth),
             patch("backend.dependencies.get_auth_service", return_value=self.auth),
             patch(
@@ -164,6 +173,10 @@ class WebAuthRouteTests(unittest.TestCase):
             patch(
                 "backend.api.tasks.reliability",
                 ReliabilityService(self.uow_factory),
+            ),
+            patch(
+                "backend.api.registration.registration_service",
+                RegistrationService(self.uow_factory),
             ),
         ]
         for item in self.patches:
@@ -226,6 +239,50 @@ class WebAuthRouteTests(unittest.TestCase):
     def test_unauthenticated_profile_is_rejected(self):
         response = self.client.get("/api/v1/me")
         self.assertEqual(response.status_code, 401)
+
+    def test_web_registration_verifies_identity_and_enters_shared_queue(self):
+        started = self.client.post("/api/v1/registration/telegram/start", json={})
+        self.assertEqual(started.status_code, 201)
+        token = started.json()["request_token"]
+        self.assertIn("?start=webreg_", started.json()["deep_link"])
+
+        claimed = self.auth.claim_telegram_login(
+            raw_token=token,
+            tg=1003,
+            expected_purpose="registration",
+        )
+        self.assertTrue(claimed.ok)
+        self.auth.decide_telegram_login(
+            request_id=claimed.data["request_id"],
+            tg=1003,
+            approve=True,
+        )
+        exchanged = self.client.post(
+            "/api/v1/registration/telegram/exchange",
+            json={"token": token},
+        )
+        self.assertEqual(exchanged.status_code, 200)
+
+        csrf = self.client.cookies["sakura_csrf"]
+        submitted = self.client.post(
+            "/api/v1/registration/submit",
+            headers={
+                "X-CSRF-Token": csrf,
+                "Idempotency-Key": "registration-route-test",
+            },
+            json={
+                "username": "new-user",
+                "safety_code": "1234",
+                "registration_code": None,
+            },
+        )
+        self.assertEqual(submitted.status_code, 202)
+        self.assertEqual(submitted.json()["task_type"], "registration.account")
+        task = self.client.get(
+            f"/api/v1/registration/tasks/{submitted.json()['id']}"
+        )
+        self.assertEqual(task.status_code, 200)
+        self.assertNotIn("safety_code", task.json()["input"])
 
     def test_admin_event_prefixes_follow_module_permissions(self):
         identity = WebIdentity(

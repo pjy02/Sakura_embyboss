@@ -34,7 +34,7 @@ class EmbyLoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=255)
 
 
-def _set_auth_cookies(
+def set_auth_cookies(
     response: Response,
     *,
     settings: WebSettings,
@@ -120,7 +120,7 @@ async def telegram_exchange(
             status_code=status_map.get(result.status, 400),
             detail="登录请求尚未确认或已失效",
         )
-    _set_auth_cookies(
+    set_auth_cookies(
         response,
         settings=settings,
         session_token=result.data["session_token"],
@@ -172,7 +172,7 @@ async def emby_login(
     )
     if not result.ok:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
-    _set_auth_cookies(
+    set_auth_cookies(
         response,
         settings=settings,
         session_token=result.data["session_token"],
@@ -191,6 +191,7 @@ async def session_info(identity: WebIdentity = Depends(current_identity)):
     return {
         "tg": identity.tg,
         "auth_method": identity.auth_method,
+        "purpose": identity.purpose,
         "roles": identity.roles,
         "permissions": sorted(identity.permissions),
     }

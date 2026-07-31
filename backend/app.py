@@ -19,6 +19,7 @@ from backend.api import (
     governance_router,
     me_router,
     operations_router,
+    registration_router,
     tasks_router,
 )
 from backend.event_relay import EventRelay
@@ -112,6 +113,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     api_v1 = APIRouter(prefix="/api/v1")
     api_v1.include_router(auth_router)
+    api_v1.include_router(registration_router)
     api_v1.include_router(me_router)
     api_v1.include_router(commerce_me_router)
     api_v1.include_router(community_me_router)

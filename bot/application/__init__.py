@@ -14,6 +14,7 @@ from .governance_service import DynamicSettingsService, RiskEventService
 from .partition_service import PartitionService
 from .point_service import PointService
 from .reliability_service import ReliabilityService
+from .registration_service import RegistrationService
 from .task_service import TaskService
 from .user_service import UserService
 
@@ -28,6 +29,7 @@ __all__ = [
     "PartitionService",
     "PointService",
     "ReliabilityService",
+    "RegistrationService",
     "RiskEventService",
     "ReviewService",
     "TaskService",

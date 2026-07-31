@@ -201,6 +201,9 @@ onBeforeUnmount(() => window.clearTimeout(timer));
         </form>
 
         <p v-if="error" class="form-error">{{ error }}</p>
+        <RouterLink v-if="!isAdmin" class="register-link" to="/register">
+          还没有账号？前往 Web 注册中心
+        </RouterLink>
         <p class="login-footnote">登录即代表你授权当前浏览器创建安全会话。我们不会在网页中保存你的密码。</p>
       </div>
     </section>

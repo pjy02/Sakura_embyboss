@@ -20,6 +20,7 @@ class TaskDefinition:
     risk: str
     timeout_seconds: int
     max_retries: int
+    admin_exposed: bool = True
 
 
 TASK_DEFINITIONS = {
@@ -65,6 +66,15 @@ TASK_DEFINITIONS = {
             1800,
             1,
         ),
+        TaskDefinition(
+            "registration.account",
+            "创建 Emby 账号",
+            "通过共享注册队列创建账号并写入用户资料。",
+            "normal",
+            180,
+            0,
+            False,
+        ),
     )
 }
 
@@ -78,7 +88,21 @@ def _loads(value: Optional[str]):
         return None
 
 
-def serialize_task(row: OperationTask) -> dict:
+def _sanitized_task_data(task_type: str, value, include_sensitive: bool):
+    if include_sensitive or task_type != "registration.account":
+        return value
+    if not isinstance(value, dict):
+        return value
+    sanitized = dict(value)
+    for key in ("safety_code", "registration_code", "emby_password"):
+        if key in sanitized:
+            sanitized[key] = "********"
+    return sanitized
+
+
+def serialize_task(row: OperationTask, *, include_sensitive: bool = False) -> dict:
+    input_data = _loads(row.input_json)
+    result_data = _loads(row.result_json)
     return {
         "id": row.id,
         "task_type": row.task_type,
@@ -90,8 +114,8 @@ def serialize_task(row: OperationTask) -> dict:
         "progress": int(row.progress or 0),
         "owner_kind": row.owner_kind,
         "owner_id": row.owner_id,
-        "input": _loads(row.input_json),
-        "result": _loads(row.result_json),
+        "input": _sanitized_task_data(row.task_type, input_data, include_sensitive),
+        "result": _sanitized_task_data(row.task_type, result_data, include_sensitive),
         "error_message": row.error_message,
         "retry_count": int(row.retry_count or 0),
         "max_retries": int(row.max_retries or 0),
@@ -120,6 +144,7 @@ class TaskService:
                 "max_retries": item.max_retries,
             }
             for item in TASK_DEFINITIONS.values()
+            if item.admin_exposed
         ]
 
     def enqueue(
@@ -315,7 +340,7 @@ class TaskService:
                 row.id,
                 {"task_id": row.id, "status": "running"},
             )
-            return serialize_task(row)
+            return serialize_task(row, include_sensitive=True)
 
     def heartbeat(self, task_id: str, worker_id: str, lease_seconds: int) -> bool:
         now = utcnow()

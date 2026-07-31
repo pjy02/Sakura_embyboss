@@ -6,6 +6,7 @@ The test suite uses SQLite and does not need Telegram, Emby or MySQL.
 
 import os
 import asyncio
+import json
 import sys
 import types
 import unittest
@@ -28,6 +29,13 @@ bot_stub.db_name = "unused"
 bot_stub.db_port = 3306
 bot_stub.emby_line = "https://legacy.example.com"
 bot_stub.emby_whitelist_line = "https://legacy-vip.example.com"
+bot_stub._open = types.SimpleNamespace(
+    stat=True,
+    open_us=30,
+    all_user=100,
+    register_queue_limit=10,
+)
+bot_stub.ranks = types.SimpleNamespace(logo="SAKURA")
 bot_stub.LOGGER = types.SimpleNamespace(
     debug=lambda *args, **kwargs: None,
     info=lambda *args, **kwargs: None,
@@ -51,6 +59,7 @@ from bot.sql_helper.sql_application import (
     AuditLog,
     ConfigRevision,
     DynamicSetting,
+    OperationTask,
     PointTransaction,
     SecurityEvent,
     SystemEvent,
@@ -82,6 +91,7 @@ from bot.application import (
     NotificationService,
     PartitionService,
     PointService,
+    RegistrationService,
     TicketService,
     TokenCodec,
     UserService,
@@ -116,6 +126,20 @@ class StubEmbyClient:
         return True
 
 
+class StubRegistrationEmbyClient:
+    def __init__(self):
+        self.created = []
+        self.deleted = []
+
+    async def emby_create(self, name, days):
+        self.created.append((name, days))
+        return f"emby-{name}", "generated-password", datetime(2026, 8, 30, 12, 0, 0)
+
+    async def emby_del(self, emby_id):
+        self.deleted.append(emby_id)
+        return True
+
+
 class ApplicationServiceTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
@@ -147,6 +171,11 @@ class ApplicationServiceTests(unittest.TestCase):
         self.core_operations = CoreOperationsService(
             self.uow_factory,
             emby_client=self.emby_client,
+        )
+        self.registration_emby = StubRegistrationEmbyClient()
+        self.registrations = RegistrationService(
+            self.uow_factory,
+            emby_client=self.registration_emby,
         )
         self.auth = WebAuthService(
             token_codec=TokenCodec("test-web-session-secret-long-enough"),
@@ -332,6 +361,76 @@ class ApplicationServiceTests(unittest.TestCase):
             self.assertEqual(session.get(Emby, 1001).us, 30)
             code = session.get(Code, "SAKURA-30-Register_test")
             self.assertEqual(code.used, 1001)
+
+    def test_shared_registration_queue_is_idempotent_and_completes_account(self):
+        self._add_user(us=0, lv="d")
+        submitted = self.registrations.submit(
+            tg=1001,
+            username="alice",
+            safety_code="1234",
+            registration_code=None,
+            actor=self.actor,
+            idempotency_key="web-registration-1",
+        )
+        replay = self.registrations.submit(
+            tg=1001,
+            username="alice",
+            safety_code="1234",
+            registration_code=None,
+            actor=self.actor,
+            idempotency_key="web-registration-1",
+        )
+        duplicate = self.registrations.submit(
+            tg=1001,
+            username="alice",
+            safety_code="1234",
+            registration_code=None,
+            actor=self.actor,
+            idempotency_key="web-registration-2",
+        )
+
+        self.assertTrue(submitted.ok)
+        self.assertEqual(replay.data["id"], submitted.data["id"])
+        self.assertEqual(duplicate.status, "duplicate")
+        self.assertNotIn("safety_code", submitted.data["input"])
+
+        with self.session_factory() as session:
+            row = session.get(OperationTask, submitted.data["id"])
+            payload = json.loads(row.input_json)
+        result = asyncio.run(self.registrations.execute(payload))
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["emby_password"], "generated-password")
+        with self.session_factory() as session:
+            user = session.get(Emby, 1001)
+            self.assertEqual(user.embyid, "emby-alice")
+            self.assertEqual(user.name, "alice")
+            self.assertEqual(user.pwd2, "1234")
+
+    def test_registration_code_can_enter_shared_queue_when_closed(self):
+        original = bot_stub._open.stat
+        bot_stub._open.stat = False
+        try:
+            self._add_user(us=0, lv="d")
+            with self.session_factory() as session:
+                session.add(Code(code="SAKURA-30-Register_web", tg=9001, us=30))
+                session.commit()
+            submitted = self.registrations.submit(
+                tg=1001,
+                username="invited-user",
+                safety_code="5678",
+                registration_code="SAKURA-30-Register_web",
+                actor=self.actor,
+                idempotency_key="web-registration-code-1",
+            )
+            self.assertTrue(submitted.ok)
+            with self.session_factory() as session:
+                self.assertEqual(session.get(Emby, 1001).us, 30)
+                self.assertEqual(
+                    session.get(Code, "SAKURA-30-Register_web").used,
+                    1001,
+                )
+        finally:
+            bot_stub._open.stat = original
 
     def test_failed_purchase_does_not_create_codes(self):
         self._add_user(iv=2, lv="b")
@@ -794,6 +893,45 @@ class ApplicationServiceTests(unittest.TestCase):
             tg=1002,
         )
         self.assertEqual(claimed.status, "identity_mismatch")
+
+    def test_registration_verification_creates_user_and_is_purpose_scoped(self):
+        started = self.auth.create_telegram_login(
+            ip_address="127.0.0.1",
+            purpose="registration",
+        )
+        wrong_purpose = self.auth.claim_telegram_login(
+            raw_token=started.data["request_token"],
+            tg=1001,
+        )
+        self.assertEqual(wrong_purpose.status, "purpose_mismatch")
+
+        claimed = self.auth.claim_telegram_login(
+            raw_token=started.data["request_token"],
+            tg=1001,
+            display_name="new-user",
+            expected_purpose="registration",
+        )
+        self.assertTrue(claimed.ok)
+        self.assertTrue(
+            self.auth.decide_telegram_login(
+                request_id=claimed.data["request_id"],
+                tg=1001,
+                approve=True,
+            ).ok
+        )
+        exchanged = self.auth.exchange_telegram_login(
+            raw_token=started.data["request_token"],
+            user_agent="test",
+            ip_address="127.0.0.1",
+            expected_purpose="registration",
+        )
+        self.assertTrue(exchanged.ok)
+        identity = self.auth.authenticate(exchanged.data["session_token"])
+        self.assertEqual(identity.purpose, "registration")
+        self.assertEqual(identity.roles, ("member",))
+        self.assertFalse(identity.permissions)
+        with self.session_factory() as session:
+            self.assertIsNotNone(session.get(Emby, 1001))
 
     def test_owner_permissions_and_emby_auth_method_are_distinct(self):
         self._add_user(tg=9001, embyid="owner-emby", name="owner", lv="a")

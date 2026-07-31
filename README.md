@@ -1,6 +1,8 @@
 # 🌸 Sakura_embyboss 初学练习版（重构中）
 
 > Vue 用户中心与管理后台的功能、构建和安全说明见 [docs/web-ui.md](docs/web-ui.md)。
+>
+> Web 注册中心、Telegram 身份确认和共享注册队列说明见 [docs/web-registration.md](docs/web-registration.md)。
 > 后台任务、实时同步和可靠性说明见 [docs/task-reliability.md](docs/task-reliability.md)。
 > Docker、GitHub Actions、Docker Hub 发布与生产上线说明见 [docs/deployment.md](docs/deployment.md)。
 > 仪表盘、播放、设备与线路管理说明见 [docs/core-operations.md](docs/core-operations.md)。

@@ -65,6 +65,26 @@ async def user_in_group_filter(client, update):
     return False
 
 
+async def user_in_group_strict(client, update):
+    """Membership check for actions that must reject restricted members."""
+
+    uid = (update.from_user or update.sender_chat).id
+    for chat_id in group:
+        try:
+            member = await client.get_chat_member(chat_id=int(chat_id), user_id=uid)
+            if member.status in [
+                ChatMemberStatus.ADMINISTRATOR,
+                ChatMemberStatus.MEMBER,
+                ChatMemberStatus.OWNER,
+            ]:
+                return True
+        except BadRequest as error:
+            if error.ID == "CHAT_ADMIN_REQUIRED":
+                LOGGER.error(f"bot不能在 {chat_id} 中工作，请检查bot是否在群组及其权限设置")
+            return False
+    return False
+
+
 async def user_in_group_on_filter(filt, client, update):
     """
     过滤在授权组中的人员

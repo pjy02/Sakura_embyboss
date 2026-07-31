@@ -14,7 +14,11 @@ from bot.func_helper.web_login import handle_web_login_start
 from bot.func_helper.utils import judge_admins, members_info, open_check
 from bot.modules.commands.exchange import rgs_code
 from bot.sql_helper.sql_emby import sql_get_emby
-from bot.func_helper.filters import user_in_group_filter, user_in_group_on_filter
+from bot.func_helper.filters import (
+    user_in_group_filter,
+    user_in_group_on_filter,
+    user_in_group_strict,
+)
 from bot.func_helper.msg_utils import deleteMessage, sendMessage, sendPhoto, callAnswer, editMessage
 from bot.func_helper.fix_bottons import group_f, judge_start_ikb, judge_group_ikb, cr_kk_ikb
 from bot.modules.extra import user_cha_ip
@@ -52,6 +56,21 @@ async def count_info(_, msg):
 # 私聊开启面板
 @bot.on_message(filters.command('start', prefixes) & filters.private)
 async def p_start(_, msg):
+    if len(msg.command) > 1 and msg.command[1].startswith("webreg_"):
+        if not await user_in_group_strict(_, msg):
+            return await asyncio.gather(
+                deleteMessage(msg),
+                sendMessage(
+                    msg,
+                    "请先加入指定群组和频道，再重新打开网页注册链接。",
+                    buttons=judge_group_ikb,
+                ),
+            )
+        return await handle_web_login_start(
+            msg,
+            msg.command[1][7:],
+            expected_purpose="registration",
+        )
     if len(msg.command) > 1 and msg.command[1].startswith("web_"):
         return await handle_web_login_start(msg, msg.command[1][4:])
     if not await user_in_group_filter(_, msg):

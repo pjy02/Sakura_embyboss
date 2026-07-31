@@ -3,6 +3,7 @@ export type Area = "portal" | "admin";
 export interface Session {
   tg: number;
   auth_method: "telegram" | "emby";
+  purpose: "login" | "registration";
   roles: string[];
   permissions: string[];
 }
@@ -318,6 +319,45 @@ export interface TelegramLogin {
   expires_at: string;
   deep_link: string;
   poll_after_seconds: number;
+}
+
+export interface RegistrationStatus {
+  enabled: boolean;
+  open_registration_days: number;
+  user_limit: number;
+  registered: number;
+  reserved: number;
+  remaining: number;
+  queue_waiting: number;
+  queue_limit: number;
+  has_account: boolean;
+  qualification_days: number;
+  can_register: boolean;
+  active_task: RegistrationTask | null;
+  checked_at: string;
+}
+
+export interface RegistrationTask {
+  id: string;
+  task_type: "registration.account";
+  status: "pending" | "retrying" | "running" | "succeeded" | "failed" | "canceled";
+  progress: number;
+  username?: string;
+  position?: number;
+  result: {
+    ok?: boolean;
+    code?: string;
+    message?: string;
+    username?: string;
+    emby_id?: string;
+    emby_password?: string;
+    expires_at?: string;
+  } | null;
+  error_message: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string;
 }
 
 export interface TaskDefinition {

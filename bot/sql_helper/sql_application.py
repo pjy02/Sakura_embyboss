@@ -116,6 +116,15 @@ class OperationTask(Base):
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
 
+class RegistrationState(Base):
+    """Single-row mutex used to serialize registration reservations."""
+
+    __tablename__ = "registration_state"
+
+    id = Column(Integer, primary_key=True, autoincrement=False)
+    updated_at = Column(DateTime, nullable=False, default=utcnow)
+
+
 class SystemEvent(Base):
     __tablename__ = "system_events"
     __table_args__ = (
@@ -227,6 +236,7 @@ class WebSession(Base):
     token_hash = Column(String(128), nullable=False)
     csrf_hash = Column(String(128), nullable=False)
     auth_method = Column(String(32), nullable=False, default="telegram")
+    purpose = Column(String(32), nullable=False, default="login")
     ip_address = Column(String(64), nullable=True)
     user_agent = Column(String(512), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
@@ -244,6 +254,7 @@ class WebLoginRequest(Base):
 
     id = Column(String(36), primary_key=True)
     request_token_hash = Column(String(128), nullable=False)
+    purpose = Column(String(32), nullable=False, default="login")
     status = Column(String(32), nullable=False, default="pending")
     requested_tg = Column(BigInteger, nullable=True)
     approved_tg = Column(BigInteger, nullable=True)

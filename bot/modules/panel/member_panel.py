@@ -9,14 +9,14 @@ import asyncio
 import math
 import random
 from datetime import timedelta, datetime
+from uuid import uuid4
 from bot.schemas import ExDate, Yulv
 from bot import bot, LOGGER, _open, sakura_b, ranks, group, config, bot_name, schedall
-from bot.application import CodeService, CoreOperationsService, PointService
+from bot.application import CodeService, CoreOperationsService, PointService, RegistrationService
 from bot.domain import Actor
 from pyrogram import filters
 from bot.func_helper.concurrency import get_user_lock
 from bot.func_helper.emby import emby
-from bot.func_helper.register_queue import get_register_queue_manager, RegisterJob
 from bot.func_helper.filters import user_in_group_on_filter
 from bot.func_helper.utils import members_info, judge_admins, tem_deluser, pwd_create
 from bot.func_helper.fix_bottons import members_ikb, back_members_ikb, del_me_ikb, re_delme_ikb, \
@@ -34,6 +34,7 @@ from bot.sql_helper.sql_emby2 import sql_get_emby2, sql_delete_emby2
 point_service = PointService()
 code_service = CodeService()
 line_service = CoreOperationsService()
+registration_service = RegistrationService()
 
 # 创号函数
 async def create_user(_, call, stats):
@@ -61,21 +62,29 @@ async def create_user(_, call, stats):
             if not stats and int(current.us or 0) <= 0:
                 return await msg.reply('🤖 当前没有可用注册资格，请重新领取注册码后再试。')
 
-            days = _open.open_us if stats else int(current.us)
-            queue = get_register_queue_manager()
             send = await msg.reply(
                 f'🆗 会话结束，收到设置\n\n用户名：**{emby_name}**  安全码：**{emby_pwd2}** \n\n__正在加入注册队列__......')
-            ok, reason, position = await queue.enqueue(
-                RegisterJob(
-                    user_id=call.from_user.id,
+            try:
+                result = await asyncio.to_thread(
+                    registration_service.submit,
+                    tg=call.from_user.id,
                     username=emby_name,
-                    pwd2=emby_pwd2,
-                    stats=stats,
-                    days=days,
-                    status_message=send,
+                    safety_code=emby_pwd2,
+                    registration_code=None,
+                    actor=Actor.telegram(
+                        call.from_user.id,
+                        call.from_user.first_name,
+                    ),
+                    idempotency_key=f"telegram-registration:{uuid4()}",
+                    channel="telegram",
+                    notification_chat_id=send.chat.id,
+                    notification_message_id=send.id,
                 )
-            )
-            if ok:
+            except ValueError as exc:
+                return await editMessage(send, f"⚠️ {exc}")
+
+            if result.ok:
+                position = result.data.get("position", 1)
                 return await editMessage(
                     send,
                     f'🆗 会话结束，收到设置\n\n用户名：**{emby_name}**  安全码：**{emby_pwd2}** \n\n'
@@ -87,7 +96,8 @@ async def create_user(_, call, stats):
                 "duplicate": "⚠️ 你已经有一个注册任务正在排队或处理中，请勿重复提交。",
                 "queue_full": "⚠️ 当前注册排队人数过多，请稍后再试。",
                 "slot_full": f'**🚫 很抱歉，剩余可注册总数({_open.tem})，已达总注册限制({_open.all_user})。**',
-            }.get(reason, "❌ 注册任务提交失败，请稍后重试。")
+                "no_qualification": "⚠️ 当前没有可用注册资格，请重新领取注册码后再试。",
+            }.get(result.status, "❌ 注册任务提交失败，请稍后重试。")
             return await editMessage(send, failure_text)
 
 
@@ -125,8 +135,11 @@ async def create(_, call):
     :return:
     """
     stats = None
-    queue = get_register_queue_manager()
-    if await queue.is_user_busy(call.from_user.id):
+    registration = await asyncio.to_thread(
+        registration_service.status,
+        call.from_user.id,
+    )
+    if registration["active_task"]:
         return await callAnswer(call, '⚠️ 你已有注册任务正在排队或处理中，请稍后。', True)
 
     async with get_user_lock(call.from_user.id):
