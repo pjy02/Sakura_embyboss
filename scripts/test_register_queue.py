@@ -104,6 +104,13 @@ class RegisterQueueTests(unittest.IsolatedAsyncioTestCase):
             patch.object(rq, "sql_update_emby", fake_update_emby),
             patch.object(rq, "tem_adduser", fake_tem_adduser),
             patch.object(rq, "emby", SimpleNamespace(emby_create=fake_emby_create, emby_del=fake_emby_del)),
+            patch.object(
+                rq,
+                "line_service",
+                SimpleNamespace(
+                    public_line_text=lambda: "https://line.example.test"
+                ),
+            ),
         ]
         for item in self.patches:
             item.start()
@@ -212,6 +219,9 @@ class RegisterQueueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.manager._active_jobs, 0)
         self.assertFalse(await self.manager.is_user_busy(user_id))
         self.assertTrue(any("创建用户成功" in item[1] for item in message.history))
+        self.assertTrue(
+            any("https://line.example.test" in item[1] for item in message.history)
+        )
 
     async def test_worker_rolls_back_remote_account_when_state_changes_after_create(self):
         user_id = 3002
