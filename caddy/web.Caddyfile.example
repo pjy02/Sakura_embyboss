@@ -1,0 +1,11 @@
+# Replace this domain with SAKURA_PUBLIC_BASE_URL's hostname.
+sakura.example.com {
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:8838 {
+		# Flush SSE events immediately instead of waiting for a response buffer.
+		flush_interval -1
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}

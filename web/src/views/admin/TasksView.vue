@@ -18,6 +18,7 @@ import {
 import EmptyState from "@/components/EmptyState.vue";
 import LoadingBlock from "@/components/LoadingBlock.vue";
 import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
+import { useRealtimeEvents } from "@/composables/useRealtime";
 import { api, idempotencyKey } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -31,12 +32,10 @@ const system = ref<SystemStatus | null>(null);
 const loading = ref(true);
 const tab = ref<"tasks" | "jobs">("tasks");
 const statusFilter = ref("");
-const connected = ref(false);
 const selectedDefinition = ref<TaskDefinition | null>(null);
 const confirmed = ref(false);
 const busy = ref("");
 const error = ref("");
-let stream: EventSource | null = null;
 let timer: number | undefined;
 
 const canUpdate = computed(() =>
@@ -122,16 +121,6 @@ function openDefinition(item: TaskDefinition) {
   error.value = "";
 }
 
-function connectEvents() {
-  stream?.close();
-  stream = new EventSource("/api/v1/admin/events/stream");
-  stream.onopen = () => (connected.value = true);
-  stream.onerror = () => (connected.value = false);
-  const refresh = () => load(true);
-  stream.addEventListener("task.created", refresh);
-  stream.addEventListener("task.updated", refresh);
-}
-
 function statusIcon(status: string) {
   if (status === "succeeded") return CheckCircle2;
   if (status === "running") return LoaderCircle;
@@ -140,13 +129,17 @@ function statusIcon(status: string) {
   return Clock3;
 }
 
+const { connected } = useRealtimeEvents(
+  ["task.created", "task.updated"],
+  () => load(true),
+  true,
+);
+
 onMounted(async () => {
   await load();
-  connectEvents();
   timer = window.setInterval(() => load(true), 15_000);
 });
 onBeforeUnmount(() => {
-  stream?.close();
   window.clearInterval(timer);
 });
 </script>
@@ -166,8 +159,8 @@ onBeforeUnmount(() => {
 
     <section class="reliability-strip">
       <div>
-        <span class="reliability-icon" :class="system?.status"><ServerCog :size="21" /></span>
-        <div><small>任务执行器</small><strong>{{ system?.status === "healthy" ? "运行正常" : "等待 Worker 连接" }}</strong></div>
+        <span class="reliability-icon" :class="system?.components.task_worker"><ServerCog :size="21" /></span>
+        <div><small>任务执行器</small><strong>{{ system?.components.task_worker === "healthy" ? "运行正常" : "等待 Worker 连接" }}</strong></div>
       </div>
       <div><small>活跃任务</small><strong>{{ activeCount }}</strong></div>
       <div><small>失败任务</small><strong :class="{ 'negative-text': system?.task_counts.failed }">{{ system?.task_counts.failed || 0 }}</strong></div>

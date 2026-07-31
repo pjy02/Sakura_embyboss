@@ -1,25 +1,34 @@
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted } from "vue";
+import { RealtimeHub } from "@/lib/realtime";
 import { runtime } from "@/lib/runtime";
+
+const hubs = new Map<"admin" | "portal", RealtimeHub>();
+
+function getHub(admin: boolean) {
+  const area = admin ? "admin" : "portal";
+  let hub = hubs.get(area);
+  if (!hub) {
+    hub = new RealtimeHub(
+      `${runtime.apiBase}${admin ? "/admin/events/stream" : "/events/stream"}`,
+    );
+    hubs.set(area, hub);
+  }
+  return hub;
+}
 
 export function useRealtimeEvents(
   eventTypes: string[],
   onEvent: (event: MessageEvent) => void,
   admin = false,
 ) {
-  const connected = ref(false);
-  let source: EventSource | null = null;
+  const hub = getHub(admin);
+  const connected = computed(() => hub.status.value === "connected");
+  let unsubscribe: (() => void) | null = null;
 
   onMounted(() => {
-    source = new EventSource(
-      `${runtime.apiBase}${admin ? "/admin/events/stream" : "/events/stream"}`,
-    );
-    source.onopen = () => (connected.value = true);
-    source.onerror = () => (connected.value = false);
-    for (const eventType of eventTypes) {
-      source.addEventListener(eventType, onEvent as EventListener);
-    }
+    unsubscribe = hub.subscribe(eventTypes, onEvent);
   });
 
-  onBeforeUnmount(() => source?.close());
-  return { connected };
+  onBeforeUnmount(() => unsubscribe?.());
+  return { connected, status: hub.status, lastEventAt: hub.lastEventAt };
 }

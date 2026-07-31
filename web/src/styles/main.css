@@ -439,6 +439,9 @@ select option { color: #19151e; background: #fafafa; }
 .global-search-trigger span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .global-search-trigger kbd { padding: 3px 6px; color: #817985; font: 9px/1.2 inherit; border: 1px solid var(--border); border-radius: 5px; background: rgba(0,0,0,.16); }
 .system-health-pill { display: flex; align-items: center; gap: 7px; margin-left: auto; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.system-health-pill .status-dot { background: var(--orange); box-shadow: 0 0 10px rgba(241,168,91,.42); }
+.system-health-pill[data-status="connected"] .status-dot { background: var(--green); box-shadow: 0 0 10px rgba(113,211,155,.6); }
+.system-health-pill[data-status="reconnecting"] .status-dot { animation: pulse 1.2s infinite; }
 .account-menu { margin-left: 0; }
 
 .admin-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; min-height: 82px; }

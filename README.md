@@ -6,6 +6,8 @@
 > 仪表盘、播放、设备与线路管理说明见 [docs/core-operations.md](docs/core-operations.md)。
 > 充值交易、服务工单和 Bot/Web 求片同步说明见 [docs/commerce-support.md](docs/commerce-support.md)。
 > 影评社区、站内通知、角色权限和增强审计说明见 [docs/community-security.md](docs/community-security.md)。
+>
+> 实时同步、自动测试和安全上线说明见 [docs/release-runbook.md](docs/release-runbook.md)。
 
 <p align="center">
 <img src="image/bot2.png" alt="bot"><br>

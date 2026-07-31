@@ -10,7 +10,7 @@ COPY web/package.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm install --no-audit --no-fund
 COPY web/ ./
-RUN npm run typecheck && npm run build
+RUN npm run typecheck && npm run test && npm run build
 
 
 FROM python:${PYTHON_VERSION}-alpine AS python-builder

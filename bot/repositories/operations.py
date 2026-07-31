@@ -257,12 +257,24 @@ class OperationRepository:
         limit: int,
         aggregate_type: Optional[str] = None,
         aggregate_id: Optional[str] = None,
+        event_prefixes: Optional[tuple[str, ...]] = None,
     ):
         query = self.session.query(SystemEvent).filter(SystemEvent.id > after_id)
         if aggregate_type:
             query = query.filter(SystemEvent.aggregate_type == aggregate_type)
         if aggregate_id:
             query = query.filter(SystemEvent.aggregate_id == aggregate_id)
+        if event_prefixes is not None:
+            if not event_prefixes:
+                return []
+            query = query.filter(
+                or_(
+                    *[
+                        SystemEvent.event_type.like(f"{prefix}.%")
+                        for prefix in event_prefixes
+                    ]
+                )
+            )
         return query.order_by(SystemEvent.id.asc()).limit(limit).all()
 
     def list_unpublished_events(self, limit: int = 100):

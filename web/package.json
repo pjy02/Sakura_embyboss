@@ -9,7 +9,8 @@
     "build:portal": "vite build --mode portal",
     "build:admin": "vite build --mode admin",
     "build": "npm run build:portal && npm run build:admin",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "5.2.6",
@@ -26,6 +27,7 @@
     "@vitejs/plugin-vue": "5.2.1",
     "typescript": "5.7.2",
     "vite": "6.0.5",
+    "vitest": "4.1.10",
     "vue-tsc": "2.2.0"
   },
   "engines": {

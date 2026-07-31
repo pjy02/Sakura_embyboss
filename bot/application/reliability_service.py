@@ -4,7 +4,7 @@ import socket
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.sql_helper.sql_application import (
@@ -47,6 +47,7 @@ class ReliabilityService:
         after_id: int,
         limit: int = 100,
         user_tg: Optional[int] = None,
+        event_prefixes: Optional[tuple[str, ...]] = None,
     ) -> list[dict]:
         with self._uow_factory() as uow:
             rows = uow.operations.list_events_after(
@@ -54,6 +55,7 @@ class ReliabilityService:
                 limit=limit,
                 aggregate_type="user" if user_tg is not None else None,
                 aggregate_id=str(user_tg) if user_tg is not None else None,
+                event_prefixes=event_prefixes,
             )
             return [serialize_event(row) for row in rows]
 
@@ -68,13 +70,28 @@ class ReliabilityService:
             )
             return events
 
-    def latest_event_id(self, user_tg: Optional[int] = None) -> int:
+    def latest_event_id(
+        self,
+        user_tg: Optional[int] = None,
+        event_prefixes: Optional[tuple[str, ...]] = None,
+    ) -> int:
         with self._uow_factory() as uow:
             query = uow.operations.session.query(func.max(SystemEvent.id))
             if user_tg is not None:
                 query = query.filter(
                     SystemEvent.aggregate_type == "user",
                     SystemEvent.aggregate_id == str(user_tg),
+                )
+            if event_prefixes is not None:
+                if not event_prefixes:
+                    return 0
+                query = query.filter(
+                    or_(
+                        *[
+                            SystemEvent.event_type.like(f"{prefix}.%")
+                            for prefix in event_prefixes
+                        ]
+                    )
                 )
             return int(query.scalar() or 0)
 
@@ -141,13 +158,28 @@ class ReliabilityService:
                 .filter(OperationTask.status.in_(("pending", "retrying")))
                 .scalar()
             )
-            task_workers = [
+            active_workers = [
                 item
                 for item in workers
-                if item["worker_kind"] == "task-worker" and not item["stale"]
+                if not item["stale"] and item["status"] != "stopped"
             ]
+            task_workers = [
+                item for item in active_workers if item["worker_kind"] == "task-worker"
+            ]
+            event_relays = [
+                item for item in active_workers if item["worker_kind"] == "event-relay"
+            ]
+            components = {
+                "task_worker": "healthy" if task_workers else "degraded",
+                "event_relay": "healthy" if event_relays else "degraded",
+            }
             return {
-                "status": "healthy" if task_workers else "degraded",
+                "status": (
+                    "healthy"
+                    if all(value == "healthy" for value in components.values())
+                    else "degraded"
+                ),
+                "components": components,
                 "workers": workers,
                 "task_counts": counts,
                 "oldest_pending_at": oldest_pending,

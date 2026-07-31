@@ -76,6 +76,7 @@ def _compile_big_integer_as_integer(_type, _compiler, **_kwargs):
 
 from fastapi.testclient import TestClient
 
+from backend.api.tasks import _admin_event_prefixes
 from backend.app import create_app
 from backend.settings import WebSettings, get_settings
 from bot.application import (
@@ -86,6 +87,7 @@ from bot.application import (
     TokenCodec,
     WebAuthService,
 )
+from bot.application.auth_service import WebIdentity
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.sql_helper import Base
 from bot.sql_helper.sql_emby import Emby
@@ -224,6 +226,20 @@ class WebAuthRouteTests(unittest.TestCase):
     def test_unauthenticated_profile_is_rejected(self):
         response = self.client.get("/api/v1/me")
         self.assertEqual(response.status_code, 401)
+
+    def test_admin_event_prefixes_follow_module_permissions(self):
+        identity = WebIdentity(
+            session_id="session-1",
+            tg=9003,
+            auth_method="telegram",
+            roles=("content_moderator",),
+            permissions=frozenset({"reviews:read", "notifications:read"}),
+            csrf_hash="unused",
+        )
+        self.assertEqual(
+            _admin_event_prefixes(identity),
+            ("review", "notification"),
+        )
 
     def test_admin_api_requires_telegram_auth_even_for_owner(self):
         emby_session = self.auth.create_emby_session(

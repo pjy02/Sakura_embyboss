@@ -1,24 +1,48 @@
 import asyncio
 import os
 import socket
+import time
 
 from bot import LOGGER
 from bot.application.reliability_service import ReliabilityService
 
 
 class EventRelay:
-    def __init__(self, poll_seconds: float = 1.0):
-        self.poll_seconds = poll_seconds
+    def __init__(self, poll_seconds: float | None = None):
+        configured_poll_seconds = (
+            poll_seconds
+            if poll_seconds is not None
+            else float(os.getenv("SAKURA_EVENT_POLL_SECONDS", "1"))
+        )
+        self.poll_seconds = max(0.2, configured_poll_seconds)
         self.service = ReliabilityService()
         self.worker_id = f"event-relay:{socket.gethostname()}:{os.getpid()}"
         self._version = 0
         self._condition = asyncio.Condition()
         self._task: asyncio.Task | None = None
         self._stopping = asyncio.Event()
+        self._last_success_at = 0.0
+        self._last_error: str | None = None
 
     @property
     def version(self) -> int:
         return self._version
+
+    @property
+    def healthy(self) -> bool:
+        if not self._task or self._task.done() or not self._last_success_at:
+            return False
+        return time.monotonic() - self._last_success_at <= max(
+            15.0,
+            self.poll_seconds * 15,
+        )
+
+    def status(self) -> dict:
+        return {
+            "status": "healthy" if self.healthy else "degraded",
+            "running": bool(self._task and not self._task.done()),
+            "last_error": self._last_error,
+        }
 
     async def start(self):
         if self._task and not self._task.done():
@@ -74,6 +98,8 @@ class EventRelay:
         while not self._stopping.is_set():
             try:
                 events = await asyncio.to_thread(self.service.dispatch_outbox, 100)
+                self._last_success_at = time.monotonic()
+                self._last_error = None
                 if events:
                     async with self._condition:
                         self._version += 1
@@ -96,10 +122,8 @@ class EventRelay:
             except asyncio.CancelledError:
                 raise
             except Exception as error:
+                self._last_error = f"{type(error).__name__}: {error}"
                 LOGGER.error("Event relay failed: %s", error)
                 await asyncio.sleep(min(5.0, self.poll_seconds * 2))
                 continue
             await asyncio.sleep(self.poll_seconds)
-
-
-event_relay = EventRelay()

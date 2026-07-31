@@ -65,6 +65,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Unit tests
+        run: npm run test
+
       - name: Build portal and admin
         run: npm run build
 
@@ -81,6 +84,12 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
+
+      - name: Validate Compose configuration
+        run: |
+          cp config_example.json config.json
+          cp deploy.env.example .env
+          docker compose --env-file .env config --quiet
 
       - name: Build without pushing
         uses: docker/build-push-action@v7

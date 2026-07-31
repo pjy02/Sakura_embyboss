@@ -132,12 +132,25 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
             with Session() as session:
                 session.execute(text("SELECT 1"))
             reliability = ReliabilityService().status()
+            relay_status = relay.status()
+            if not relay.healthy:
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "status": "not_ready",
+                        "components": {
+                            "database": "ready",
+                            "task_worker": reliability["components"]["task_worker"],
+                            "event_relay": relay_status["status"],
+                        },
+                    },
+                )
             return {
                 "status": "ready",
                 "components": {
                     "database": "ready",
-                    "task_worker": reliability["status"],
-                    "event_relay": "running",
+                    "task_worker": reliability["components"]["task_worker"],
+                    "event_relay": relay_status["status"],
                 },
             }
         except Exception:

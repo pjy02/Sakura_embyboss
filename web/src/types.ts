@@ -377,6 +377,10 @@ export interface WorkerStatus {
 
 export interface SystemStatus {
   status: "healthy" | "degraded";
+  components: {
+    task_worker: "healthy" | "degraded";
+    event_relay: "healthy" | "degraded";
+  };
   workers: WorkerStatus[];
   task_counts: Record<string, number>;
   oldest_pending_at: string | null;

@@ -19,6 +19,26 @@ events_router = APIRouter(prefix="/events", tags=["realtime-events"])
 tasks = TaskService()
 reliability = ReliabilityService()
 
+ADMIN_EVENT_PERMISSIONS = (
+    ("user", "users:read"),
+    ("points", "users:read"),
+    ("code", "codes:read"),
+    ("partition", "partitions:read"),
+    ("task", "tasks:read"),
+    ("playback", "playback:read"),
+    ("device", "devices:read"),
+    ("line", "lines:read"),
+    ("billing", "billing:read"),
+    ("ticket", "tickets:read"),
+    ("request", "requests:read"),
+    ("review", "reviews:read"),
+    ("notification", "notifications:read"),
+    ("audit", "audit:read"),
+    ("security", "security:read"),
+    ("role", "roles:read"),
+    ("setting", "settings:read"),
+)
+
 
 class EnqueueTaskRequest(BaseModel):
     task_type: str = Field(min_length=3, max_length=100)
@@ -173,6 +193,7 @@ async def _stream_events(
     *,
     after_id: int,
     user_tg: Optional[int],
+    event_prefixes: Optional[tuple[str, ...]] = None,
 ):
     relay = request.app.state.event_relay
     relay_version = relay.version
@@ -184,6 +205,7 @@ async def _stream_events(
             after_id=after_id,
             limit=100,
             user_tg=user_tg,
+            event_prefixes=event_prefixes,
         )
         if events:
             for event in events:
@@ -204,6 +226,14 @@ def _after_event_id(request: Request, after: int) -> int:
     if header.isdigit():
         return max(after, int(header))
     return after
+
+
+def _admin_event_prefixes(identity: WebIdentity) -> tuple[str, ...]:
+    return tuple(
+        prefix
+        for prefix, permission in ADMIN_EVENT_PERMISSIONS
+        if identity.has_permission(permission)
+    )
 
 
 @events_router.get("/stream")
@@ -236,18 +266,28 @@ async def admin_event_stream(
     request: Request,
     after: int = Query(0, ge=0),
     replay: bool = False,
-    _identity: WebIdentity = Depends(
-        require_permission("tasks:read", telegram_only=True)
-    ),
+    identity: WebIdentity = Depends(current_identity),
 ):
+    if identity.auth_method != "telegram":
+        raise HTTPException(
+            status_code=403,
+            detail="管理实时事件必须通过 Telegram 确认登录",
+        )
+    event_prefixes = _admin_event_prefixes(identity)
+    if not event_prefixes:
+        raise HTTPException(status_code=403, detail="没有可订阅的后台事件权限")
     cursor = _after_event_id(request, after)
     if cursor == 0 and not replay:
-        cursor = await run_in_threadpool(reliability.latest_event_id)
+        cursor = await run_in_threadpool(
+            reliability.latest_event_id,
+            event_prefixes=event_prefixes,
+        )
     return StreamingResponse(
         _stream_events(
             request,
             after_id=cursor,
             user_tg=None,
+            event_prefixes=event_prefixes,
         ),
         media_type="text/event-stream",
         headers={

@@ -45,6 +45,16 @@ const isAdmin = runtime.area === "admin";
 const pageTitle = computed(() => String(route.meta.title || (isAdmin ? "管理控制台" : "个人中心")));
 const pageSection = computed(() => String(route.meta.section || (isAdmin ? "Sakura Operations" : "Sakura Portal")));
 const permissions = computed(() => sessionStore.session?.permissions || []);
+const realtime = useRealtimeEvents(
+  isAdmin ? [] : ["notification.created"],
+  () => loadUnreadCount(),
+  isAdmin,
+);
+const realtimeLabel = computed(() => {
+  if (realtime.status.value === "connected") return "实时同步";
+  if (realtime.status.value === "reconnecting") return "正在重连";
+  return "正在连接";
+});
 
 function hasPermission(required?: string) {
   if (!required) return true;
@@ -129,7 +139,6 @@ onMounted(() => {
   window.addEventListener("sakura:notifications-changed", loadUnreadCount);
   loadUnreadCount();
 });
-if (!isAdmin) useRealtimeEvents(["notification.created"], () => loadUnreadCount());
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onGlobalKeydown);
   window.removeEventListener("sakura:notifications-changed", loadUnreadCount);
@@ -194,7 +203,7 @@ onBeforeUnmount(() => {
           <ShieldCheck :size="16" />
           <span>身份与操作均由服务端验证</span>
         </div>
-        <small>SAKURA WEB · 2.2</small>
+        <small>SAKURA WEB · 2.3</small>
       </div>
 
       <button
@@ -229,9 +238,9 @@ onBeforeUnmount(() => {
           <kbd>⌘ K</kbd>
         </button>
 
-        <div class="system-health-pill">
+        <div class="system-health-pill" :data-status="realtime.status.value">
           <span class="status-dot" />
-          <span>{{ isAdmin ? "服务正常" : "已安全连接" }}</span>
+          <span>{{ realtimeLabel }}</span>
         </div>
 
         <RouterLink v-if="!isAdmin" class="notification-bell" to="/notifications" aria-label="打开通知中心">

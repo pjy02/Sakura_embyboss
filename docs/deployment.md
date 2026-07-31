@@ -38,6 +38,14 @@ MySQL 健康 -> migrate 完成数据库迁移 -> Bot 健康 -> Web 就绪
 
 `migrate` 是一次性容器，完成后显示 `Exited (0)` 属于正常状态。Bot 承载 Telegram 和后台任务 Worker；Web 使用同一数据库提供 FastAPI、用户中心和管理后台。Compose 会关闭 Bot 内嵌 Web，避免同一服务启动两份。
 
+完成首次配置后，也可以使用带配置预检、数据库备份、健康等待和失败回退的一键上线脚本：
+
+```bash
+bash scripts/deploy.sh
+```
+
+完整流程见 [实时同步、测试与上线手册](release-runbook.md)。
+
 Compose 也会禁止多个启动进程同时回写 `config.json`；后续通过 Bot 配置面板产生的显式保存仍然有效。
 
 查看日志：

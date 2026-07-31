@@ -132,9 +132,43 @@ class TaskReliabilityTests(unittest.TestCase):
             worker_kind="task-worker",
             status="idle",
         )
+        self.reliability.heartbeat(
+            worker_id="relay-1",
+            worker_kind="event-relay",
+            status="running",
+        )
         status = self.reliability.status()
         self.assertEqual(status["status"], "healthy")
+        self.assertEqual(status["components"]["event_relay"], "healthy")
         self.assertEqual(status["task_counts"]["canceled"], 1)
+
+    def test_event_prefix_filter_limits_admin_stream_visibility(self):
+        self.enqueue()
+        with self.uow_factory() as uow:
+            uow.operations.event(
+                "billing.order.created",
+                "recharge_order",
+                "order-1",
+                {"tg": 1001},
+            )
+        task_events = self.reliability.events_after(
+            after_id=0,
+            event_prefixes=("task",),
+        )
+        self.assertTrue(task_events)
+        self.assertTrue(
+            all(item["event_type"].startswith("task.") for item in task_events)
+        )
+        billing_cursor = self.reliability.latest_event_id(
+            event_prefixes=("billing",),
+        )
+        self.assertEqual(
+            billing_cursor,
+            self.reliability.events_after(
+                after_id=0,
+                event_prefixes=("billing",),
+            )[-1]["id"],
+        )
 
 
 if __name__ == "__main__":
