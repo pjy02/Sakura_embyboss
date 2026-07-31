@@ -236,20 +236,6 @@ class CommerceService:
                     actor_id=actor.identifier,
                 )
             )
-            add_notification(
-                uow,
-                tg=row.tg,
-                category="billing",
-                title="充值已入账" if approve else "充值订单未通过",
-                body=(
-                    f"订单 {row.order_no} 已确认，{row.coins + row.bonus_coins} 积分已到账。"
-                    if approve
-                    else f"订单 {row.order_no} 未通过审核。" + (f" 备注：{row.admin_note}" if row.admin_note else "")
-                ),
-                severity="success" if approve else "warning",
-                action_url="/billing",
-                metadata={"order_id": row.id, "status": row.status},
-            )
             uow.operations.audit(
                 actor=actor,
                 action="billing.order.create",
@@ -336,6 +322,21 @@ class CommerceService:
                     actor_id=actor.identifier,
                     metadata_json=_json({"payment_reference": row.payment_reference, "admin_note": row.admin_note}),
                 )
+            )
+            add_notification(
+                uow,
+                tg=row.tg,
+                category="billing",
+                title="充值已入账" if approve else "充值订单未通过",
+                body=(
+                    f"订单 {row.order_no} 已确认，{row.coins + row.bonus_coins} 积分已到账。"
+                    if approve
+                    else f"订单 {row.order_no} 未通过审核。"
+                    + (f" 备注：{row.admin_note}" if row.admin_note else "")
+                ),
+                severity="success" if approve else "warning",
+                action_url="/billing",
+                metadata={"order_id": row.id, "status": row.status},
             )
             uow.operations.audit(
                 actor=actor,

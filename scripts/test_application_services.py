@@ -379,6 +379,10 @@ class ApplicationServiceTests(unittest.TestCase):
         self.assertEqual(credited_again["status"], "credited")
         with self.session_factory() as session:
             self.assertEqual(session.get(Emby, 1001).iv, 130)
+            notification = session.query(UserNotification).one()
+            self.assertEqual(notification.tg, 1001)
+            self.assertEqual(notification.category, "billing")
+            self.assertEqual(notification.severity, "success")
             recharge_transactions = (
                 session.query(PointTransaction)
                 .filter(PointTransaction.reason.like("recharge:%"))
