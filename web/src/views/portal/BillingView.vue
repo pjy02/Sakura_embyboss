@@ -27,11 +27,11 @@ function money(cents: number | null) {
 }
 
 function orderLabel(status: RechargeOrder["status"]) {
-  return status === "pending" ? "等待确认" : status === "credited" ? "已入账" : "已取消";
+  return status === "pending" ? "等待确认" : status === "credited" ? "已入账" : status === "refunded" ? "已退款" : "已取消";
 }
 
-function orderTone(status: RechargeOrder["status"]): "warning" | "success" | "muted" {
-  return status === "pending" ? "warning" : status === "credited" ? "success" : "muted";
+function orderTone(status: RechargeOrder["status"]): "warning" | "success" | "danger" | "muted" {
+  return status === "pending" ? "warning" : status === "credited" ? "success" : status === "refunded" ? "danger" : "muted";
 }
 
 async function load() {

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import uuid4
+
+from sqlalchemy import func
 
 from bot.application.community_service import add_notification
 from bot.domain import Actor
@@ -385,6 +387,119 @@ class CommerceService:
             )
             uow.flush()
             return serialize_order(row)
+
+    def refund_order(self, order_id: str, *, reason: str, actor: Actor) -> Optional[dict]:
+        """Reverse a credited manual order exactly once and keep an auditable ledger."""
+        now = utcnow()
+        normalized_reason = reason.strip()
+        if len(normalized_reason) < 3:
+            raise ValueError("退款原因至少需要 3 个字符")
+        with self._uow_factory() as uow:
+            row = uow.commerce.get_order(order_id, for_update=True)
+            if row is None:
+                return None
+            if row.status == "refunded":
+                return serialize_order(row)
+            if row.status != "credited":
+                raise RuntimeError("只有已入账订单可以退款")
+            user = uow.users.get_for_update(row.tg)
+            if user is None:
+                raise ValueError("订单用户不存在")
+            credit = int(row.coins or 0) + int(row.bonus_coins or 0)
+            old_balance = int(user.iv or 0)
+            if old_balance < credit:
+                raise RuntimeError("用户当前积分不足，无法自动冲正；请先核对其他消费流水")
+            user.iv = old_balance - credit
+            row.status = "refunded"
+            row.admin_note = normalized_reason[:500]
+            row.canceled_at = now
+            row.updated_at = now
+            uow.operations.point_transaction(
+                tg=row.tg,
+                balance_type="coins",
+                amount=-credit,
+                balance_after=user.iv,
+                reason=f"refund:{row.order_no}",
+                actor=actor,
+                idempotency_key=f"refund:{row.id}",
+                metadata={"order_id": row.id, "amount_cents": row.amount_cents, "reason": normalized_reason},
+            )
+            uow.commerce.add_billing_entry(
+                BillingEntry(
+                    order_id=row.id,
+                    tg=row.tg,
+                    entry_type="order_refunded",
+                    amount_cents=-int(row.amount_cents or 0),
+                    coins=-credit,
+                    description=f"充值订单 {row.order_no} 已退款冲正",
+                    actor_kind=actor.kind,
+                    actor_id=actor.identifier,
+                    metadata_json=_json({"reason": normalized_reason}),
+                )
+            )
+            add_notification(
+                uow,
+                tg=row.tg,
+                category="billing",
+                title="充值订单已退款",
+                body=f"订单 {row.order_no} 已退款并冲正 {credit} 积分。原因：{normalized_reason}",
+                severity="warning",
+                action_url="/billing",
+                metadata={"order_id": row.id, "status": row.status},
+            )
+            uow.operations.audit(
+                actor=actor,
+                action="billing.order.refund",
+                resource_type="recharge_order",
+                resource_id=row.id,
+                detail={"order_no": row.order_no, "tg": row.tg, "coins": credit, "reason": normalized_reason},
+            )
+            uow.operations.event(
+                "billing.order.updated",
+                "user",
+                str(row.tg),
+                {"resource_type": "recharge_order", "resource_id": row.id, "tg": row.tg, "status": row.status},
+            )
+            uow.flush()
+            return serialize_order(row)
+
+    def reconciliation_summary(self) -> dict:
+        """Surface stale and structurally inconsistent recharge orders."""
+        with self._uow_factory() as uow:
+            session = uow.commerce.session
+            stale_pending = session.query(RechargeOrder).filter(
+                RechargeOrder.status == "pending",
+                RechargeOrder.created_at < utcnow() - timedelta(hours=24),
+            ).count()
+            credited_ids = {
+                str(item[0])
+                for item in session.query(RechargeOrder.id).filter(RechargeOrder.status == "credited").all()
+            }
+            credited_entries = {
+                str(item[0])
+                for item in session.query(BillingEntry.order_id).filter(
+                    BillingEntry.entry_type == "order_credited",
+                    BillingEntry.order_id.isnot(None),
+                ).all()
+            }
+            duplicate_credits = session.query(BillingEntry.order_id).filter(
+                BillingEntry.entry_type == "order_credited",
+                BillingEntry.order_id.isnot(None),
+            ).group_by(BillingEntry.order_id).having(func.count(BillingEntry.id) > 1).count()
+            missing_ids = sorted(credited_ids - credited_entries)
+            status_counts = {
+                str(status): int(count)
+                for status, count in session.query(RechargeOrder.status, func.count(RechargeOrder.id)).group_by(RechargeOrder.status).all()
+            }
+            return {
+                "status": "healthy" if not stale_pending and not missing_ids and not duplicate_credits else "attention",
+                "status_counts": status_counts,
+                "stale_pending": int(stale_pending),
+                "credited_without_ledger": len(missing_ids),
+                "credited_without_ledger_ids": missing_ids[:20],
+                "duplicate_credit_entries": int(duplicate_credits),
+                "checked_at": utcnow(),
+            }
 
     def ledger(self, *, tg=None, entry_type=None, limit=50, offset=0) -> dict:
         with self._uow_factory() as uow:

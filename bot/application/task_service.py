@@ -75,6 +75,41 @@ TASK_DEFINITIONS = {
             0,
             False,
         ),
+        TaskDefinition(
+            "monitor.diagnostics",
+            "运行系统诊断",
+            "探测数据库、Emby、Telegram 与已启用外部服务，并执行风险规则。",
+            "normal",
+            120,
+            1,
+        ),
+        TaskDefinition(
+            "alert.telegram",
+            "发送 Telegram 告警",
+            "向配置的安全管理员发送风险事件告警。",
+            "normal",
+            60,
+            3,
+            False,
+        ),
+        TaskDefinition(
+            "notification.telegram",
+            "发送 Telegram 业务通知",
+            "按照用户通知偏好发送业务状态通知。",
+            "normal",
+            60,
+            3,
+            False,
+        ),
+        TaskDefinition(
+            "users.batch",
+            "批量账号运营",
+            "批量执行账号暂停、恢复、延期、权益调整或通知。",
+            "danger",
+            3600,
+            0,
+            False,
+        ),
     )
 }
 
@@ -89,7 +124,7 @@ def _loads(value: Optional[str]):
 
 
 def _sanitized_task_data(task_type: str, value, include_sensitive: bool):
-    if include_sensitive or task_type != "registration.account":
+    if include_sensitive or task_type not in {"registration.account", "notification.telegram"}:
         return value
     if not isinstance(value, dict):
         return value
@@ -97,6 +132,8 @@ def _sanitized_task_data(task_type: str, value, include_sensitive: bool):
     for key in ("safety_code", "registration_code", "emby_password"):
         if key in sanitized:
             sanitized[key] = "********"
+    if task_type == "notification.telegram" and "body" in sanitized:
+        sanitized["body"] = "********"
     return sanitized
 
 

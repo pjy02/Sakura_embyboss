@@ -49,6 +49,10 @@ class OrderDecisionPayload(BaseModel):
     admin_note: Optional[str] = Field(None, max_length=500)
 
 
+class OrderRefundPayload(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
 class CreateTicketPayload(BaseModel):
     subject: str = Field(min_length=3, max_length=200)
     category: Literal["account", "playback", "billing", "request", "technical", "general"] = "general"
@@ -204,6 +208,33 @@ async def decide_order(
     if result is None:
         raise HTTPException(status_code=404, detail="订单不存在")
     return result
+
+
+@admin_router.post("/recharge/orders/{order_id}/refund")
+async def refund_order(
+    order_id: str,
+    payload: OrderRefundPayload,
+    identity: WebIdentity = Depends(require_permission("billing:update", csrf=True, telegram_only=True)),
+):
+    try:
+        result = await run_in_threadpool(
+            commerce.refund_order,
+            order_id,
+            reason=payload.reason,
+            actor=Actor.web(identity.tg),
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    return result
+
+
+@admin_router.get("/billing/reconciliation")
+async def billing_reconciliation(
+    _identity: WebIdentity = Depends(require_permission("billing:read", telegram_only=True)),
+):
+    return await run_in_threadpool(commerce.reconciliation_summary)
 
 
 @admin_router.get("/billing/ledger")

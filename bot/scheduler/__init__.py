@@ -17,3 +17,4 @@ from .sync_mp_download import sync_download_tasks
 from .sync_core_operations import sync_core_operations
 from .partition_access import check_partition_access
 from .sync_dynamic_settings import sync_dynamic_settings
+from .monitor_diagnostics import monitor_diagnostics

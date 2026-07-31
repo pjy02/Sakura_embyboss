@@ -190,7 +190,7 @@ export interface RechargeOrder {
   bonus_coins: number;
   payment_method: string;
   payment_reference: string | null;
-  status: "pending" | "credited" | "canceled";
+  status: "pending" | "credited" | "canceled" | "refunded";
   user_note: string | null;
   admin_note: string | null;
   created_at: string;
@@ -450,6 +450,76 @@ export interface RiskSummary {
   status_counts: Record<RiskEvent["status"], number>;
   recent_24h: number;
   top_types: Array<{ event_type: string; count: number }>;
+  checked_at: string;
+}
+
+export interface RiskRule {
+  id: number;
+  name: string;
+  event_pattern: string;
+  severity: "info" | "warning" | "danger";
+  threshold_count: number;
+  window_minutes: number;
+  cooldown_minutes: number;
+  enabled: boolean;
+  telegram_alert: boolean;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServiceProbe {
+  id: number;
+  service_name: string;
+  service_kind: string;
+  status: "healthy" | "unhealthy";
+  latency_ms: number | null;
+  status_code: number | null;
+  message: string | null;
+  detail: Record<string, unknown> | null;
+  checked_at: string;
+}
+
+export interface DiagnosticSummary {
+  status: "healthy" | "degraded";
+  services: ServiceProbe[];
+  history: ServiceProbe[];
+  checked_at: string;
+}
+
+export interface AlertDelivery {
+  id: string;
+  security_event_id: number;
+  recipient_tg: number;
+  status: "pending" | "sent" | "failed";
+  attempt_count: number;
+  error_message: string | null;
+  event_type: string | null;
+  severity: "info" | "warning" | "danger" | null;
+  created_at: string;
+  sent_at: string | null;
+  updated_at: string;
+}
+
+export interface AccountLifecycleEvent {
+  id: number;
+  batch_id: string;
+  tg: number;
+  action: string;
+  status: "succeeded" | "failed";
+  detail: Record<string, unknown> | null;
+  actor_kind: string;
+  actor_id: string;
+  created_at: string;
+}
+
+export interface BillingReconciliation {
+  status: "healthy" | "attention";
+  status_counts: Record<string, number>;
+  stale_pending: number;
+  credited_without_ledger: number;
+  credited_without_ledger_ids: string[];
+  duplicate_credit_entries: number;
   checked_at: string;
 }
 

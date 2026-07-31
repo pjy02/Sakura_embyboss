@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { Check, CircleDollarSign, CirclePlus, Coins, Package, Pencil, Search, X, XCircle } from "lucide-vue-next";
+import { Check, CircleDollarSign, CirclePlus, Coins, Package, Pencil, RotateCcw, Search, X, XCircle } from "lucide-vue-next";
 import AdminDataTable from "@/components/admin/AdminDataTable.vue";
 import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
 import ConfirmDialog from "@/components/admin/ConfirmDialog.vue";
@@ -21,18 +21,18 @@ const status = ref("");
 const modalOpen = ref(false);
 const editing = ref<RechargeProduct | null>(null);
 const selectedOrder = ref<RechargeOrder | null>(null);
-const decision = ref<"approve" | "reject" | null>(null);
+const decision = ref<"approve" | "reject" | "refund" | null>(null);
 const busy = ref(false);
 const error = ref("");
 const decisionForm = reactive({ payment_reference: "", admin_note: "" });
 const form = reactive({ name: "", description: "", amount_yuan: 0, coins: 0, bonus_coins: 0, enabled: true, sort_order: 0 });
 const canUpdate = computed(() => sessionStore.session?.permissions.some((item) => item === "*" || item === "billing:*" || item === "billing:update"));
 
-function orderTone(value: RechargeOrder["status"]): "warning" | "success" | "muted" {
-  return value === "pending" ? "warning" : value === "credited" ? "success" : "muted";
+function orderTone(value: RechargeOrder["status"]): "warning" | "success" | "danger" | "muted" {
+  return value === "pending" ? "warning" : value === "credited" ? "success" : value === "refunded" ? "danger" : "muted";
 }
 function orderLabel(value: RechargeOrder["status"]) {
-  return value === "pending" ? "待确认" : value === "credited" ? "已入账" : "已取消";
+  return value === "pending" ? "待确认" : value === "credited" ? "已入账" : value === "refunded" ? "已退款" : "已取消";
 }
 function money(cents: number) {
   return `¥${(cents / 100).toFixed(2)}`;
@@ -91,24 +91,29 @@ async function saveProduct() {
     error.value = e instanceof Error ? e.message : "商品保存失败";
   }
 }
-function openDecision(order: RechargeOrder, action: "approve" | "reject") {
+function openDecision(order: RechargeOrder, action: "approve" | "reject" | "refund") {
   selectedOrder.value = order;
   decision.value = action;
   decisionForm.payment_reference = "";
   decisionForm.admin_note = "";
+  error.value = "";
 }
 async function decide() {
   if (!selectedOrder.value || !decision.value) return;
+  if (decision.value === "refund" && decisionForm.admin_note.trim().length < 3) {
+    error.value = "退款原因至少需要 3 个字符";
+    return;
+  }
   busy.value = true;
   try {
-    await api(`/admin/recharge/orders/${selectedOrder.value.id}/decision`, {
-      method: "POST",
-      body: JSON.stringify({
-        approve: decision.value === "approve",
-        payment_reference: decisionForm.payment_reference || null,
-        admin_note: decisionForm.admin_note || null,
-      }),
-    });
+    if (decision.value === "refund") {
+      await api(`/admin/recharge/orders/${selectedOrder.value.id}/refund`, { method: "POST", body: JSON.stringify({ reason: decisionForm.admin_note }) });
+    } else {
+      await api(`/admin/recharge/orders/${selectedOrder.value.id}/decision`, {
+        method: "POST",
+        body: JSON.stringify({ approve: decision.value === "approve", payment_reference: decisionForm.payment_reference || null, admin_note: decisionForm.admin_note || null }),
+      });
+    }
     decision.value = null;
     selectedOrder.value = null;
     await load();
@@ -144,7 +149,7 @@ useRealtimeEvents(
       <div class="panel-heading commerce-heading"><div><span class="section-kicker">MANUAL ORDERS</span><h2>充值订单</h2></div></div>
       <FilterBar>
         <label class="search-box"><Search :size="18" /><input v-model.trim="search" placeholder="订单号、Telegram ID 或支付备注" @keyup.enter="load" /></label>
-        <label class="select-box"><select v-model="status" @change="load"><option value="">全部状态</option><option value="pending">待确认</option><option value="credited">已入账</option><option value="canceled">已取消</option></select></label>
+        <label class="select-box"><select v-model="status" @change="load"><option value="">全部状态</option><option value="pending">待确认</option><option value="credited">已入账</option><option value="refunded">已退款</option><option value="canceled">已取消</option></select></label>
       </FilterBar>
       <AdminDataTable :loading="loading" :empty="!orders.length" empty-title="暂无充值订单" min-width="980px">
         <template #head><tr><th>订单</th><th>用户</th><th>商品</th><th>金额</th><th>到账积分</th><th>创建时间</th><th>状态</th><th /></tr></template>
@@ -154,7 +159,7 @@ useRealtimeEvents(
             <td>TG · {{ order.tg }}</td><td>{{ order.product_name }}</td><td class="strong-cell">{{ money(order.amount_cents) }}</td>
             <td>{{ formatNumber(order.coins + order.bonus_coins) }}</td><td>{{ formatDate(order.created_at) }}</td>
             <td><StatusBadge :label="orderLabel(order.status)" :tone="orderTone(order.status)" /></td>
-            <td><div v-if="canUpdate && order.status === 'pending'" class="row-actions"><button class="success-action" title="确认入账" @click="openDecision(order, 'approve')"><Check :size="16" /></button><button class="danger-action" title="拒绝" @click="openDecision(order, 'reject')"><XCircle :size="16" /></button></div></td>
+            <td><div v-if="canUpdate" class="row-actions"><template v-if="order.status === 'pending'"><button class="success-action" title="确认入账" @click="openDecision(order, 'approve')"><Check :size="16" /></button><button class="danger-action" title="拒绝" @click="openDecision(order, 'reject')"><XCircle :size="16" /></button></template><button v-else-if="order.status === 'credited'" class="danger-action" title="退款并冲正积分" @click="openDecision(order, 'refund')"><RotateCcw :size="16" /></button></div></td>
           </tr>
         </template>
       </AdminDataTable>
@@ -169,8 +174,8 @@ useRealtimeEvents(
       <p v-if="error" class="form-error">{{ error }}</p><footer><button type="button" class="secondary-button" @click="modalOpen = false">取消</button><button class="primary-button">保存</button></footer>
     </form></div>
 
-    <ConfirmDialog :open="Boolean(decision)" :title="decision === 'approve' ? '确认订单并入账？' : '拒绝这笔订单？'" :description="decision === 'approve' ? '确认后积分会立即进入用户余额，不能重复入账。' : '订单会被标记为已取消，不会产生积分。'" :confirm-label="decision === 'approve' ? '确认入账' : '拒绝订单'" :tone="decision === 'approve' ? 'normal' : 'danger'" :busy="busy" @close="decision = null" @confirm="decide">
-      <div class="decision-fields"><strong>{{ selectedOrder?.order_no }} · {{ selectedOrder && money(selectedOrder.amount_cents) }}</strong><input v-if="decision === 'approve'" v-model.trim="decisionForm.payment_reference" placeholder="支付参考号（可选）" /><textarea v-model.trim="decisionForm.admin_note" placeholder="管理员备注（可选）" /></div>
+    <ConfirmDialog :open="Boolean(decision)" :title="decision === 'approve' ? '确认订单并入账？' : decision === 'refund' ? '退款并冲正积分？' : '拒绝这笔订单？'" :description="decision === 'approve' ? '确认后积分会立即进入用户余额，不能重复入账。' : decision === 'refund' ? '系统会扣回本订单到账积分并生成负向账单；余额不足时会拒绝退款。' : '订单会被标记为已取消，不会产生积分。'" :confirm-label="decision === 'approve' ? '确认入账' : decision === 'refund' ? '确认退款' : '拒绝订单'" :tone="decision === 'approve' ? 'normal' : 'danger'" :busy="busy" @close="decision = null" @confirm="decide">
+      <div class="decision-fields"><strong>{{ selectedOrder?.order_no }} · {{ selectedOrder && money(selectedOrder.amount_cents) }}</strong><input v-if="decision === 'approve'" v-model.trim="decisionForm.payment_reference" placeholder="支付参考号（可选）" /><textarea v-model.trim="decisionForm.admin_note" :placeholder="decision === 'refund' ? '退款原因（必填，至少 3 个字符）' : '管理员备注（可选）'" /><p v-if="error" class="form-error">{{ error }}</p></div>
     </ConfirmDialog>
   </div>
 </template>

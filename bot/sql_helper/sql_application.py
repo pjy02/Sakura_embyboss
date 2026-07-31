@@ -196,6 +196,75 @@ class SecurityEvent(Base):
     updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
 
+class RiskRule(Base):
+    __tablename__ = "risk_rules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    event_pattern = Column(String(100), nullable=False)
+    severity = Column(String(20), nullable=False, default="warning")
+    threshold_count = Column(Integer, nullable=False, default=1)
+    window_minutes = Column(Integer, nullable=False, default=10)
+    cooldown_minutes = Column(Integer, nullable=False, default=30)
+    enabled = Column(Boolean, nullable=False, default=True)
+    telegram_alert = Column(Boolean, nullable=False, default=True)
+    revision = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class ServiceProbe(Base):
+    __tablename__ = "service_probes"
+    __table_args__ = (Index("ix_service_probes_service_checked", "service_name", "checked_at"),)
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    service_name = Column(String(64), nullable=False)
+    service_kind = Column(String(32), nullable=False)
+    status = Column(String(20), nullable=False)
+    latency_ms = Column(Integer, nullable=True)
+    status_code = Column(Integer, nullable=True)
+    message = Column(String(1000), nullable=True)
+    detail_json = Column(Text, nullable=True)
+    checked_at = Column(DateTime, nullable=False, default=utcnow)
+
+
+class AlertDelivery(Base):
+    __tablename__ = "alert_deliveries"
+    __table_args__ = (
+        UniqueConstraint("security_event_id", "recipient_tg", name="uq_alert_event_recipient"),
+        Index("ix_alert_deliveries_status_created", "status", "created_at"),
+    )
+
+    id = Column(String(36), primary_key=True)
+    security_event_id = Column(BigInteger, nullable=False)
+    recipient_tg = Column(BigInteger, nullable=False)
+    status = Column(String(20), nullable=False, default="pending")
+    attempt_count = Column(Integer, nullable=False, default=0)
+    error_message = Column(String(1000), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+    sent_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+
+
+class AccountLifecycleEvent(Base):
+    __tablename__ = "account_lifecycle_events"
+    __table_args__ = (
+        UniqueConstraint("batch_id", "tg", "action", name="uq_account_lifecycle_batch_user_action"),
+        Index("ix_account_lifecycle_tg_created", "tg", "created_at"),
+        Index("ix_account_lifecycle_action_created", "action", "created_at"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    batch_id = Column(String(36), nullable=False)
+    tg = Column(BigInteger, nullable=False)
+    action = Column(String(32), nullable=False)
+    status = Column(String(20), nullable=False)
+    detail_json = Column(Text, nullable=True)
+    actor_kind = Column(String(32), nullable=False)
+    actor_id = Column(String(128), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
+
+
 class DynamicSetting(Base):
     __tablename__ = "dynamic_settings"
 

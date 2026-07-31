@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
-from bot.sql_helper.sql_application import utcnow
+from bot.sql_helper.sql_application import OperationTask, utcnow
 from bot.sql_helper.sql_community import (
     MediaReview,
     NotificationPreference,
@@ -112,31 +112,71 @@ def add_notification(
     normalized_body = body.strip()
     if not normalized_title or not normalized_body:
         raise RuntimeError("通知标题和正文不能为空")
-    if not uow.community.notification_enabled(tg, category, "web"):
+    web_enabled = uow.community.notification_enabled(tg, category, "web")
+    telegram_enabled = uow.community.notification_enabled(tg, category, "telegram")
+    if not web_enabled and not telegram_enabled:
         return None
     safe_action_url = (
         action_url
         if action_url and action_url.startswith("/") and not action_url.startswith("//")
         else None
     )
-    row = UserNotification(
-        id=str(uuid4()),
-        tg=tg,
-        category=category,
-        title=normalized_title[:200],
-        body=normalized_body[:2000],
-        severity=severity,
-        action_url=safe_action_url,
-        metadata_json=_json(metadata),
-        created_at=utcnow(),
-    )
-    uow.community.add_notification(row)
-    uow.operations.event(
-        "notification.created",
-        "user",
-        str(tg),
-        {"resource_type": "notification", "resource_id": row.id, "tg": tg},
-    )
+    now = utcnow()
+    row = None
+    if web_enabled:
+        row = UserNotification(
+            id=str(uuid4()),
+            tg=tg,
+            category=category,
+            title=normalized_title[:200],
+            body=normalized_body[:2000],
+            severity=severity,
+            action_url=safe_action_url,
+            metadata_json=_json(metadata),
+            created_at=now,
+        )
+        uow.community.add_notification(row)
+        uow.operations.event(
+            "notification.created",
+            "user",
+            str(tg),
+            {"resource_type": "notification", "resource_id": row.id, "tg": tg},
+        )
+    task = None
+    if telegram_enabled:
+        task_id = str(uuid4())
+        task = OperationTask(
+            id=task_id,
+            task_type="notification.telegram",
+            status="pending",
+            progress=0,
+            owner_kind="system",
+            owner_id="notification-service",
+            idempotency_key=f"notification:{row.id if row else task_id}:telegram",
+            input_json=_json(
+                {
+                    "tg": int(tg),
+                    "category": category,
+                    "title": normalized_title[:200],
+                    "body": normalized_body[:2000],
+                    "severity": severity,
+                    "action_url": safe_action_url,
+                }
+            ),
+            retry_count=0,
+            max_retries=3,
+            next_run_at=now,
+            cancel_requested=False,
+            created_at=now,
+            updated_at=now,
+        )
+        uow.operations.add_task(task)
+        uow.operations.event(
+            "notification.telegram.queued",
+            "user",
+            str(tg),
+            {"resource_type": "operation_task", "resource_id": task_id, "tg": tg},
+        )
     return row
 
 

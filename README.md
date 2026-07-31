@@ -10,6 +10,7 @@
 > 影评社区、站内通知、角色权限和增强审计说明见 [docs/community-security.md](docs/community-security.md)。
 >
 > 实时同步、自动测试和安全上线说明见 [docs/release-runbook.md](docs/release-runbook.md)。
+> 风险自动化、外部服务探测、Telegram 告警、批量账号运营与交易对账说明见 [docs/operations-center.md](docs/operations-center.md)。
 
 <p align="center">
 <img src="image/bot2.png" alt="bot"><br>

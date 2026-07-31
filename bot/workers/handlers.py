@@ -54,6 +54,35 @@ async def registration_account_handler(payload: dict) -> dict:
     return result
 
 
+async def diagnostics_handler(_payload: dict) -> dict:
+    from bot.application.operations_center_service import DiagnosticService
+
+    return await DiagnosticService().run()
+
+
+async def telegram_alert_handler(payload: dict) -> dict:
+    from bot.application.operations_center_service import AlertService
+
+    return await AlertService().deliver(str(payload["alert_id"]))
+
+
+async def telegram_notification_handler(payload: dict) -> dict:
+    from bot import bot
+
+    title = str(payload.get("title") or "Sakura 通知")[:200]
+    body = str(payload.get("body") or "")[:2000]
+    if not body:
+        raise ValueError("Telegram 通知正文不能为空")
+    await bot.send_message(int(payload["tg"]), f"🔔 {title}\n\n{body}", parse_mode=None)
+    return {"ok": True, "recipient_tg": int(payload["tg"])}
+
+
+async def users_batch_handler(payload: dict) -> dict:
+    from bot.application.operations_center_service import AccountLifecycleService
+
+    return await AccountLifecycleService().execute_batch(payload)
+
+
 async def _notify_registration_result(payload: dict, result: dict) -> None:
     chat_id = payload.get("notification_chat_id")
     message_id = payload.get("notification_message_id")
@@ -101,4 +130,8 @@ TASK_HANDLERS: dict[str, TaskHandler] = {
     "maintenance.expired_accounts": expired_accounts_handler,
     "maintenance.backup_database": backup_database_handler,
     "registration.account": registration_account_handler,
+    "monitor.diagnostics": diagnostics_handler,
+    "alert.telegram": telegram_alert_handler,
+    "notification.telegram": telegram_notification_handler,
+    "users.batch": users_batch_handler,
 }

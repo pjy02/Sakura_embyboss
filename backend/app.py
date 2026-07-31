@@ -19,6 +19,7 @@ from backend.api import (
     governance_router,
     me_router,
     operations_router,
+    operations_center_router,
     registration_router,
     tasks_router,
 )
@@ -120,6 +121,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     api_v1.include_router(admin_router)
     api_v1.include_router(tasks_router)
     api_v1.include_router(operations_router)
+    api_v1.include_router(operations_center_router)
     api_v1.include_router(commerce_admin_router)
     api_v1.include_router(community_admin_router)
     api_v1.include_router(events_router)

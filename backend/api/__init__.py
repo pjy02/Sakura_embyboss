@@ -7,6 +7,7 @@ from .community import me_router as community_me_router
 from .governance import router as governance_router
 from .me import router as me_router
 from .operations import router as operations_router
+from .operations_center import router as operations_center_router
 from .registration import router as registration_router
 from .tasks import admin_router as tasks_router
 from .tasks import events_router
@@ -22,6 +23,7 @@ __all__ = [
     "governance_router",
     "me_router",
     "operations_router",
+    "operations_center_router",
     "registration_router",
     "tasks_router",
 ]

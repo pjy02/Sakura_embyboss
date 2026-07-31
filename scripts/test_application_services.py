@@ -10,7 +10,7 @@ import json
 import sys
 import types
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +36,8 @@ bot_stub._open = types.SimpleNamespace(
     register_queue_limit=10,
 )
 bot_stub.ranks = types.SimpleNamespace(logo="SAKURA")
+bot_stub.owner = 9001
+bot_stub.admins = [9002]
 bot_stub.LOGGER = types.SimpleNamespace(
     debug=lambda *args, **kwargs: None,
     info=lambda *args, **kwargs: None,
@@ -56,12 +58,16 @@ def _compile_big_integer_as_integer(_type, _compiler, **_kwargs):
 
 from bot.sql_helper import Base
 from bot.sql_helper.sql_application import (
+    AccountLifecycleEvent,
+    AlertDelivery,
     AuditLog,
     ConfigRevision,
     DynamicSetting,
     OperationTask,
     PointTransaction,
+    RiskRule,
     SecurityEvent,
+    ServiceProbe,
     SystemEvent,
     WebRole,
 )
@@ -82,16 +88,20 @@ from bot.sql_helper.sql_community import (
 from bot.sql_helper.sql_emby import Emby
 from bot.sql_helper.sql_partition import PartitionCode, PartitionGrant
 from bot.application import (
+    AccountLifecycleService,
     AdminQueryService,
     CodeService,
     CommerceService,
     CoreOperationsService,
     DynamicSettingsService,
+    DiagnosticService,
     MediaRequestService,
     NotificationService,
     PartitionService,
     PointService,
     RegistrationService,
+    RiskAutomationService,
+    RiskRuleService,
     TicketService,
     TokenCodec,
     UserService,
@@ -140,6 +150,20 @@ class StubRegistrationEmbyClient:
         return True
 
 
+class StubLifecycleEmbyClient:
+    def __init__(self):
+        self.policy_changes = []
+        self.deleted = []
+
+    async def emby_change_policy(self, emby_id, admin=False, disable=False):
+        self.policy_changes.append((emby_id, disable))
+        return True
+
+    async def emby_del(self, emby_id):
+        self.deleted.append(emby_id)
+        return True
+
+
 class ApplicationServiceTests(unittest.TestCase):
     def setUp(self):
         self.engine = create_engine("sqlite:///:memory:")
@@ -177,6 +201,14 @@ class ApplicationServiceTests(unittest.TestCase):
             self.uow_factory,
             emby_client=self.registration_emby,
         )
+        self.lifecycle_emby = StubLifecycleEmbyClient()
+        self.lifecycle = AccountLifecycleService(
+            self.uow_factory,
+            emby_client=self.lifecycle_emby,
+        )
+        self.risk_rules = RiskRuleService(self.uow_factory)
+        self.risk_automation = RiskAutomationService(self.uow_factory)
+        self.diagnostics = DiagnosticService(self.uow_factory)
         self.auth = WebAuthService(
             token_codec=TokenCodec("test-web-session-secret-long-enough"),
             owner_tg=9001,
@@ -540,6 +572,145 @@ class ApplicationServiceTests(unittest.TestCase):
         ledger = self.commerce.ledger(tg=1001)
         self.assertEqual([item["entry_type"] for item in ledger["items"]], ["order_canceled", "order_created"])
 
+    def test_refund_reverses_credited_order_once_and_reconciles(self):
+        self._add_user(iv=25, lv="b")
+        product = self.commerce.create_product(
+            {
+                "name": "退款测试包",
+                "description": None,
+                "amount_cents": 600,
+                "coins": 60,
+                "bonus_coins": 5,
+                "enabled": True,
+                "sort_order": 1,
+            },
+            actor=self.actor,
+        )
+        order = self.commerce.create_order(
+            tg=1001,
+            product_id=product["id"],
+            user_note=None,
+            actor=self.actor,
+            idempotency_key="refund-create-1",
+        )
+        self.commerce.decide_order(
+            order["id"],
+            approve=True,
+            payment_reference="PAY-REFUND",
+            admin_note=None,
+            actor=Actor.web(9001),
+        )
+        refunded = self.commerce.refund_order(
+            order["id"],
+            reason="用户重复付款",
+            actor=Actor.web(9001),
+        )
+        replay = self.commerce.refund_order(
+            order["id"],
+            reason="用户重复付款",
+            actor=Actor.web(9001),
+        )
+
+        self.assertEqual(refunded["status"], "refunded")
+        self.assertEqual(replay["status"], "refunded")
+        self.assertEqual(self.commerce.reconciliation_summary()["status"], "healthy")
+        with self.session_factory() as session:
+            self.assertEqual(session.get(Emby, 1001).iv, 25)
+            self.assertEqual(session.query(BillingEntry).count(), 3)
+            self.assertEqual(session.query(PointTransaction).count(), 2)
+            self.assertEqual(session.query(UserNotification).count(), 2)
+
+    def test_risk_rules_trigger_alert_tasks_with_cooldown(self):
+        rule = self.risk_rules.create(
+            {
+                "name": "测试登录风险",
+                "event_pattern": "auth.test.failed",
+                "severity": "danger",
+                "threshold_count": 2,
+                "window_minutes": 10,
+                "cooldown_minutes": 30,
+                "enabled": True,
+                "telegram_alert": True,
+            },
+            self.actor,
+        )
+        with self.uow_factory() as uow:
+            uow.operations.security_event(event_type="auth.test.failed", severity="warning", subject_kind="user", subject_id="1001")
+            uow.operations.security_event(event_type="auth.test.failed", severity="warning", subject_kind="user", subject_id="1002")
+
+        first = self.risk_automation.evaluate()
+        second = self.risk_automation.evaluate()
+        self.assertEqual(first["triggered"][0]["rule_id"], rule["id"])
+        self.assertEqual(first["alerts_queued"], 2)
+        self.assertEqual(second["triggered"], [])
+        with self.session_factory() as session:
+            self.assertEqual(session.query(RiskRule).count(), 1)
+            self.assertEqual(session.query(AlertDelivery).count(), 2)
+            self.assertEqual(
+                session.query(OperationTask)
+                .filter(OperationTask.task_type == "alert.telegram")
+                .count(),
+                2,
+            )
+
+    def test_diagnostics_record_transitions_without_duplicate_risk_events(self):
+        checked_at = datetime.now()
+        base = {
+            "service_name": "emby",
+            "service_kind": "media",
+            "latency_ms": 25,
+            "status_code": 503,
+            "message": "HTTP 503",
+            "checked_at": checked_at,
+        }
+        self.diagnostics._persist([{**base, "status": "unhealthy"}])
+        self.diagnostics._persist([{**base, "status": "unhealthy", "checked_at": checked_at + timedelta(minutes=1)}])
+        self.diagnostics._persist([{**base, "status": "healthy", "status_code": 200, "message": "HTTP 200", "checked_at": checked_at + timedelta(minutes=2)}])
+
+        with self.session_factory() as session:
+            self.assertEqual(session.query(ServiceProbe).count(), 3)
+            self.assertEqual(
+                session.query(SecurityEvent)
+                .filter(SecurityEvent.event_type == "service.probe.failed")
+                .count(),
+                1,
+            )
+            self.assertEqual(
+                session.query(SystemEvent)
+                .filter(SystemEvent.event_type == "service.probe.recovered")
+                .count(),
+                1,
+            )
+
+    def test_batch_lifecycle_records_each_user_and_queues_notifications(self):
+        self._add_user(embyid="emby-1001", name="alice", iv=10, lv="b")
+        submitted = self.lifecycle.enqueue_batch(
+            action="suspend",
+            tg_ids=[1001, 9999],
+            parameters={},
+            actor=Actor.web(9001),
+            idempotency_key="batch-suspend-1",
+        )
+        self.assertTrue(submitted.ok)
+        with self.session_factory() as session:
+            task = session.get(OperationTask, submitted.data["id"])
+            payload = json.loads(task.input_json)
+        result = asyncio.run(self.lifecycle.execute_batch(payload))
+        replayed = asyncio.run(self.lifecycle.execute_batch(payload))
+
+        self.assertEqual(result["succeeded"], 1)
+        self.assertTrue(replayed["items"][0]["replayed"])
+        self.assertEqual(self.lifecycle_emby.policy_changes, [("emby-1001", True)])
+        with self.session_factory() as session:
+            self.assertEqual(session.query(AccountLifecycleEvent).count(), 1)
+            self.assertEqual(session.query(UserNotification).count(), 1)
+            self.assertEqual(
+                session.query(OperationTask)
+                .filter(OperationTask.task_type == "notification.telegram")
+                .count(),
+                1,
+            )
+
     def test_ticket_messages_are_scoped_and_internal_notes_are_hidden(self):
         self._add_user(tg=1001, name="alice")
         self._add_user(tg=1002, name="bob")
@@ -741,6 +912,13 @@ class ApplicationServiceTests(unittest.TestCase):
         self.assertEqual(second["created"], 1)
         self.assertEqual(self.notifications.list(tg=1001)["total"], 1)
         self.assertEqual(self.notifications.list(tg=1002)["total"], 2)
+        with self.session_factory() as session:
+            self.assertEqual(
+                session.query(OperationTask)
+                .filter(OperationTask.task_type == "notification.telegram")
+                .count(),
+                4,
+            )
 
     def test_custom_role_lifecycle_enforces_member_safety(self):
         self._add_user(tg=1001, name="alice")

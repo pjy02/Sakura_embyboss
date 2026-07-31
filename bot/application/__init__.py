@@ -15,6 +15,13 @@ from .partition_service import PartitionService
 from .point_service import PointService
 from .reliability_service import ReliabilityService
 from .registration_service import RegistrationService
+from .operations_center_service import (
+    AccountLifecycleService,
+    AlertService,
+    DiagnosticService,
+    RiskAutomationService,
+    RiskRuleService,
+)
 from .task_service import TaskService
 from .user_service import UserService
 
@@ -30,6 +37,11 @@ __all__ = [
     "PointService",
     "ReliabilityService",
     "RegistrationService",
+    "AccountLifecycleService",
+    "AlertService",
+    "DiagnosticService",
+    "RiskAutomationService",
+    "RiskRuleService",
     "RiskEventService",
     "ReviewService",
     "TaskService",

@@ -22,6 +22,12 @@ const childRoutes =
           meta: { title: "站点账号", section: "用户运营", permission: "users:read" },
         },
         {
+          path: "operations",
+          name: "operations-center",
+          component: () => import("@/views/admin/OperationsCenterView.vue"),
+          meta: { title: "批量运营", section: "用户运营", permission: "users:read" },
+        },
+        {
           path: "playback/live",
           name: "playback-live",
           component: () => import("@/views/admin/PlaybackLiveView.vue"),
@@ -56,6 +62,12 @@ const childRoutes =
           name: "system-status",
           component: () => import("@/views/admin/SystemStatusView.vue"),
           meta: { title: "服务状态", section: "线路与系统", permission: "tasks:read" },
+        },
+        {
+          path: "system/diagnostics",
+          name: "diagnostics",
+          component: () => import("@/views/admin/DiagnosticsView.vue"),
+          meta: { title: "诊断中心", section: "线路与系统", permission: "tasks:read" },
         },
         {
           path: "billing/recharge",
