@@ -386,3 +386,59 @@ export interface SystemStatus {
   oldest_pending_at: string | null;
   checked_at: string;
 }
+
+export interface RiskEvent {
+  id: number;
+  event_type: string;
+  severity: "info" | "warning" | "danger";
+  subject_kind: string | null;
+  subject_id: string | null;
+  ip_address: string | null;
+  detail: Record<string, unknown> | null;
+  status: "open" | "acknowledged" | "resolved" | "ignored";
+  assigned_to: number | null;
+  resolution_note: string | null;
+  resolved_by: number | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RiskSummary {
+  open_total: number;
+  severity_counts: Record<"info" | "warning" | "danger", number>;
+  status_counts: Record<RiskEvent["status"], number>;
+  recent_24h: number;
+  top_types: Array<{ event_type: string; count: number }>;
+  checked_at: string;
+}
+
+export type DynamicSettingValue = boolean | number | string;
+
+export interface DynamicSetting {
+  key: string;
+  group: string;
+  label: string;
+  description: string;
+  value: DynamicSettingValue;
+  value_type: "boolean" | "integer" | "string";
+  source: "config" | "database";
+  revision: number;
+  minimum: number | null;
+  maximum: number | null;
+  options: string[];
+  restart_required: boolean;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface ConfigRevision {
+  id: number;
+  setting_key: string;
+  revision: number;
+  old_value: DynamicSettingValue;
+  new_value: DynamicSettingValue;
+  actor_kind: string;
+  actor_id: string;
+  created_at: string;
+}

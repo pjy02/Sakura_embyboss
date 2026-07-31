@@ -168,6 +168,7 @@ class SecurityEvent(Base):
     __table_args__ = (
         Index("ix_security_events_type_created", "event_type", "created_at"),
         Index("ix_security_events_subject", "subject_kind", "subject_id"),
+        Index("ix_security_events_status_created", "status", "created_at"),
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -177,7 +178,13 @@ class SecurityEvent(Base):
     subject_id = Column(String(128), nullable=True)
     ip_address = Column(String(64), nullable=True)
     detail_json = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="open")
+    assigned_to = Column(BigInteger, nullable=True)
+    resolution_note = Column(String(1000), nullable=True)
+    resolved_by = Column(BigInteger, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utcnow)
+    updated_at = Column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
 
 class DynamicSetting(Base):

@@ -37,6 +37,8 @@ DEFAULT_ROLE_PERMISSIONS = {
         "notifications:*",
         "roles:manage",
         "audit:export",
+        "security:manage",
+        "settings:manage",
     },
     "operator": {
         "users:read",
@@ -57,6 +59,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         "reviews:*",
         "notifications:read",
         "notifications:send",
+        "security:read",
     },
     "auditor": {
         "users:read",
@@ -118,9 +121,11 @@ PERMISSION_CATALOG = {
         "audit:read": "查看审计",
         "audit:export": "导出审计",
         "security:read": "查看安全事件",
+        "security:manage": "处置安全事件",
         "roles:read": "查看角色",
         "roles:manage": "管理角色",
         "settings:read": "查看设置",
+        "settings:manage": "修改设置",
     },
 }
 KNOWN_PERMISSIONS = {

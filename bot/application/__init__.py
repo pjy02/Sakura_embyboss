@@ -10,6 +10,7 @@ from .code_service import CodeService
 from .commerce_service import CommerceService, MediaRequestService, TicketService
 from .community_service import NotificationService, ReviewService
 from .core_operations_service import CoreOperationsService
+from .governance_service import DynamicSettingsService, RiskEventService
 from .partition_service import PartitionService
 from .point_service import PointService
 from .reliability_service import ReliabilityService
@@ -20,12 +21,14 @@ __all__ = [
     "CodeService",
     "CommerceService",
     "CoreOperationsService",
+    "DynamicSettingsService",
     "MediaRequestService",
     "NotificationService",
     "AdminQueryService",
     "PartitionService",
     "PointService",
     "ReliabilityService",
+    "RiskEventService",
     "ReviewService",
     "TaskService",
     "TicketService",

@@ -72,6 +72,9 @@ export function actionLabel(action: string) {
     "role.create": "创建角色",
     "role.update": "更新角色权限",
     "role.delete": "删除角色",
+    "security.event.update": "处置风险事件",
+    "setting.update": "修改系统设置",
+    "setting.rollback": "回滚系统设置",
   };
   return labels[action] || action;
 }

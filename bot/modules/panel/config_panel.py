@@ -24,10 +24,28 @@ from bot.sql_helper.sql_partition import (
     sql_clear_all_partition_data,
 )
 from bot.func_helper.utils import pwd_create
+from bot.application import DynamicSettingsService
+from bot.domain import Actor
 from pyromod.helpers import ikb
 
 PARTITION_VIEW_PAGE_SIZE = 20
 PARTITION_CREATE_MAX_COUNT = 500
+dynamic_settings_service = DynamicSettingsService()
+
+
+def persist_dynamic_setting(key, value, call):
+    try:
+        return dynamic_settings_service.update_latest(
+            key,
+            value=value,
+            actor=Actor.telegram(
+                call.from_user.id,
+                getattr(call.from_user, "first_name", None),
+            ),
+        )
+    except Exception as error:
+        LOGGER.warning(f"Bot 动态设置同步失败 ({key})，已保留 config.json：{error}")
+        return None
 
 
 @bot.on_message(filters.command('config', prefixes=prefixes) & admins_on_filter)
@@ -617,6 +635,11 @@ async def set_mp_status(_, call):
     """设置点播功能开关"""
     try:
         moviepilot.status = not moviepilot.status
+        persist_dynamic_setting(
+            "integrations.moviepilot_enabled",
+            moviepilot.status,
+            call,
+        )
         if moviepilot.status:
             message = '👮🏻‍♂️ 您已开启 MoviePilot 点播功能'
             scheduler.add_job(sync_download_tasks, 'interval', seconds=60, id='sync_download_tasks')
@@ -649,6 +672,7 @@ async def set_mp_price(_, call):
         if price < 0:
             raise ValueError
         moviepilot.price = price
+        persist_dynamic_setting("integrations.moviepilot_price", price, call)
         save_config()
         await editMessage(call, f"✅ 点播价格已设置为 {price} {sakura_b}/GB")
         await mp_config_panel(_, call)
@@ -848,6 +872,11 @@ async def set_client_filter_panel(_, call):
 async def toggle_client_filter(_, call):
     """切换客户端过滤开关"""
     config.client_filter_enabled = not config.client_filter_enabled
+    persist_dynamic_setting(
+        "playback.client_filter_enabled",
+        config.client_filter_enabled,
+        call,
+    )
     if config.client_filter_enabled:
         message = '📡 您已开启 客户端过滤功能'
         log_message = f"【admin】：管理员 {call.from_user.first_name} 已开启 客户端过滤功能"
@@ -872,6 +901,11 @@ async def set_client_filter_mode(_, call):
         config.client_filter_mode = 'blacklist'
         message = '📡 已切换到 黑名单模式'
         log_message = f"【admin】：管理员 {call.from_user.first_name} 已切换客户端过滤模式为 黑名单"
+    persist_dynamic_setting(
+        "playback.client_filter_mode",
+        config.client_filter_mode,
+        call,
+    )
     await callAnswer(call, message, True)
     save_config()
     await set_client_filter_panel(_, call)

@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from bot.domain import Actor
 from bot.sql_helper.sql_application import (
     AuditLog,
+    ConfigRevision,
+    DynamicSetting,
     IdempotencyRecord,
     JobRun,
     OperationTask,
@@ -129,16 +131,106 @@ class OperationRepository:
         subject_id: Optional[str] = None,
         ip_address: Optional[str] = None,
         detail: Any = None,
-    ) -> None:
-        self.session.add(
-            SecurityEvent(
-                event_type=event_type,
-                severity=severity,
-                subject_kind=subject_kind,
-                subject_id=subject_id,
-                ip_address=ip_address,
-                detail_json=_json(detail),
+    ):
+        row = SecurityEvent(
+            event_type=event_type,
+            severity=severity,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            ip_address=ip_address,
+            detail_json=_json(detail),
+        )
+        self.session.add(row)
+        self.event(
+            "security.created",
+            "security",
+            subject_id,
+            {
+                "event_type": event_type,
+                "severity": severity,
+                "subject_kind": subject_kind,
+                "subject_id": subject_id,
+            },
+        )
+        return row
+
+    def get_security_event(self, event_id: int, *, for_update: bool = False):
+        query = self.session.query(SecurityEvent).filter(SecurityEvent.id == event_id)
+        if for_update:
+            query = query.with_for_update()
+        return query.first()
+
+    def list_security_events(
+        self,
+        *,
+        search: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        event_type: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ):
+        query = self.session.query(SecurityEvent)
+        if search:
+            pattern = f"%{search}%"
+            query = query.filter(
+                or_(
+                    SecurityEvent.event_type.like(pattern),
+                    SecurityEvent.subject_kind.like(pattern),
+                    SecurityEvent.subject_id.like(pattern),
+                    SecurityEvent.ip_address.like(pattern),
+                    SecurityEvent.detail_json.like(pattern),
+                )
             )
+        if severity:
+            query = query.filter(SecurityEvent.severity == severity)
+        if status:
+            query = query.filter(SecurityEvent.status == status)
+        if event_type:
+            query = query.filter(SecurityEvent.event_type == event_type)
+        total = query.count()
+        rows = (
+            query.order_by(SecurityEvent.created_at.desc(), SecurityEvent.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return rows, total
+
+    def get_dynamic_setting(self, key: str, *, for_update: bool = False):
+        query = self.session.query(DynamicSetting).filter(
+            DynamicSetting.setting_key == key
+        )
+        if for_update:
+            query = query.with_for_update()
+        return query.first()
+
+    def list_dynamic_settings(self):
+        return self.session.query(DynamicSetting).all()
+
+    def add_dynamic_setting(self, row: DynamicSetting) -> None:
+        self.session.add(row)
+
+    def add_config_revision(self, row: ConfigRevision) -> None:
+        self.session.add(row)
+
+    def list_config_revisions(self, key: str, limit: int = 30):
+        return (
+            self.session.query(ConfigRevision)
+            .filter(ConfigRevision.setting_key == key)
+            .order_by(ConfigRevision.revision.desc())
+            .limit(limit)
+            .all()
+        )
+
+    def get_config_revision(self, key: str, revision: int):
+        return (
+            self.session.query(ConfigRevision)
+            .filter(
+                ConfigRevision.setting_key == key,
+                ConfigRevision.revision == revision,
+            )
+            .first()
         )
 
     def get_task(self, task_id: str, *, for_update: bool = False):

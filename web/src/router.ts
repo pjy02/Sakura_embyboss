@@ -51,6 +51,12 @@ const childRoutes =
           meta: { title: "系统任务", section: "线路与系统", permission: "tasks:read" },
         },
         {
+          path: "system/status",
+          name: "system-status",
+          component: () => import("@/views/admin/SystemStatusView.vue"),
+          meta: { title: "服务状态", section: "线路与系统", permission: "tasks:read" },
+        },
+        {
           path: "billing/recharge",
           name: "recharge",
           component: () => import("@/views/admin/RechargeView.vue"),
@@ -97,6 +103,18 @@ const childRoutes =
           name: "audit",
           component: () => import("@/views/admin/AuditView.vue"),
           meta: { title: "操作记录", section: "安全管理", permission: "audit:read" },
+        },
+        {
+          path: "risk",
+          name: "risk",
+          component: () => import("@/views/admin/RiskEventsView.vue"),
+          meta: { title: "风险事件", section: "安全管理", permission: "security:read" },
+        },
+        {
+          path: "settings",
+          name: "settings",
+          component: () => import("@/views/admin/SystemSettingsView.vue"),
+          meta: { title: "系统设置", section: "安全管理", permission: "settings:read" },
         },
       ]
     : [

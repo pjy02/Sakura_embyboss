@@ -16,6 +16,7 @@ from backend.api import (
     community_admin_router,
     community_me_router,
     events_router,
+    governance_router,
     me_router,
     operations_router,
     tasks_router,
@@ -120,6 +121,7 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     api_v1.include_router(commerce_admin_router)
     api_v1.include_router(community_admin_router)
     api_v1.include_router(events_router)
+    api_v1.include_router(governance_router)
     app.include_router(api_v1)
 
     @app.get("/healthz", tags=["health"])

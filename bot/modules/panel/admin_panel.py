@@ -15,6 +15,28 @@ from bot.func_helper.fix_bottons import gm_ikb_content, open_menu_ikb, gog_reste
     back_free_ikb, re_cr_link_ikb, close_it_ikb, ch_link_ikb, date_ikb, cr_paginate, cr_renew_ikb, invite_lv_ikb, checkin_lv_ikb
 from bot.func_helper.msg_utils import callAnswer, editMessage, sendPhoto, callListen, deleteMessage, sendMessage
 from bot.func_helper.utils import open_check, cr_link_one, rn_link_one, wl_link_one
+from bot.application import DynamicSettingsService
+from bot.domain import Actor
+
+
+dynamic_settings_service = DynamicSettingsService()
+
+
+def persist_dynamic_setting(key, value, call=None, actor_id=None):
+    try:
+        user = getattr(call, "from_user", None)
+        user_id = actor_id or getattr(user, "id", None)
+        return dynamic_settings_service.update_latest(
+            key,
+            value=value,
+            actor=Actor.telegram(
+                int(user_id),
+                getattr(user, "first_name", None),
+            ),
+        )
+    except Exception as error:
+        LOGGER.warning(f"Bot 动态设置同步失败 ({key})，已保留 config.json：{error}")
+        return None
 
 
 @bot.on_callback_query(filters.regex('manage') & admins_on_filter)
@@ -60,6 +82,7 @@ async def open_stats(_, call):
     tg, emby, white = sql_count_emby()
     if stat:
         _open.stat = False
+        persist_dynamic_setting("registration.enabled", False, call)
         save_config()
         await callAnswer(call, "🟢【自由注册】\n\n已结束", True)
         sur = all_user - tem
@@ -72,6 +95,7 @@ async def open_stats(_, call):
         LOGGER.info(f"【admin】：管理员 {call.from_user.first_name} 关闭了自由注册")
     elif not stat:
         _open.stat = True
+        persist_dynamic_setting("registration.enabled", True, call)
         save_config()
         await callAnswer(call, "🟡【自由注册】\n\n已开启", True)
         sur = all_user - tem  # for i in group可以多个群组用，但是现在不做
@@ -111,6 +135,8 @@ async def open_timing(_, call):
             _open.timing = int(new_timing)
             _open.all_user = int(new_all_user)
             _open.stat = True
+            persist_dynamic_setting("registration.user_limit", _open.all_user, call)
+            persist_dynamic_setting("registration.enabled", True, call)
             save_config()
         except ValueError:
             await editMessage(call, "🚫 请检查数字填写是否正确。\n`[时长min] [总人数]`", buttons=back_open_menu_ikb)
@@ -157,6 +183,11 @@ async def change_for_timing(timing, tgid, call):
     finally:
         _open.timing = 0
         _open.stat = False
+        persist_dynamic_setting(
+            "registration.enabled",
+            False,
+            actor_id=tgid,
+        )
         save_config()
         b = _open.tem - a
         s = _open.all_user - _open.tem
@@ -189,6 +220,7 @@ async def open_all_user_l(_, call):
         await editMessage(call, f"❌ 八嘎，请输入一个数字给我。", buttons=back_free_ikb)
     else:
         _open.all_user = a
+        persist_dynamic_setting("registration.user_limit", a, call)
         save_config()
         await editMessage(call, f"✔️ 成功，您已设置 **注册总人数 {a}**", buttons=back_free_ikb)
         LOGGER.info(f"【admin】：管理员 {call.from_user.first_name} 调整了总人数限制：{a}")

@@ -218,7 +218,22 @@ class CoreOperationsService:
                         last_seen_at=now,
                     )
                     uow.core_operations.add_device(device)
+                    uow.operations.security_event(
+                        event_type="device.first_seen",
+                        severity="info",
+                        subject_kind="device",
+                        subject_id=payload["device_key"],
+                        ip_address=payload["remote_address"],
+                        detail={
+                            "tg": tg,
+                            "emby_user_id": payload["emby_user_id"],
+                            "device_name": payload["device_name"],
+                            "client_name": payload["client_name"],
+                        },
+                    )
                 else:
+                    previous_emby_user_id = device.emby_user_id
+                    previous_tg = device.tg
                     changed_owner = (
                         device.emby_user_id
                         and payload["emby_user_id"]
@@ -236,6 +251,32 @@ class CoreOperationsService:
                         device.playback_count = int(device.playback_count or 0) + 1
                     if changed_owner and not device.trusted:
                         device.risk_level = "warning"
+                        uow.operations.security_event(
+                            event_type="device.owner_changed",
+                            severity="warning",
+                            subject_kind="device",
+                            subject_id=device.device_key,
+                            ip_address=payload["remote_address"],
+                            detail={
+                                "previous_emby_user_id": previous_emby_user_id,
+                                "previous_tg": previous_tg,
+                                "current_emby_user_id": payload["emby_user_id"],
+                                "current_tg": tg,
+                            },
+                        )
+                    if is_new_play and device.banned:
+                        uow.operations.security_event(
+                            event_type="device.banned_playback",
+                            severity="danger",
+                            subject_kind="device",
+                            subject_id=device.device_key,
+                            ip_address=payload["remote_address"],
+                            detail={
+                                "tg": tg,
+                                "session_id": payload["session_id"],
+                                "emby_user_id": payload["emby_user_id"],
+                            },
+                        )
                 live_rows.append(row)
             uow.core_operations.end_missing_playback(active_session_ids, now)
             uow.flush()
@@ -539,6 +580,7 @@ class CoreOperationsService:
             row = uow.core_operations.get_line(line_id)
             if row is None:
                 return None
+            previous_status = row.last_status
             row.last_status = "healthy" if success else "offline"
             row.last_latency_ms = latency_ms
             row.last_error = error
@@ -572,6 +614,19 @@ class CoreOperationsService:
                 str(line_id),
                 {"status": row.last_status, "latency_ms": latency_ms},
             )
+            if not success and previous_status != "offline":
+                uow.operations.security_event(
+                    event_type="line.offline",
+                    severity="warning",
+                    subject_kind="line",
+                    subject_id=str(line_id),
+                    detail={
+                        "name": row.name,
+                        "base_url": row.base_url,
+                        "latency_ms": latency_ms,
+                        "error": error,
+                    },
+                )
             uow.flush()
             return serialize_line(row)
 

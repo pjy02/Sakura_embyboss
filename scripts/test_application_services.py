@@ -47,7 +47,15 @@ def _compile_big_integer_as_integer(_type, _compiler, **_kwargs):
 
 
 from bot.sql_helper import Base
-from bot.sql_helper.sql_application import AuditLog, PointTransaction, SystemEvent, WebRole
+from bot.sql_helper.sql_application import (
+    AuditLog,
+    ConfigRevision,
+    DynamicSetting,
+    PointTransaction,
+    SecurityEvent,
+    SystemEvent,
+    WebRole,
+)
 from bot.sql_helper.sql_code import Code
 from bot.sql_helper.sql_commerce import (
     BillingEntry,
@@ -69,6 +77,7 @@ from bot.application import (
     CodeService,
     CommerceService,
     CoreOperationsService,
+    DynamicSettingsService,
     MediaRequestService,
     NotificationService,
     PartitionService,
@@ -78,8 +87,11 @@ from bot.application import (
     UserService,
     WebAuthService,
     ReviewService,
+    RiskEventService,
 )
 from bot.domain import Actor
+from bot.application.auth_service import DEFAULT_ROLE_PERMISSIONS
+from bot.application.governance_service import SettingConflictError
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.sql_helper.sql_operations import KnownDevice, LineEndpoint, PlaybackSession
 
@@ -124,6 +136,12 @@ class ApplicationServiceTests(unittest.TestCase):
         self.media_requests = MediaRequestService(self.uow_factory)
         self.notifications = NotificationService(self.uow_factory)
         self.reviews = ReviewService(self.uow_factory)
+        self.risk_events = RiskEventService(self.uow_factory)
+        self.runtime_settings = {}
+        self.dynamic_settings = DynamicSettingsService(
+            self.uow_factory,
+            runtime_values=self.runtime_settings,
+        )
         self.partitions = PartitionService(self.uow_factory)
         self.emby_client = StubEmbyClient()
         self.core_operations = CoreOperationsService(
@@ -789,6 +807,122 @@ class ApplicationServiceTests(unittest.TestCase):
         self.assertEqual(identity.auth_method, "emby")
         self.assertTrue(identity.has_permission("users:read"))
         self.assertTrue(identity.is_owner)
+
+    def test_risk_events_can_be_triaged_and_are_audited(self):
+        with self.uow_factory() as uow:
+            created = uow.operations.security_event(
+                event_type="device.banned_playback",
+                severity="danger",
+                subject_kind="device",
+                subject_id="device-1",
+                ip_address="127.0.0.1",
+                detail={"session_id": "session-1"},
+            )
+            uow.flush()
+            event_id = created.id
+
+        summary = self.risk_events.summary()
+        self.assertEqual(summary["open_total"], 1)
+        self.assertEqual(summary["severity_counts"]["danger"], 1)
+        listed = self.risk_events.list(status="open", severity="danger")
+        self.assertEqual(listed["total"], 1)
+        self.assertEqual(listed["items"][0]["event_type"], "device.banned_playback")
+
+        updated = self.risk_events.update(
+            event_id,
+            status="resolved",
+            assigned_to=1001,
+            resolution_note="confirmed and blocked",
+            actor=self.actor,
+        )
+        self.assertEqual(updated["status"], "resolved")
+        self.assertEqual(updated["resolved_by"], 1001)
+        self.assertIsNotNone(updated["resolved_at"])
+        with self.session_factory() as session:
+            self.assertEqual(session.query(SecurityEvent).count(), 1)
+            self.assertEqual(
+                session.query(AuditLog)
+                .filter(AuditLog.action == "security.event.update")
+                .count(),
+                1,
+            )
+            self.assertEqual(
+                session.query(SystemEvent)
+                .filter(SystemEvent.event_type == "security.updated")
+                .count(),
+                1,
+            )
+            self.assertEqual(
+                session.query(SystemEvent)
+                .filter(SystemEvent.event_type == "security.created")
+                .count(),
+                1,
+            )
+
+    def test_dynamic_settings_support_conflicts_history_and_rollback(self):
+        initial = self.dynamic_settings.get("economy.exchange_cost")
+        self.assertEqual(initial["revision"], 0)
+
+        first = self.dynamic_settings.update(
+            "economy.exchange_cost",
+            value=400,
+            expected_revision=0,
+            actor=self.actor,
+        )
+        self.assertEqual(first["revision"], 1)
+        self.assertEqual(self.runtime_settings["economy.exchange_cost"], 400)
+
+        with self.assertRaises(SettingConflictError):
+            self.dynamic_settings.update(
+                "economy.exchange_cost",
+                value=450,
+                expected_revision=0,
+                actor=self.actor,
+            )
+
+        second = self.dynamic_settings.update_latest(
+            "economy.exchange_cost",
+            value=450,
+            actor=self.actor,
+        )
+        rolled_back = self.dynamic_settings.rollback(
+            "economy.exchange_cost",
+            target_revision=1,
+            expected_revision=second["revision"],
+            actor=self.actor,
+        )
+        self.assertEqual(rolled_back["value"], 400)
+        self.assertEqual(rolled_back["revision"], 3)
+        self.runtime_settings["economy.exchange_cost"] = 999
+        applied = self.dynamic_settings.apply_runtime_overrides()
+        self.assertIn("economy.exchange_cost", applied["applied"])
+        self.assertEqual(self.runtime_settings["economy.exchange_cost"], 400)
+
+        history = self.dynamic_settings.history("economy.exchange_cost")
+        self.assertEqual([item["revision"] for item in history["items"]], [3, 2, 1])
+        with self.session_factory() as session:
+            self.assertEqual(session.query(DynamicSetting).count(), 1)
+            self.assertEqual(session.query(ConfigRevision).count(), 3)
+            self.assertEqual(
+                session.query(AuditLog)
+                .filter(AuditLog.resource_type == "dynamic_setting")
+                .count(),
+                3,
+            )
+            self.assertEqual(
+                session.query(SystemEvent)
+                .filter(SystemEvent.event_type == "setting.updated")
+                .count(),
+                3,
+            )
+
+    def test_governance_permissions_are_in_default_roles(self):
+        self.assertIn("security:read", DEFAULT_ROLE_PERMISSIONS["admin"])
+        self.assertIn("security:manage", DEFAULT_ROLE_PERMISSIONS["admin"])
+        self.assertIn("settings:read", DEFAULT_ROLE_PERMISSIONS["admin"])
+        self.assertIn("settings:manage", DEFAULT_ROLE_PERMISSIONS["admin"])
+        self.assertIn("security:read", DEFAULT_ROLE_PERMISSIONS["operator"])
+        self.assertNotIn("settings:manage", DEFAULT_ROLE_PERMISSIONS["operator"])
 
 
 if __name__ == "__main__":
