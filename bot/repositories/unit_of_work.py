@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session as OrmSession
 from bot.sql_helper import Session
 from bot.repositories.auth import AuthRepository
 from bot.repositories.codes import CodeRepository
+from bot.repositories.commerce import CommerceRepository
+from bot.repositories.core_operations import CoreOperationsRepository
 from bot.repositories.operations import OperationRepository
 from bot.repositories.partitions import PartitionRepository
 from bot.repositories.users import UserRepository
@@ -22,6 +24,8 @@ class SqlAlchemyUnitOfWork:
         self.auth = AuthRepository(self.session)
         self.users = UserRepository(self.session)
         self.codes = CodeRepository(self.session)
+        self.commerce = CommerceRepository(self.session)
+        self.core_operations = CoreOperationsRepository(self.session)
         self.partitions = PartitionRepository(self.session)
         self.operations = OperationRepository(self.session)
         return self

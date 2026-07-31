@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { ArrowRight, CalendarDays, CheckCircle2, Coins, Crown, Film, Sparkles } from "lucide-vue-next";
+import { ArrowRight, CalendarDays, CheckCircle2, CircleDollarSign, Clapperboard, Coins, Crown, Film, MessageCircle, Sparkles } from "lucide-vue-next";
 import LoadingBlock from "@/components/LoadingBlock.vue";
 import { api } from "@/lib/api";
 import { daysUntil, formatDate, formatNumber, initials, levelLabel } from "@/lib/format";
@@ -151,6 +151,24 @@ useRealtimeEvents(
           </dl>
           <RouterLink class="secondary-button wide" to="/account">管理账户安全 <ArrowRight :size="15" /></RouterLink>
         </article>
+      </section>
+
+      <section class="quick-actions">
+        <RouterLink to="/billing">
+          <CircleDollarSign :size="20" />
+          <span><strong>充值中心</strong><small>提交充值订单并查看入账状态</small></span>
+          <ArrowRight :size="15" />
+        </RouterLink>
+        <RouterLink to="/tickets">
+          <MessageCircle :size="20" />
+          <span><strong>服务工单</strong><small>联系管理员并跟踪处理进度</small></span>
+          <ArrowRight :size="15" />
+        </RouterLink>
+        <RouterLink to="/requests">
+          <Clapperboard :size="20" />
+          <span><strong>求片订阅</strong><small>提交作品并查看下载入库进度</small></span>
+          <ArrowRight :size="15" />
+        </RouterLink>
       </section>
     </template>
   </div>

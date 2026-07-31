@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { Activity, ArrowRight, Coins, ShieldCheck, Sparkles, TimerReset, UserCheck, Users, Workflow } from "lucide-vue-next";
+import { Activity, ArrowRight, Coins, HardDrive, MonitorPlay, Network, ShieldCheck, Sparkles, TimerReset, UserCheck, Users, Workflow } from "lucide-vue-next";
 import LoadingBlock from "@/components/LoadingBlock.vue";
 import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
 import MetricCard from "@/components/admin/MetricCard.vue";
 import { api } from "@/lib/api";
 import { actionLabel, formatDate, formatNumber } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
-import type { AdminOverview, AuditLog } from "@/types";
+import type { AdminOverview, AuditLog, CoreDashboard } from "@/types";
 
 const sessionStore = useSessionStore();
 const overview = ref<AdminOverview | null>(null);
+const core = ref<CoreDashboard | null>(null);
 const audit = ref<AuditLog[]>([]);
 const loading = ref(true);
 const levelTotal = computed(() =>
@@ -30,6 +31,9 @@ function hasPermission(required: string) {
 }
 
 onMounted(async () => {
+  api<CoreDashboard>("/admin/dashboard/core")
+    .then((result) => (core.value = result))
+    .catch(() => undefined);
   try {
     const [summary, logs] = await Promise.all([
       api<AdminOverview>("/admin/overview"),
@@ -61,6 +65,13 @@ onMounted(async () => {
         <MetricCard label="已开通账户" :value="formatNumber(overview.accounts_active)" caption="当前存在 Emby 账户" :icon="UserCheck" tone="cyan" />
         <MetricCard label="即将到期" :value="formatNumber(overview.expiring_soon)" caption="未来 7 天需关注" :icon="TimerReset" tone="gold" />
         <MetricCard label="今日操作" :value="formatNumber(overview.audit_events_today)" caption="已记录的审计事件" :icon="Activity" tone="violet" />
+      </section>
+
+      <section v-if="core" class="operations-pulse panel">
+        <div><span class="pulse-icon live"><MonitorPlay :size="18" /></span><p><small>在线播放</small><strong>{{ formatNumber(core.live_sessions) }}</strong></p></div>
+        <div><span class="pulse-icon"><Activity :size="18" /></span><p><small>今日播放</small><strong>{{ formatNumber(core.plays_today) }}</strong></p></div>
+        <div><span class="pulse-icon device"><HardDrive :size="18" /></span><p><small>已知设备</small><strong>{{ formatNumber(core.known_devices) }}</strong><em v-if="core.risk_devices">{{ core.risk_devices }} 台需关注</em></p></div>
+        <div><span class="pulse-icon line"><Network :size="18" /></span><p><small>健康线路</small><strong>{{ core.lines_healthy }} / {{ core.lines_total }}</strong></p></div>
       </section>
 
       <section class="content-grid admin-overview-grid">
@@ -101,6 +112,9 @@ onMounted(async () => {
 
       <section class="quick-actions">
         <RouterLink v-if="hasPermission('users:read')" to="/users"><Users :size="20" /><span><strong>站点账号</strong><small>检索、查看与调整积分</small></span><ArrowRight :size="17" /></RouterLink>
+        <RouterLink v-if="hasPermission('playback:read')" to="/playback/live"><MonitorPlay :size="20" /><span><strong>在线播放</strong><small>查看并处理当前会话</small></span><ArrowRight :size="17" /></RouterLink>
+        <RouterLink v-if="hasPermission('devices:read')" to="/devices"><HardDrive :size="20" /><span><strong>设备管理</strong><small>识别共享与异常设备</small></span><ArrowRight :size="17" /></RouterLink>
+        <RouterLink v-if="hasPermission('lines:read')" to="/lines"><Network :size="20" /><span><strong>线路管理</strong><small>探测健康与维护状态</small></span><ArrowRight :size="17" /></RouterLink>
         <RouterLink v-if="hasPermission('tasks:read')" to="/tasks"><Workflow :size="20" /><span><strong>系统任务</strong><small>运行维护任务并查看状态</small></span><ArrowRight :size="17" /></RouterLink>
         <RouterLink v-if="hasPermission('roles:read')" to="/roles"><ShieldCheck :size="20" /><span><strong>角色权限</strong><small>配置后台访问范围</small></span><ArrowRight :size="17" /></RouterLink>
         <RouterLink v-if="hasPermission('audit:read')" to="/audit"><Activity :size="20" /><span><strong>操作记录</strong><small>追踪敏感管理操作</small></span><ArrowRight :size="17" /></RouterLink>

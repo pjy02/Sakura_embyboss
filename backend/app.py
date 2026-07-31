@@ -11,8 +11,11 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from backend.api import (
     admin_router,
     auth_router,
+    commerce_admin_router,
+    commerce_me_router,
     events_router,
     me_router,
+    operations_router,
     tasks_router,
 )
 from backend.event_relay import EventRelay
@@ -107,8 +110,11 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     api_v1 = APIRouter(prefix="/api/v1")
     api_v1.include_router(auth_router)
     api_v1.include_router(me_router)
+    api_v1.include_router(commerce_me_router)
     api_v1.include_router(admin_router)
     api_v1.include_router(tasks_router)
+    api_v1.include_router(operations_router)
+    api_v1.include_router(commerce_admin_router)
     api_v1.include_router(events_router)
     app.include_router(api_v1)
 

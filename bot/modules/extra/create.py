@@ -4,7 +4,8 @@ from datetime import datetime
 from pyrogram import filters
 from pyrogram.types import CallbackQuery
 
-from bot import bot, prefixes, LOGGER, emby_line, owner, bot_photo, schedall, config
+from bot import bot, prefixes, LOGGER, owner, bot_photo, schedall, config
+from bot.application import CoreOperationsService
 from bot.func_helper.emby import emby
 from bot.func_helper.filters import admins_on_filter
 from bot.func_helper.fix_bottons import uinfo_ikb, uinfo_delete_confirm_ikb, close_it_ikb
@@ -12,6 +13,9 @@ from bot.func_helper.msg_utils import sendMessage, editMessage, sendPhoto, callA
 from bot.sql_helper.sql_emby import sql_get_emby, sql_update_emby, Emby
 from bot.sql_helper.sql_emby2 import sql_get_emby2, sql_delete_emby2, sql_add_emby2, sql_update_emby2
 from bot.sql_helper.sql_emby2 import Emby2
+
+
+line_service = CoreOperationsService()
 
 
 @bot.on_message(filters.command('ucr', prefixes) & admins_on_filter & filters.private)
@@ -43,7 +47,7 @@ async def login_account(_, msg):
                 f'**🎉 成功创建有效期{days}天 #{name}\n\n'
                 f'• 用户名称 | `{name}`\n'
                 f'• 用户密码 | `{pwd}`\n'
-                f'• 当前线路 | \n{emby_line}\n\n'
+                f'• 当前线路 | \n{line_service.public_line_text()}\n\n'
                 f'• 到期时间 | {ex}**')
 
             if msg.from_user.id != owner:

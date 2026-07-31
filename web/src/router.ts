@@ -21,10 +21,58 @@ const childRoutes =
           meta: { title: "站点账号", section: "用户运营", permission: "users:read" },
         },
         {
+          path: "playback/live",
+          name: "playback-live",
+          component: () => import("@/views/admin/PlaybackLiveView.vue"),
+          meta: { title: "在线播放", section: "用户运营", permission: "playback:read" },
+        },
+        {
+          path: "playback/history",
+          name: "playback-history",
+          component: () => import("@/views/admin/PlaybackHistoryView.vue"),
+          meta: { title: "播放历史", section: "用户运营", permission: "playback:read" },
+        },
+        {
+          path: "devices",
+          name: "devices",
+          component: () => import("@/views/admin/DevicesView.vue"),
+          meta: { title: "设备管理", section: "用户运营", permission: "devices:read" },
+        },
+        {
+          path: "lines",
+          name: "lines",
+          component: () => import("@/views/admin/LinesView.vue"),
+          meta: { title: "线路管理", section: "线路与系统", permission: "lines:read" },
+        },
+        {
           path: "tasks",
           name: "tasks",
           component: () => import("@/views/admin/TasksView.vue"),
           meta: { title: "系统任务", section: "线路与系统", permission: "tasks:read" },
+        },
+        {
+          path: "billing/recharge",
+          name: "recharge",
+          component: () => import("@/views/admin/RechargeView.vue"),
+          meta: { title: "充值中心", section: "交易与服务", permission: "billing:read" },
+        },
+        {
+          path: "billing/ledger",
+          name: "billing-ledger",
+          component: () => import("@/views/admin/BillingLedgerView.vue"),
+          meta: { title: "账单记录", section: "交易与服务", permission: "billing:read" },
+        },
+        {
+          path: "tickets",
+          name: "tickets",
+          component: () => import("@/views/admin/TicketsView.vue"),
+          meta: { title: "工单管理", section: "交易与服务", permission: "tickets:read" },
+        },
+        {
+          path: "requests",
+          name: "requests",
+          component: () => import("@/views/admin/RequestsView.vue"),
+          meta: { title: "求片订阅", section: "内容社区", permission: "requests:read" },
         },
         {
           path: "roles",
@@ -57,6 +105,24 @@ const childRoutes =
           name: "account",
           component: () => import("@/views/portal/AccountView.vue"),
           meta: { title: "账户安全" },
+        },
+        {
+          path: "billing",
+          name: "portal-billing",
+          component: () => import("@/views/portal/BillingView.vue"),
+          meta: { title: "充值与账单" },
+        },
+        {
+          path: "tickets",
+          name: "portal-tickets",
+          component: () => import("@/views/portal/TicketsView.vue"),
+          meta: { title: "我的工单" },
+        },
+        {
+          path: "requests",
+          name: "portal-requests",
+          component: () => import("@/views/portal/RequestsView.vue"),
+          meta: { title: "我的求片" },
         },
       ];
 

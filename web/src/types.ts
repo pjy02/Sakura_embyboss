@@ -68,6 +68,197 @@ export interface AdminOverview {
   audit_events_today: number;
 }
 
+export interface CoreDashboard {
+  live_sessions: number;
+  plays_today: number;
+  known_devices: number;
+  risk_devices: number;
+  lines_total: number;
+  lines_healthy: number;
+  line_statuses: Array<{
+    id: number;
+    name: string;
+    status: "unknown" | "healthy" | "offline";
+    latency_ms: number | null;
+    maintenance: boolean;
+  }>;
+  checked_at: string;
+  emby_status?: "emby" | "unavailable";
+  emby_error?: string | null;
+}
+
+export interface PlaybackSession {
+  id: number;
+  session_id: string;
+  emby_user_id: string | null;
+  emby_user_name: string | null;
+  tg: number | null;
+  item_id: string | null;
+  item_name: string | null;
+  series_name: string | null;
+  item_type: string | null;
+  client_name: string | null;
+  app_version: string | null;
+  device_key: string | null;
+  device_name: string | null;
+  remote_address: string | null;
+  position_ticks: number;
+  runtime_ticks: number;
+  progress_percent: number;
+  is_paused: boolean;
+  is_transcoding: boolean;
+  started_at: string;
+  last_seen_at: string;
+  ended_at: string | null;
+}
+
+export interface LivePlaybackResponse {
+  items: PlaybackSession[];
+  total: number;
+  source: "emby" | "unavailable";
+  error: string | null;
+  synced_at: string;
+}
+
+export interface KnownDevice {
+  device_key: string;
+  emby_user_id: string | null;
+  emby_user_name: string | null;
+  tg: number | null;
+  device_name: string | null;
+  client_name: string | null;
+  app_version: string | null;
+  last_ip: string | null;
+  trusted: boolean;
+  banned: boolean;
+  risk_level: "normal" | "warning" | "high";
+  notes: string | null;
+  playback_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface LineEndpoint {
+  id: number;
+  name: string;
+  base_url: string;
+  region: string | null;
+  carrier: string | null;
+  audience: "all" | "whitelist";
+  weight: number;
+  sort_order: number;
+  enabled: boolean;
+  maintenance: boolean;
+  revision: number;
+  last_status: "unknown" | "healthy" | "offline";
+  last_latency_ms: number | null;
+  last_error: string | null;
+  last_checked_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RechargeProduct {
+  id: number;
+  name: string;
+  description: string | null;
+  amount_cents: number;
+  coins: number;
+  bonus_coins: number;
+  enabled: boolean;
+  sort_order: number;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RechargeOrder {
+  id: string;
+  order_no: string;
+  tg: number;
+  product_id: number | null;
+  product_name: string;
+  amount_cents: number;
+  coins: number;
+  bonus_coins: number;
+  payment_method: string;
+  payment_reference: string | null;
+  status: "pending" | "credited" | "canceled";
+  user_note: string | null;
+  admin_note: string | null;
+  created_at: string;
+  paid_at: string | null;
+  credited_at: string | null;
+  canceled_at: string | null;
+  updated_at: string;
+}
+
+export interface BillingEntry {
+  id: number;
+  order_id: string | null;
+  tg: number;
+  entry_type: string;
+  amount_cents: number | null;
+  coins: number | null;
+  description: string;
+  actor_kind: string;
+  actor_id: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface TicketMessage {
+  id: number;
+  ticket_id: string;
+  sender_kind: "user" | "admin" | "system";
+  sender_tg: number | null;
+  body: string;
+  internal: boolean;
+  created_at: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  ticket_no: string;
+  tg: number;
+  subject: string;
+  category: string;
+  priority: "low" | "normal" | "high" | "urgent";
+  status: "open" | "pending_user" | "pending_staff" | "resolved" | "closed";
+  assignee_tg: number | null;
+  last_reply_kind: string;
+  last_reply_at: string;
+  resolved_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  messages?: TicketMessage[];
+}
+
+export interface MediaRequest {
+  id: string;
+  request_no: string;
+  tg: number;
+  title: string;
+  year: number | null;
+  media_type: string;
+  description: string | null;
+  status: "submitted" | "reviewing" | "approved" | "searching" | "downloading" | "completed" | "rejected" | "canceled";
+  priority: "low" | "normal" | "high" | "urgent";
+  source: "web" | "telegram";
+  external_ref: string | null;
+  download_id: string | null;
+  cost_coins: number;
+  progress: number;
+  admin_note: string | null;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  completed_at: string | null;
+  canceled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TelegramLogin {
   request_id: string;
   request_token: string;

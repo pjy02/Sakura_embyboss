@@ -37,10 +37,12 @@ def _legacy_create_all_tables():
     from bot.sql_helper import (  # noqa: F401
         sql_application,
         sql_code,
+        sql_commerce,
         sql_emby,
         sql_emby2,
         sql_favorites,
         sql_partition,
+        sql_operations,
         sql_request_record,
     )
 

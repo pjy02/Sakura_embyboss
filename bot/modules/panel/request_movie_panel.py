@@ -3,8 +3,10 @@ from bot import bot, moviepilot, bot_photo, LOGGER, sakura_b
 from bot.func_helper.msg_utils import callAnswer, editMessage, sendMessage, sendPhoto, callListen
 from bot.func_helper.filters import user_in_group_on_filter
 from bot.func_helper.fix_bottons import re_download_center_ikb, back_members_ikb, continue_search_ikb, request_record_page_ikb,mp_search_page_ikb
-from bot.sql_helper.sql_emby import sql_get_emby, sql_update_emby, Emby
+from bot.sql_helper.sql_emby import sql_get_emby
 from bot.sql_helper.sql_request_record import sql_add_request_record, sql_get_request_record_by_tg
+from bot.application import MediaRequestService, PointService
+from bot.domain import Actor
 from bot.func_helper.moviepilot import search, add_download_task 
 from bot.func_helper.emby import emby
 from bot.func_helper.utils import judge_admins
@@ -14,6 +16,8 @@ import math
 # 添加全局字典来存储用户搜索记录
 user_search_data = {}
 ITEMS_PER_PAGE = 10
+point_service = PointService()
+media_request_service = MediaRequestService()
 
 
 @bot.on_callback_query(filters.regex('download_center') & user_in_group_on_filter)
@@ -217,10 +221,26 @@ async def handle_resource_selection(call, result):
                     log = f"【下载任务】：#{call.from_user.id} [{call.from_user.first_name}](tg://user?id={call.from_user.id}) 已成功添加到下载队列，此次消耗 {need_cost}{sakura_b}\n下载ID：{download_id}"
                     download_log = f"{log}\n详情：{result[index-1]['tg_log']}"
                     LOGGER.info(log)
-                    sql_update_emby(Emby.tg == call.from_user.id,
-                                    iv=emby_user.iv - need_cost)
+                    point_service.adjust(
+                        tg=call.from_user.id,
+                        amount=-need_cost,
+                        balance_type="coins",
+                        reason=f"moviepilot_request:{download_id}",
+                        actor=Actor.telegram(call.from_user.id, call.from_user.first_name),
+                        allow_negative=True,
+                        idempotency_key=f"moviepilot:{download_id}",
+                        metadata={"download_id": download_id, "title": result[index-1]['title']},
+                    )
                     sql_add_request_record(
                         call.from_user.id, download_id, result[index-1]['title'], download_log, need_cost)
+                    media_request_service.import_download(
+                        tg=call.from_user.id,
+                        download_id=download_id,
+                        title=result[index-1]['title'],
+                        description=download_log,
+                        cost_coins=need_cost,
+                        actor=Actor.telegram(call.from_user.id, call.from_user.first_name),
+                    )
                     if moviepilot.download_log_chatid:
                         try:
                             await sendMessage(call, download_log, send=True, chat_id=moviepilot.download_log_chatid)

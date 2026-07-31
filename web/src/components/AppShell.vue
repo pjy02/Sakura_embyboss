@@ -3,11 +3,14 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import {
   ChevronDown,
+  CircleDollarSign,
   CircleUserRound,
   Coins,
   House,
+  HeartHandshake,
   LogOut,
   Menu,
+  MessageSquareText,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -54,6 +57,9 @@ const portalNavigation: AdminNavigationSection[] = [
     items: [
       { to: "/", label: "我的首页", description: "账户摘要与最近动态", icon: House },
       { to: "/points", label: "积分明细", description: "积分和注册天数流水", icon: Coins },
+      { to: "/billing", label: "充值与账单", description: "创建充值订单并查看处理状态", icon: CircleDollarSign },
+      { to: "/tickets", label: "我的工单", description: "提交问题并与管理员沟通", icon: HeartHandshake },
+      { to: "/requests", label: "我的求片", description: "提交求片并跟踪处理进度", icon: MessageSquareText },
       { to: "/account", label: "账户安全", description: "会话、登录与账户操作", icon: ShieldCheck },
     ],
   },

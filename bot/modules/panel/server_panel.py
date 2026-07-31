@@ -4,12 +4,16 @@
 """
 from datetime import datetime, timezone, timedelta
 from pyrogram import filters
-from bot import bot, emby_line, emby_whitelist_line
+from bot import bot
+from bot.application import CoreOperationsService
 from bot.func_helper.emby import emby
 from bot.func_helper.filters import user_in_group_on_filter
 from bot.sql_helper.sql_emby import sql_get_emby
 from bot.func_helper.fix_bottons import cr_page_server
 from bot.func_helper.msg_utils import callAnswer, editMessage
+
+
+line_service = CoreOperationsService()
 
 
 @bot.on_callback_query(filters.regex('server') & user_in_group_on_filter)
@@ -40,11 +44,9 @@ async def server(_, call):
     pwd = '空' if not data.pwd else data.pwd
     line = ''
     if data.lv == 'b':
-        line = f'{emby_line}'
+        line = line_service.public_line_text()
     elif data.lv == 'a':
-        line = f'{emby_line}'
-        if emby_whitelist_line:
-            line += f'\n{emby_whitelist_line}'
+        line = line_service.public_line_text(include_whitelist=True)
     else:
         line = ' - **无权查看**'
     try:
