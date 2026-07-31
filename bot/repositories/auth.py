@@ -68,6 +68,13 @@ class AuthRepository:
             .update({WebSession.revoked_at: revoked_at}, synchronize_session=False)
         )
 
+    def revoke_account_sessions(self, account_id: str, revoked_at: datetime) -> int:
+        return (
+            self.session.query(WebSession)
+            .filter(WebSession.account_id == account_id, WebSession.revoked_at.is_(None))
+            .update({WebSession.revoked_at: revoked_at}, synchronize_session=False)
+        )
+
     def get_roles_for_user(self, tg: int):
         return (
             self.session.query(WebRole)

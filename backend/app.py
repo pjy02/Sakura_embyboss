@@ -1,4 +1,6 @@
+import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,6 +11,8 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from backend.api import (
+    accounts_admin_router,
+    accounts_me_router,
     admin_router,
     auth_router,
     commerce_admin_router,
@@ -27,7 +31,8 @@ from backend.event_relay import EventRelay
 from backend.middleware import SecurityHeadersMiddleware
 from backend.settings import WebSettings, get_settings
 from bot.sql_helper import Session
-from bot.application import ReliabilityService
+from bot import LOGGER
+from bot.application import AccountService, DynamicSettingsService, ReliabilityService
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -82,6 +87,23 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        settings_service = DynamicSettingsService()
+        await asyncio.to_thread(settings_service.materialize_defaults)
+        await asyncio.to_thread(settings_service.apply_runtime_overrides)
+        bootstrap_username = os.getenv("SAKURA_BOOTSTRAP_ADMIN_USERNAME", "").strip()
+        bootstrap_password = os.getenv("SAKURA_BOOTSTRAP_ADMIN_PASSWORD", "")
+        if bootstrap_username or bootstrap_password:
+            if not bootstrap_username or not bootstrap_password:
+                raise RuntimeError("本地管理员引导必须同时设置用户名和密码")
+            bootstrap = await asyncio.to_thread(
+                AccountService().bootstrap_owner,
+                owner_tg=settings.owner_tg,
+                username=bootstrap_username,
+                password=bootstrap_password,
+            )
+            if bootstrap.status not in {"ok", "already_configured"}:
+                raise RuntimeError(f"本地管理员引导失败：{bootstrap.status}")
+            LOGGER.info("Web local owner identity is ready; bootstrap secrets may be removed")
         await relay.start()
         try:
             yield
@@ -114,11 +136,13 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
 
     api_v1 = APIRouter(prefix="/api/v1")
     api_v1.include_router(auth_router)
+    api_v1.include_router(accounts_me_router)
     api_v1.include_router(registration_router)
     api_v1.include_router(me_router)
     api_v1.include_router(commerce_me_router)
     api_v1.include_router(community_me_router)
     api_v1.include_router(admin_router)
+    api_v1.include_router(accounts_admin_router)
     api_v1.include_router(tasks_router)
     api_v1.include_router(operations_router)
     api_v1.include_router(operations_center_router)

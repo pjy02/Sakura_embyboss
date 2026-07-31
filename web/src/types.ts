@@ -1,8 +1,9 @@
 export type Area = "portal" | "admin";
 
 export interface Session {
+  account_id: string;
   tg: number;
-  auth_method: "telegram" | "emby";
+  auth_method: "local" | "telegram" | "emby";
   purpose: "login" | "registration";
   roles: string[];
   permissions: string[];
@@ -323,6 +324,8 @@ export interface TelegramLogin {
 
 export interface RegistrationStatus {
   enabled: boolean;
+  invite_required: boolean;
+  requires_invite: boolean;
   open_registration_days: number;
   user_limit: number;
   registered: number;
@@ -503,6 +506,7 @@ export interface AlertDelivery {
 
 export interface AccountLifecycleEvent {
   id: number;
+  account_id: string | null;
   batch_id: string;
   tg: number;
   action: string;

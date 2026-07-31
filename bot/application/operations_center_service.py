@@ -235,7 +235,9 @@ class AlertService:
             row.updated_at = utcnow()
         try:
             if sender is None:
-                from bot import bot as sender
+                from bot.integrations.telegram_gateway import TelegramGateway
+
+                sender = TelegramGateway()
             await sender.send_message(recipient, message, parse_mode=None)
         except Exception as error:
             with self._uow_factory() as uow:
@@ -318,7 +320,9 @@ class DiagnosticService:
     async def _fallback_alert(results: list[dict], error: Exception) -> None:
         """Best-effort alert path used when the database cannot persist a probe."""
         try:
-            from bot import bot as sender
+            from bot.integrations.telegram_gateway import TelegramGateway
+
+            sender = TelegramGateway()
 
             failed = [item["service_name"] for item in results if item["status"] == "unhealthy"]
             message = (
@@ -424,10 +428,16 @@ class AccountLifecycleService:
         self._notifications = NotificationService(uow_factory)
         self._emby_client = emby_client
 
-    def enqueue_batch(self, *, action: str, tg_ids: list[int], parameters: dict, actor: Actor, idempotency_key: str) -> ServiceResult:
+    def enqueue_batch(self, *, action: str, tg_ids: list[int], parameters: dict, actor: Actor, idempotency_key: str, account_ids: Optional[list[str]] = None) -> ServiceResult:
         if action not in LIFECYCLE_ACTIONS:
             return ServiceResult("unsupported_action")
-        targets = sorted({int(item) for item in tg_ids if int(item) > 0})
+        targets = {int(item) for item in tg_ids if int(item) > 0}
+        with self._uow_factory() as uow:
+            for account_id in account_ids or []:
+                account = uow.accounts.get(str(account_id))
+                if account:
+                    targets.add(int(account.legacy_tg))
+        targets = sorted(targets)
         if not targets or len(targets) > 500:
             return ServiceResult("invalid_targets")
         with self._uow_factory() as uow:
@@ -513,11 +523,13 @@ class AccountLifecycleService:
             if embyid and not await client.emby_change_policy(str(embyid), disable=True):
                 raise RuntimeError("Emby 禁用账号失败")
             self._notify(tg, "账号已暂停", "你的 Emby 账号已被管理员暂停。如有疑问请提交工单。", "warning")
+            self._set_account_status(tg, "suspended")
             return {"embyid": embyid}
         if action == "restore":
             if embyid and not await client.emby_change_policy(str(embyid), disable=False):
                 raise RuntimeError("Emby 恢复账号失败")
             self._notify(tg, "账号已恢复", "你的 Emby 账号已恢复使用。", "success")
+            self._set_account_status(tg, "active")
             return {"embyid": embyid}
         if action == "clear_account":
             if embyid and not await client.emby_del(str(embyid)):
@@ -526,6 +538,7 @@ class AccountLifecycleService:
             if not result.ok:
                 raise RuntimeError(result.status)
             self._notify(tg, "账号已清理", "你的 Emby 账号已被清理，Telegram 用户资料仍然保留。", "warning")
+            self._expire_membership(tg, "expired")
             return {"cleared": True}
         if action == "extend":
             days = max(1, min(3650, int(parameters.get("days", 0))))
@@ -534,6 +547,7 @@ class AccountLifecycleService:
             if not result.ok:
                 raise RuntimeError(result.status)
             self._notify(tg, "账号有效期已延长", f"你的账号有效期已延长 {days} 天。", "success")
+            self._extend_membership(tg, expires_at)
             return {"days": days, "expires_at": expires_at}
         if action in {"grant_coins", "grant_registration_days"}:
             amount = int(parameters.get("amount", 0))
@@ -566,14 +580,45 @@ class AccountLifecycleService:
 
     def _record(self, batch_id: str, tg: int, action: str, status: str, detail: dict, actor: Actor) -> None:
         with self._uow_factory() as uow:
-            uow.operations.session.add(AccountLifecycleEvent(batch_id=batch_id, tg=tg, action=action, status=status, detail_json=_json(detail), actor_kind=actor.kind, actor_id=actor.identifier, created_at=utcnow()))
+            account = uow.accounts.by_legacy_tg(tg)
+            uow.operations.session.add(AccountLifecycleEvent(account_id=account.id if account else None, batch_id=batch_id, tg=tg, action=action, status=status, detail_json=_json(detail), actor_kind=actor.kind, actor_id=actor.identifier, created_at=utcnow()))
             uow.operations.audit(actor=actor, action=f"user.lifecycle.{action}", resource_type="user", resource_id=str(tg), outcome="success" if status == "succeeded" else "failed", detail=detail)
             uow.operations.event("user.lifecycle.updated", "user", str(tg), {"tg": tg, "action": action, "status": status})
 
-    def history(self, *, tg: Optional[int] = None, limit: int = 100) -> dict:
+    def _set_account_status(self, tg: int, status: str) -> None:
+        with self._uow_factory() as uow:
+            account = uow.accounts.by_legacy_tg(tg, for_update=True)
+            if account:
+                account.status = status
+                account.updated_at = utcnow()
+            membership = uow.accounts.active_membership(account.id, for_update=True) if account else None
+            if membership:
+                membership.status = "suspended" if status == "suspended" else "active"
+                membership.updated_at = utcnow()
+
+    def _expire_membership(self, tg: int, status: str) -> None:
+        with self._uow_factory() as uow:
+            account = uow.accounts.by_legacy_tg(tg)
+            membership = uow.accounts.active_membership(account.id, for_update=True) if account else None
+            if membership:
+                membership.status = status
+                membership.updated_at = utcnow()
+
+    def _extend_membership(self, tg: int, expires_at) -> None:
+        with self._uow_factory() as uow:
+            account = uow.accounts.by_legacy_tg(tg)
+            membership = uow.accounts.active_membership(account.id, for_update=True) if account else None
+            if membership:
+                membership.expires_at = expires_at
+                membership.status = "active"
+                membership.updated_at = utcnow()
+
+    def history(self, *, tg: Optional[int] = None, account_id: Optional[str] = None, limit: int = 100) -> dict:
         with self._uow_factory() as uow:
             query = uow.operations.session.query(AccountLifecycleEvent)
             if tg is not None:
                 query = query.filter(AccountLifecycleEvent.tg == tg)
+            if account_id:
+                query = query.filter(AccountLifecycleEvent.account_id == account_id)
             rows = query.order_by(AccountLifecycleEvent.created_at.desc()).limit(limit).all()
-            return {"items": [{"id": row.id, "batch_id": row.batch_id, "tg": row.tg, "action": row.action, "status": row.status, "detail": _loads(row.detail_json), "actor_kind": row.actor_kind, "actor_id": row.actor_id, "created_at": row.created_at} for row in rows]}
+            return {"items": [{"id": row.id, "account_id": row.account_id, "batch_id": row.batch_id, "tg": row.tg, "action": row.action, "status": row.status, "detail": _loads(row.detail_json), "actor_kind": row.actor_kind, "actor_id": row.actor_id, "created_at": row.created_at} for row in rows]}

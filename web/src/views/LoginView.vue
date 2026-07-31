@@ -12,7 +12,7 @@ import type { TelegramLogin } from "@/types";
 const route = useRoute();
 const router = useRouter();
 const sessionStore = useSessionStore();
-const method = ref<"telegram" | "emby">("telegram");
+const method = ref<"local" | "telegram" | "emby">("local");
 const telegram = ref<TelegramLogin | null>(null);
 const qrData = ref("");
 const status = ref<"idle" | "creating" | "pending" | "approved" | "expired">("idle");
@@ -78,11 +78,11 @@ async function pollTelegram() {
   }
 }
 
-async function embyLogin() {
+async function accountLogin() {
   busy.value = true;
   error.value = "";
   try {
-    await api("/auth/emby", {
+    await api(method.value === "local" ? "/auth/local" : "/auth/emby", {
       method: "POST",
       body: JSON.stringify({ username: username.value, password: password.value }),
     });
@@ -136,20 +136,23 @@ onBeforeUnmount(() => window.clearTimeout(timer));
           <span class="petal-chip">桜</span>
           <div>
             <h2>{{ loginTitle }}</h2>
-            <p>{{ isAdmin ? "仅允许已授权的 Telegram 管理员登录" : "选择一种方式验证你的身份" }}</p>
+            <p>{{ isAdmin ? "已授权管理员可使用 Web 本地账号或 Telegram 登录" : "选择一种方式验证你的身份" }}</p>
           </div>
         </div>
 
-        <div v-if="!isAdmin" class="method-switch">
+        <div class="method-switch">
+          <button :class="{ active: method === 'local' }" @click="method = 'local'">
+            <KeyRound :size="17" /> Web 账号
+          </button>
           <button :class="{ active: method === 'telegram' }" @click="method = 'telegram'">
             <MessageCircle :size="17" /> Telegram
           </button>
-          <button :class="{ active: method === 'emby' }" @click="method = 'emby'">
+          <button v-if="!isAdmin" :class="{ active: method === 'emby' }" @click="method = 'emby'">
             <KeyRound :size="17" /> Emby 账户
           </button>
         </div>
 
-        <div v-if="method === 'telegram' || isAdmin" class="telegram-login">
+        <div v-if="method === 'telegram'" class="telegram-login">
           <button v-if="status === 'idle'" class="primary-button wide" @click="startTelegram">
             <MessageCircle :size="18" /> 通过 Telegram 登录
           </button>
@@ -178,9 +181,9 @@ onBeforeUnmount(() => window.clearTimeout(timer));
           </div>
         </div>
 
-        <form v-else class="emby-form" @submit.prevent="embyLogin">
+        <form v-else class="emby-form" @submit.prevent="accountLogin">
           <label>
-            <span>Emby 用户名</span>
+            <span>{{ method === "local" ? "Web 登录名" : "Emby 用户名" }}</span>
             <input v-model.trim="username" autocomplete="username" required placeholder="请输入用户名" />
           </label>
           <label>
@@ -196,7 +199,7 @@ onBeforeUnmount(() => window.clearTimeout(timer));
           <button class="primary-button wide" :disabled="busy">
             <LoaderCircle v-if="busy" class="spin" :size="18" />
             <KeyRound v-else :size="18" />
-            {{ busy ? "正在验证…" : "登录用户中心" }}
+            {{ busy ? "正在验证…" : method === "local" ? "登录 Sakura" : "登录用户中心" }}
           </button>
         </form>
 

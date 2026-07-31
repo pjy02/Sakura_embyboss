@@ -49,7 +49,8 @@ class BatchOperationPayload(BaseModel):
         "notify",
         "clear_account",
     ]
-    tg_ids: list[int] = Field(min_length=1, max_length=500)
+    tg_ids: list[int] = Field(default_factory=list, max_length=500)
+    account_ids: list[str] = Field(default_factory=list, max_length=500)
     parameters: dict[str, Any] = Field(default_factory=dict)
     confirm: bool = False
 
@@ -142,6 +143,7 @@ async def enqueue_batch_operation(
         lifecycle.enqueue_batch,
         action=payload.action,
         tg_ids=payload.tg_ids,
+        account_ids=payload.account_ids,
         parameters=payload.parameters,
         actor=Actor.web(identity.tg),
         idempotency_key="users-batch:" + secret_fingerprint(f"{identity.tg}:{payload.action}:{idempotency_key}"),
@@ -158,7 +160,13 @@ async def enqueue_batch_operation(
 @router.get("/operations/lifecycle")
 async def lifecycle_history(
     tg: Optional[int] = Query(None, ge=1),
+    account_id: Optional[str] = Query(None, min_length=36, max_length=36),
     limit: int = Query(100, ge=1, le=200),
     _identity: WebIdentity = Depends(require_permission("users:read", telegram_only=True)),
 ):
-    return await run_in_threadpool(lifecycle.history, tg=tg, limit=limit)
+    return await run_in_threadpool(
+        lifecycle.history,
+        tg=tg,
+        account_id=account_id,
+        limit=limit,
+    )

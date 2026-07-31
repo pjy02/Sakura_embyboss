@@ -10,6 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
 from bot.application.results import ServiceResult
+from bot.application.governance_service import DynamicSettingsService
 from bot.application.task_service import serialize_task
 from bot.application.user_service import UserService
 from bot.domain import Actor, secret_fingerprint
@@ -45,7 +46,17 @@ class RegistrationService:
     def __init__(self, uow_factory=SqlAlchemyUnitOfWork, emby_client=None):
         self._uow_factory = uow_factory
         self._users = UserService(uow_factory)
+        self._settings = DynamicSettingsService(uow_factory)
         self._emby_client = emby_client
+
+    def _registration_settings(self) -> dict:
+        return {
+            "enabled": bool(self._settings.get("registration.enabled")["value"]),
+            "invite_required": bool(self._settings.get("registration.invite_required")["value"]),
+            "open_days": int(self._settings.get("registration.open_days")["value"]),
+            "user_limit": int(self._settings.get("registration.user_limit")["value"]),
+            "queue_limit": int(self._settings.get("registration.queue_limit")["value"]),
+        }
 
     @staticmethod
     def validate_username(value: str) -> str:
@@ -62,7 +73,7 @@ class RegistrationService:
         return safety_code
 
     def status(self, tg: Optional[int] = None) -> dict:
-        open_config, _ranks = _runtime_config()
+        registration = self._registration_settings()
         with self._uow_factory() as uow:
             session = uow.operations.session
             registered = int(
@@ -91,25 +102,26 @@ class RegistrationService:
             )
             user = uow.users.get(tg) if tg else None
             active_task = self._active_task(uow, tg) if tg else None
-            capacity = max(0, int(open_config.all_user) - registered - active)
+            capacity = max(0, registration["user_limit"] - registered - active)
+            requires_invite = not registration["enabled"] or registration["invite_required"]
             return {
-                "enabled": bool(open_config.stat),
-                "open_registration_days": int(open_config.open_us),
-                "user_limit": int(open_config.all_user),
+                "enabled": registration["enabled"],
+                "invite_required": registration["invite_required"],
+                "requires_invite": requires_invite,
+                "open_registration_days": registration["open_days"],
+                "user_limit": registration["user_limit"],
                 "registered": registered,
                 "reserved": active,
                 "remaining": capacity,
                 "queue_waiting": waiting,
-                "queue_limit": int(
-                    getattr(open_config, "register_queue_limit", 100) or 100
-                ),
+                "queue_limit": registration["queue_limit"],
                 "has_account": bool(user and user.embyid),
                 "qualification_days": int(user.us or 0) if user else 0,
                 "can_register": bool(
                     user
                     and not user.embyid
                     and capacity > 0
-                    and (bool(open_config.stat) or int(user.us or 0) > 0)
+                    and (not requires_invite or int(user.us or 0) > 0)
                 ),
                 "active_task": (
                     self._public_task(active_task) if active_task else None
@@ -133,7 +145,8 @@ class RegistrationService:
         username = self.validate_username(username)
         safety_code = self.validate_safety_code(safety_code)
         registration_code = (registration_code or "").strip() or None
-        open_config, ranks = _runtime_config()
+        _open_config, ranks = _runtime_config()
+        registration = self._registration_settings()
         now = utcnow()
         task_id = str(uuid4())
         try:
@@ -179,7 +192,7 @@ class RegistrationService:
                     .scalar()
                     or 0
                 )
-                if registered + active_count >= int(open_config.all_user):
+                if registered + active_count >= registration["user_limit"]:
                     return ServiceResult("slot_full")
 
                 waiting = int(
@@ -191,31 +204,38 @@ class RegistrationService:
                     .scalar()
                     or 0
                 )
-                queue_limit = max(
-                    1,
-                    int(getattr(open_config, "register_queue_limit", 100) or 100),
-                )
+                queue_limit = max(1, registration["queue_limit"])
                 if waiting >= queue_limit:
                     return ServiceResult("queue_full")
 
-                if not bool(open_config.stat) and int(user.us or 0) <= 0:
+                requires_invite = not registration["enabled"] or registration["invite_required"]
+                if requires_invite and int(user.us or 0) <= 0:
+                    dynamic_logo = str(ranks.logo)
+                    logo_row = uow.operations.get_dynamic_setting("site.logo")
+                    if logo_row:
+                        loaded_logo = _loads(logo_row.value_json)
+                        if isinstance(loaded_logo, str) and loaded_logo.strip():
+                            dynamic_logo = loaded_logo.strip()
                     redeemed = self._redeem_code(
                         uow,
                         user=user,
                         code_value=registration_code,
-                        logo=str(ranks.logo),
+                        logo=dynamic_logo,
+                        legacy_logo=str(ranks.logo),
                         actor=actor,
                         now=now,
                     )
                     if redeemed != "ok":
                         return ServiceResult(redeemed)
 
-                is_open = bool(open_config.stat)
-                days = int(open_config.open_us if is_open else user.us or 0)
+                is_open = registration["enabled"] and not registration["invite_required"]
+                days = int(registration["open_days"] if is_open else user.us or 0)
                 if days <= 0:
                     return ServiceResult("no_qualification")
 
+                account = uow.accounts.by_legacy_tg(int(tg))
                 payload = {
+                    "account_id": account.id if account else None,
                     "tg": int(tg),
                     "username": username,
                     "safety_code": safety_code,
@@ -417,6 +437,20 @@ class RegistrationService:
             "emby_password": str(emby_password),
             "expires_at": expires_at,
         }
+        account_id = payload.get("account_id")
+        if account_id:
+            try:
+                from bot.application.account_service import AccountService
+
+                AccountService().assign_default_plan(
+                    account_id=str(account_id),
+                    duration_days=days,
+                    actor=Actor.system("registration-worker"),
+                )
+            except Exception:
+                # The legacy account is already complete; membership projection can
+                # be repaired independently without deleting the Emby account.
+                pass
         with self._uow_factory() as uow:
             uow.operations.event(
                 "registration.completed",
@@ -483,6 +517,7 @@ class RegistrationService:
         user,
         code_value: Optional[str],
         logo: str,
+        legacy_logo: Optional[str] = None,
         actor: Actor,
         now: datetime,
     ) -> str:
@@ -493,12 +528,30 @@ class RegistrationService:
             return "invalid_code"
         if code.used is not None:
             return "used_code"
+        if code.status not in {None, "active"}:
+            return "invalid_code"
+        if code.expires_at and code.expires_at <= now:
+            code.status = "expired"
+            return "invalid_code"
         prefix = code_value.split("-")[0]
-        if prefix not in {logo, str(user.tg)}:
+        if prefix not in {logo, legacy_logo, str(user.tg)}:
             return "forbidden_code"
         user.us = int(user.us or 0) + int(code.us or 0)
+        uow.operations.point_transaction(
+            tg=user.tg,
+            balance_type="registration_days",
+            amount=int(code.us or 0),
+            balance_after=int(user.us or 0),
+            reason="redeem_registration_code",
+            actor=actor,
+            idempotency_key=f"registration-code:{secret_fingerprint(code_value)}",
+            metadata={"code": secret_fingerprint(code_value)},
+        )
         code.used = user.tg
         code.usedtime = now
+        account = uow.accounts.by_legacy_tg(user.tg)
+        code.used_by_account_id = account.id if account else None
+        code.status = "used"
         fingerprint = secret_fingerprint(code_value)
         uow.operations.audit(
             actor=actor,

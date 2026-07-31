@@ -4,18 +4,18 @@
 
 ## 注册流程
 
-1. 网页创建用途为 `registration` 的一次性 Telegram 验证请求。
-2. 用户打开 Bot 深链；Bot 先检查指定群组和频道资格，再让用户确认本次注册。
-3. 验证成功后，Web 获得仅属于当前 Telegram 用户的安全会话。
-4. 用户填写 Emby 用户名、4–6 位数字安全码；关闭开放注册时，还可以同时核销注册码。
-5. API 在一个事务中校验名额、资格、用户名和重复任务，随后写入 `registration.account` 持久化任务。
-6. Bot 进程中的 Task Worker 创建 Emby 账号，并通过 `UserService` 写回账号、有效期和安全信息。
+1. 用户直接创建 Web 登录名和密码，获得只用于注册的 15 分钟会话；这个流程不需要 Telegram。也可以选择 Telegram 作为登录身份。
+2. 用户填写 Emby 用户名、4–6 位数字安全码；关闭自由注册时，同时核销 Web 或 Bot 发放的通用邀请码。
+3. API 在一个事务中校验名额、资格、用户名和重复任务，随后写入 `registration.account` 持久化任务。
+4. 独立 Worker 创建 Emby 账号，通过共享业务服务写回账号、会员方案、有效期和安全信息。
+5. Web、Bot 和管理后台从同一个统一账号读取身份、会员、钱包和注册状态。
 
 Bot 的“创建账户”按钮也调用同一个 `RegistrationService`，不再依赖只存在于 Bot 内存中的注册队列。因此 Bot 与 Web 的名额、资格、排队状态和最终账号数据一致，容器重启不会丢失待处理任务。
 
 ## 可靠性与安全边界
 
-- `web_login_requests.purpose` 隔离普通登录令牌和注册验证令牌。
+- 本地密码使用带独立随机盐的 scrypt 摘要保存，不保存明文；Telegram 仍只是可选身份。
+- `web_login_requests.purpose` 隔离可选的 Telegram 普通登录令牌和注册验证令牌。
 - 注册会话带有独立用途标记，普通登录会话不能提交注册；注册授权最多保留 15 分钟。
 - `registration_state` 单行互斥记录串行化名额预留，避免多个用户并发提交时超卖注册名额。
 - 同一 Telegram 用户的活动注册任务唯一；相同 `Idempotency-Key` 重试返回原任务。
@@ -28,10 +28,8 @@ Bot 的“创建账户”按钮也调用同一个 `RegistrationService`，不再
 
 数据库迁移必须升级到最新版本。生产 Compose 中的 `migrate` 一次性容器会自动执行迁移；显示 `Exited (0)` 表示迁移成功。
 
-注册任务由 Bot 容器中的任务 Worker 执行，需要保持：
+注册任务由 Compose 中的 `worker` 服务执行。Bot 容器的内嵌 Worker 已关闭，因此 Bot 断线、重启或完全停止时，Web 本地登录、邀请码核销和 Emby 注册队列仍可工作。Worker 并发数在“系统设置 → 注册与容量 → 注册并发数”中修改，重启 Worker 后应用。
 
-```env
-SAKURA_TASK_WORKER_ENABLED=1
-```
+Web、Worker 和 Bot（如启用）必须连接同一个 MySQL。Web 会话密钥只需要在会创建或校验 Web 会话的进程中保持一致。修改 `WEB_USER_PATH` 后，注册页会自动跟随新的用户中心路径，无需重新编译前端。
 
-Web 和 Bot 必须连接同一个 MySQL，并使用相同的 `SAKURA_WEB_SESSION_SECRET`。修改 `WEB_USER_PATH` 后，注册页会自动跟随新的用户中心路径，无需重新编译前端。
+首次本地管理员也不依赖 Telegram：在 `.env` 临时填写 `SAKURA_BOOTSTRAP_ADMIN_USERNAME` 与 `SAKURA_BOOTSTRAP_ADMIN_PASSWORD`，启动后即可以该账号进入自定义后台路径。成功登录后应删除这两项，引导逻辑只创建一次且不会覆盖现有密码。

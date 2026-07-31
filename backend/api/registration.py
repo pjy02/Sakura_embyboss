@@ -14,12 +14,15 @@ from backend.dependencies import (
 )
 from backend.settings import WebSettings, get_settings
 from bot.application import RegistrationService
+from bot.application import AccountService, DynamicSettingsService
 from bot.application.auth_service import WebIdentity
 from bot.domain import Actor, secret_fingerprint
 
 
 router = APIRouter(prefix="/registration", tags=["registration"])
 registration_service = RegistrationService()
+account_service = AccountService()
+dynamic_settings = DynamicSettingsService()
 
 
 class TelegramRegistrationStartRequest(BaseModel):
@@ -34,6 +37,12 @@ class RegistrationRequest(BaseModel):
     username: str = Field(min_length=2, max_length=32)
     safety_code: str = Field(min_length=4, max_length=6)
     registration_code: Optional[str] = Field(default=None, min_length=3, max_length=255)
+
+
+class LocalRegistrationStartRequest(BaseModel):
+    login_name: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=10, max_length=128)
+    display_name: Optional[str] = Field(default=None, max_length=255)
 
 
 def _raise_registration_error(status: str) -> None:
@@ -59,6 +68,62 @@ def _raise_registration_error(status: str) -> None:
 @router.get("/status")
 async def public_registration_status():
     return await run_in_threadpool(registration_service.status)
+
+
+@router.post("/local/start", status_code=201)
+async def local_registration_start(
+    payload: LocalRegistrationStartRequest,
+    request: Request,
+    response: Response,
+    settings: WebSettings = Depends(get_settings),
+):
+    local_enabled = await run_in_threadpool(dynamic_settings.get, "registration.local_account_enabled")
+    if not bool(local_enabled["value"]):
+        raise HTTPException(status_code=403, detail="Web 本地账号注册当前未开放")
+    ip_address = client_ip(request)
+    hourly_limit = await run_in_threadpool(
+        dynamic_settings.get,
+        "registration.local_account_hourly_limit",
+    )
+    try:
+        created = await run_in_threadpool(
+            account_service.create_local,
+            username=payload.login_name,
+            password=payload.password,
+            display_name=payload.display_name,
+            actor=Actor(kind="web", identifier=f"public:{secret_fingerprint(ip_address)}"),
+            ip_address=ip_address,
+            hourly_limit=int(hourly_limit["value"]),
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    if created.status == "username_taken":
+        raise HTTPException(status_code=409, detail="该 Web 登录名已经被使用")
+    if created.status == "rate_limited":
+        raise HTTPException(status_code=429, detail="当前网络创建账号过于频繁，请稍后再试")
+    if not created.ok:
+        raise HTTPException(status_code=400, detail="无法创建 Web 账号")
+    session = await run_in_threadpool(
+        get_auth_service().create_account_session,
+        account_id=created.data["account_id"],
+        user_agent=request.headers.get("user-agent"),
+        ip_address=ip_address,
+        purpose="registration",
+    )
+    if not session.ok:
+        raise HTTPException(status_code=400, detail="Web 账号已创建，但无法建立注册会话")
+    set_auth_cookies(
+        response,
+        settings=settings,
+        session_token=session.data["session_token"],
+        csrf_token=session.data["csrf_token"],
+        max_age=min(settings.session_ttl_hours * 3600, 15 * 60),
+    )
+    return {
+        "account_id": created.data["account_id"],
+        "login_name": payload.login_name,
+        "expires_at": session.data["expires_at"],
+    }
 
 
 @router.post("/telegram/start", status_code=201)
@@ -159,7 +224,7 @@ async def submit_registration(
             status_code=403,
             detail="请先通过注册中心完成 Telegram 注册身份确认",
         )
-    key = "registration:" + secret_fingerprint(f"{identity.tg}:{idempotency_key}")
+    key = "registration:" + secret_fingerprint(f"{identity.account_id}:{idempotency_key}")
     try:
         result = await run_in_threadpool(
             registration_service.submit,
@@ -167,7 +232,7 @@ async def submit_registration(
             username=payload.username,
             safety_code=payload.safety_code,
             registration_code=payload.registration_code,
-            actor=Actor.web(identity.tg),
+            actor=Actor(kind="account", identifier=identity.account_id),
             idempotency_key=key,
             channel="web",
         )

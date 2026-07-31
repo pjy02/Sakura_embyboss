@@ -94,6 +94,16 @@ def validate(
     for key in ("MYSQL_ROOT_PASSWORD", "MYSQL_PASSWORD"):
         if env.get(key) and len(env[key]) < 16:
             error(f"{key} 至少需要 16 个字符")
+    bootstrap_username = env.get("SAKURA_BOOTSTRAP_ADMIN_USERNAME", "").strip()
+    bootstrap_password = env.get("SAKURA_BOOTSTRAP_ADMIN_PASSWORD", "")
+    if bool(bootstrap_username) != bool(bootstrap_password):
+        error("本地管理员引导用户名和密码必须同时设置或同时留空")
+    if bootstrap_username and not re.fullmatch(r"[^\s/\\<>]{3,32}", bootstrap_username):
+        error("SAKURA_BOOTSTRAP_ADMIN_USERNAME 格式无效")
+    if bootstrap_password and (
+        len(bootstrap_password) < 10 or _placeholder(bootstrap_password)
+    ):
+        error("SAKURA_BOOTSTRAP_ADMIN_PASSWORD 至少 10 位且不能使用示例值")
 
     image = env.get("SAKURA_IMAGE", "")
     if image and "/" not in image:

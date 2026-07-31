@@ -18,6 +18,7 @@ from bot.sql_helper.sql_application import (
     SystemEvent,
     WorkerHeartbeat,
 )
+from bot.sql_helper.sql_accounts import Account, AccountLedgerEntry, AccountWallet
 
 
 def _json(value: Any) -> Optional[str]:
@@ -91,8 +92,10 @@ class OperationRepository:
         idempotency_key: Optional[str] = None,
         metadata: Any = None,
     ) -> None:
-        self.session.add(
-            PointTransaction(
+        account = self.session.query(Account).filter(Account.legacy_tg == tg).first()
+        account_id = account.id if account else None
+        transaction = PointTransaction(
+                account_id=account_id,
                 tg=tg,
                 balance_type=balance_type,
                 amount=amount,
@@ -103,7 +106,45 @@ class OperationRepository:
                 idempotency_key=idempotency_key,
                 metadata_json=_json(metadata),
             )
-        )
+        self.session.add(transaction)
+        self.session.flush()
+        if account_id:
+            wallet = (
+                self.session.query(AccountWallet)
+                .filter(
+                    AccountWallet.account_id == account_id,
+                    AccountWallet.balance_type == balance_type,
+                )
+                .with_for_update()
+                .first()
+            )
+            if wallet is None:
+                wallet = AccountWallet(
+                    account_id=account_id,
+                    balance_type=balance_type,
+                    balance=balance_after,
+                    revision=1,
+                )
+                self.session.add(wallet)
+            else:
+                wallet.balance = balance_after
+                wallet.revision += 1
+            self.session.add(
+                AccountLedgerEntry(
+                    source_transaction_id=transaction.id,
+                    account_id=account_id,
+                    legacy_tg=tg,
+                    balance_type=balance_type,
+                    amount=amount,
+                    balance_after=balance_after,
+                    reason=reason,
+                    scope=f"points.{balance_type}",
+                    idempotency_key=idempotency_key,
+                    actor_kind=actor.kind,
+                    actor_id=actor.identifier,
+                    metadata_json=_json(metadata),
+                )
+            )
 
     def event(
         self,

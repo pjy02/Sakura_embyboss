@@ -25,6 +25,12 @@ class Code(Base):
     us = Column(Integer)
     used = Column(BigInteger, nullable=True)
     usedtime = Column(DateTime, nullable=True)
+    issuer_account_id = Column(String(36), nullable=True)
+    used_by_account_id = Column(String(36), nullable=True)
+    reserved_by_account_id = Column(String(36), nullable=True)
+    reserved_until = Column(DateTime, nullable=True)
+    status = Column(String(20), nullable=True)
+    expires_at = Column(DateTime, nullable=True)
 
 def sql_add_code(code_list: list, tg: int, us: int):
     """批量添加记录，如果code已存在则忽略"""

@@ -6,7 +6,7 @@
 
 ## 执行模型
 
-Web 管理员发起耗时操作时，API 只校验权限、确认风险并写入任务表，随后立即返回 `202`。Bot 主进程中的 Task Worker 负责执行：
+Web 管理员发起耗时操作时，API 只校验权限、确认风险并写入任务表，随后立即返回 `202`。独立 `worker` 容器负责执行：
 
 1. 使用带条件的数据库更新领取一个任务。
 2. 写入 Worker ID 和租约到期时间，避免多个实例重复执行。
@@ -24,7 +24,7 @@ Web 管理员发起耗时操作时，API 只校验权限、确认风险并写入
 
 有数据修改风险的任务要求前端和 API 双重确认。任务创建、取消和重跑均进入审计日志。
 
-Task Worker 默认随 `main.py` 启动。若 Bot 与 FastAPI 分进程运行，Worker 仍应由 Bot 进程承载，因为部分任务需要已经连接的 Telegram Client。可以使用 `SAKURA_TASK_WORKER_ENABLED=0` 禁用某个 Bot 实例的 Worker。
+生产 Compose 会在 Bot 中关闭内嵌 Worker，并启动独立 Worker。Telegram 通知通过 Bot HTTP API 投递，不要求 Pyrogram/MTProto 客户端在线；Web-only 账号只生成站内通知。任务并发数从数据库动态设置 `registration.worker_count` 读取，范围为 1–50。
 
 ## 实时同步
 
@@ -63,7 +63,7 @@ GET  /api/v1/admin/jobs
 GET  /api/v1/admin/system/status
 ```
 
-写操作要求 Telegram 管理员会话、`tasks:update` 权限、CSRF Token；任务创建额外要求 `Idempotency-Key`。
+写操作要求本地或 Telegram 强身份管理员会话、`tasks:update` 权限、CSRF Token；Emby 弱登录不能进入管理后台。任务创建额外要求 `Idempotency-Key`。
 
 ## 可观测性与清理
 
@@ -75,7 +75,6 @@ GET  /api/v1/admin/system/status
 ## 配置
 
 ```dotenv
-SAKURA_TASK_WORKER_ENABLED=1
 SAKURA_TASK_POLL_SECONDS=1
 SAKURA_TASK_LEASE_SECONDS=45
 SAKURA_TASK_HEARTBEAT_SECONDS=12
@@ -83,4 +82,4 @@ SAKURA_TASK_HEARTBEAT_SECONDS=12
 
 租约必须明显长于心跳间隔。生产环境不建议把租约设置低于 30 秒。
 
-数据库升级版本为 `20260730_03`，应用启动时会自动执行 Alembic 迁移。
+数据库升级版本由 Alembic 最新 revision 管理，Compose 的一次性 `migrate` 容器会在 Web、Bot 和 Worker 前完成升级。

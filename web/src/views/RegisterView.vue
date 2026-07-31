@@ -30,6 +30,12 @@ import type {
 type Step = "identity" | "form" | "queue" | "success" | "account";
 
 const sessionStore = useSessionStore();
+const identityMode = ref<"local" | "telegram">("local");
+const loginName = ref("");
+const loginPassword = ref("");
+const confirmLoginPassword = ref("");
+const displayName = ref("");
+const creatingLocal = ref(false);
 const publicStatus = ref<RegistrationStatus | null>(null);
 const memberStatus = ref<RegistrationStatus | null>(null);
 const telegram = ref<TelegramLogin | null>(null);
@@ -55,7 +61,7 @@ const registrationAuthorized = computed(
 const needsCode = computed(
   () =>
     Boolean(memberStatus.value) &&
-    !memberStatus.value?.enabled &&
+    Boolean(memberStatus.value?.requires_invite) &&
     Number(memberStatus.value?.qualification_days || 0) <= 0,
 );
 const step = computed<Step>(() => {
@@ -125,6 +131,31 @@ async function startTelegram() {
   } catch (reason) {
     telegramState.value = "idle";
     error.value = reason instanceof Error ? reason.message : "无法创建 Telegram 验证请求";
+  }
+}
+
+async function startLocalAccount() {
+  error.value = "";
+  if (loginPassword.value !== confirmLoginPassword.value) {
+    error.value = "两次输入的 Web 登录密码不一致";
+    return;
+  }
+  creatingLocal.value = true;
+  try {
+    await api("/registration/local/start", {
+      method: "POST",
+      body: JSON.stringify({
+        login_name: loginName.value,
+        password: loginPassword.value,
+        display_name: displayName.value || null,
+      }),
+    });
+    await sessionStore.load();
+    await loadMemberStatus();
+  } catch (reason) {
+    error.value = reason instanceof Error ? reason.message : "无法创建 Web 登录账号";
+  } finally {
+    creatingLocal.value = false;
   }
 }
 
@@ -284,12 +315,12 @@ onBeforeUnmount(() => {
       <aside class="register-story">
         <span class="story-kicker">SAKURA ACCESS</span>
         <h1>从一个身份，走进你的影音花园。</h1>
-        <p>使用 Telegram 安全确认身份，提交后由共享队列创建账号。Bot 与 Web 会看到完全一致的注册状态。</p>
+        <p>直接创建 Web 登录身份并提交 Emby 账号申请；也可以选择绑定 Telegram。两种入口共享账号、资格与注册进度。</p>
 
         <div class="feature-list">
           <div>
             <span><ShieldCheck :size="20" /></span>
-            <div><strong>Telegram 身份确认</strong><small>无需在网页输入 Telegram 密码</small></div>
+            <div><strong>独立 Web 身份</strong><small>不安装 Telegram 也能注册、登录和管理账号</small></div>
           </div>
           <div>
             <span><Clock3 :size="20" /></span>
@@ -338,10 +369,46 @@ onBeforeUnmount(() => {
         <template v-else-if="step === 'identity'">
           <div class="card-heading">
             <span class="heading-icon"><UserRoundPlus :size="22" /></span>
-            <div><small>STEP 01</small><h2>先确认你的 Telegram 身份</h2></div>
+            <div><small>STEP 01</small><h2>创建或确认 Sakura 身份</h2></div>
           </div>
-          <p class="card-description">点击下方按钮后，在 Telegram Bot 中确认本次注册。你需要已经加入站点指定的群组和频道。</p>
+          <p class="card-description">可以直接创建 Web 登录账号，不使用 Telegram；也可以继续通过 Telegram 完成身份确认。</p>
 
+          <div class="method-switch">
+            <button :class="{ active: identityMode === 'local' }" @click="identityMode = 'local'">
+              <LockKeyhole :size="17" /> Web 账号
+            </button>
+            <button :class="{ active: identityMode === 'telegram' }" @click="identityMode = 'telegram'">
+              <MessageCircle :size="17" /> Telegram
+            </button>
+          </div>
+
+          <form v-if="identityMode === 'local'" class="register-form" @submit.prevent="startLocalAccount">
+            <label>
+              <span>Web 登录名</span>
+              <input v-model.trim="loginName" minlength="3" maxlength="32" autocomplete="username" required placeholder="3–32 个字符" />
+            </label>
+            <label>
+              <span>显示名称（可选）</span>
+              <input v-model.trim="displayName" maxlength="255" autocomplete="nickname" placeholder="用户中心显示的名称" />
+            </label>
+            <div class="form-grid">
+              <label>
+                <span>登录密码</span>
+                <input v-model="loginPassword" minlength="10" maxlength="128" type="password" autocomplete="new-password" required placeholder="至少 10 个字符" />
+              </label>
+              <label>
+                <span>确认登录密码</span>
+                <input v-model="confirmLoginPassword" minlength="10" maxlength="128" type="password" autocomplete="new-password" required placeholder="再次输入" />
+              </label>
+            </div>
+            <button class="register-primary" :disabled="creatingLocal">
+              <LoaderCircle v-if="creatingLocal" class="spin" :size="18" />
+              <UserRoundPlus v-else :size="18" />
+              {{ creatingLocal ? "正在创建…" : "创建 Web 账号并继续" }}
+            </button>
+          </form>
+
+          <template v-else>
           <button
             v-if="telegramState === 'idle'"
             class="register-primary"
@@ -370,6 +437,7 @@ onBeforeUnmount(() => {
             <X :size="20" /><div><strong>验证请求已失效</strong><p>请重新发起一次 Telegram 验证。</p></div>
             <button @click="startTelegram">重新验证</button>
           </div>
+          </template>
         </template>
 
         <template v-else-if="step === 'form'">
@@ -378,8 +446,8 @@ onBeforeUnmount(() => {
             <div><small>STEP 02</small><h2>设置你的站点账号</h2></div>
           </div>
           <p class="card-description">
-            Telegram ID {{ sessionStore.session?.tg }} 已验证。
-            <template v-if="memberStatus?.enabled">当前为开放注册，账号有效期 {{ memberStatus.open_registration_days }} 天。</template>
+            {{ sessionStore.session?.auth_method === "local" ? "Web 登录账号已创建。" : `Telegram ID ${sessionStore.session?.tg} 已验证。` }}
+            <template v-if="memberStatus?.enabled && !memberStatus?.requires_invite">当前为开放注册，账号有效期 {{ memberStatus.open_registration_days }} 天。</template>
             <template v-else-if="memberStatus?.qualification_days">已拥有 {{ memberStatus.qualification_days }} 天注册资格。</template>
             <template v-else>当前为邀请注册，请填写注册码。</template>
           </p>

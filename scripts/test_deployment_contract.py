@@ -43,6 +43,18 @@ class DeploymentContractTests(unittest.TestCase):
             self.assertIn(setting, bot)
             self.assertIn(setting, web)
 
+    def test_task_worker_is_independent_from_bot_and_web(self):
+        source = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+        services = compose_block(source, "services", indent=0)
+        bot = compose_block(services, "bot", indent=2)
+        worker = compose_block(services, "worker", indent=2)
+        web = compose_block(services, "web", indent=2)
+
+        self.assertIn('SAKURA_TASK_WORKER_ENABLED: "0"', bot)
+        self.assertIn("backend.worker", worker)
+        self.assertIn("condition: service_completed_successfully", worker)
+        self.assertNotIn("condition: service_healthy", web)
+
     def test_example_environment_defines_the_shared_login_secret(self):
         source = (ROOT / "deploy.env.example").read_text(encoding="utf-8")
         self.assertRegex(
@@ -92,6 +104,34 @@ class DeploymentContractTests(unittest.TestCase):
         self.assertGreaterEqual(
             len([item for item in findings if item.level == "error"]),
             8,
+        )
+
+    def test_preflight_validates_local_owner_bootstrap_pair(self):
+        env = {
+            "SAKURA_IMAGE": "233bit/sakura_embyboss:2.3.0",
+            "MYSQL_ROOT_PASSWORD": "root-secret-that-is-different",
+            "MYSQL_PASSWORD": "app-secret-that-is-different",
+            "SAKURA_WEB_SESSION_SECRET": "a" * 64,
+            "SAKURA_PUBLIC_BASE_URL": "https://media.example.net",
+            "SAKURA_COOKIE_SECURE": "true",
+            "SAKURA_TRUSTED_HOSTS": "media.example.net",
+            "WEB_ADMIN_PATH": "console-k7fd92",
+            "WEB_USER_PATH": "app",
+            "SAKURA_WEB_BIND_IP": "127.0.0.1",
+            "SAKURA_BOOTSTRAP_ADMIN_USERNAME": "local-owner",
+        }
+        config = {
+            "bot_name": "sakura_real_bot",
+            "bot_token": "123456:real-token-value-that-is-long",
+            "owner_api": 123456,
+            "owner_hash": "0123456789abcdef0123456789abcdef",
+            "owner": 10001,
+            "emby_api": "real-emby-api-key",
+            "emby_url": "https://emby.internal.test",
+        }
+        findings = validate(env, config)
+        self.assertTrue(
+            any("引导用户名和密码" in item.message for item in findings)
         )
 
     def test_deploy_script_contains_backup_health_wait_and_rollback(self):

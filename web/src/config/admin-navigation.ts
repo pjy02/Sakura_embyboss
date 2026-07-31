@@ -19,6 +19,8 @@ import {
   UserRoundCog,
   Users,
   Workflow,
+  TicketCheck,
+  BadgeCheck,
 } from "lucide-vue-next";
 
 export interface AdminNavigationItem {
@@ -60,6 +62,22 @@ export const adminNavigation: AdminNavigationSection[] = [
         icon: Users,
         permission: "users:read",
         keywords: ["用户", "Emby", "Telegram"],
+      },
+      {
+        to: "/memberships",
+        label: "会员与标签",
+        description: "统一账号、登录身份、会员方案和运营标签",
+        icon: BadgeCheck,
+        permission: "users:read",
+        keywords: ["会员", "方案", "权益", "标签", "Web账号"],
+      },
+      {
+        to: "/invitation-codes",
+        label: "邀请码中心",
+        description: "生成、追踪和作废 Web 与 Bot 通用邀请码",
+        icon: TicketCheck,
+        permission: "codes:read",
+        keywords: ["邀请码", "注册码", "续期码", "白名单码"],
       },
       {
         to: "/operations",

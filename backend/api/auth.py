@@ -13,12 +13,14 @@ from backend.dependencies import (
 )
 from backend.settings import WebSettings, get_settings
 from bot.application.auth_service import WebIdentity
+from bot.application import AccountService
 from bot.domain import Actor, secret_fingerprint
 from bot.func_helper.emby import emby
 from bot.sql_helper.sql_emby import sql_get_emby
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+account_service = AccountService()
 
 
 class TelegramStartRequest(BaseModel):
@@ -32,6 +34,15 @@ class TokenRequest(BaseModel):
 class EmbyLoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=1, max_length=255)
+
+
+class LocalLoginRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=10, max_length=128)
+
+
+class LocalIdentityRequest(LocalLoginRequest):
+    pass
 
 
 def set_auth_cookies(
@@ -128,6 +139,7 @@ async def telegram_exchange(
         max_age=settings.session_ttl_hours * 3600,
     )
     return {
+        "account_id": result.data["account_id"],
         "tg": result.data["tg"],
         "auth_method": result.data["auth_method"],
         "expires_at": result.data["expires_at"],
@@ -180,15 +192,67 @@ async def emby_login(
         max_age=settings.session_ttl_hours * 3600,
     )
     return {
+        "account_id": result.data["account_id"],
         "tg": result.data["tg"],
         "auth_method": "emby",
         "expires_at": result.data["expires_at"],
     }
 
 
+@router.post("/local")
+async def local_login(
+    payload: LocalLoginRequest,
+    request: Request,
+    response: Response,
+    settings: WebSettings = Depends(get_settings),
+):
+    result = await run_in_threadpool(
+        get_auth_service().create_local_session,
+        username=payload.username,
+        password=payload.password,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=client_ip(request),
+    )
+    if not result.ok:
+        status_code = 429 if result.status == "rate_limited" else 403 if result.status == "account_disabled" else 401
+        raise HTTPException(status_code=status_code, detail="登录名或密码错误，或账号已停用")
+    set_auth_cookies(
+        response,
+        settings=settings,
+        session_token=result.data["session_token"],
+        csrf_token=result.data["csrf_token"],
+        max_age=settings.session_ttl_hours * 3600,
+    )
+    return {
+        "account_id": result.data["account_id"],
+        "auth_method": "local",
+        "expires_at": result.data["expires_at"],
+    }
+
+
+@router.put("/local/identity")
+async def set_local_identity(
+    payload: LocalIdentityRequest,
+    identity: WebIdentity = Depends(csrf_protected_identity),
+):
+    result = await run_in_threadpool(
+        account_service.add_local_identity,
+        account_id=identity.account_id,
+        username=payload.username,
+        password=payload.password,
+        actor=Actor(kind="account", identifier=identity.account_id),
+    )
+    if result.status == "username_taken":
+        raise HTTPException(status_code=409, detail="该登录名已被使用")
+    if not result.ok:
+        raise HTTPException(status_code=400, detail="无法设置本地登录身份")
+    return result.data
+
+
 @router.get("/session")
 async def session_info(identity: WebIdentity = Depends(current_identity)):
     return {
+        "account_id": identity.account_id,
         "tg": identity.tg,
         "auth_method": identity.auth_method,
         "purpose": identity.purpose,

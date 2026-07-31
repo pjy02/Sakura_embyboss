@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import secrets
+import string
 
 from bot.application.results import ServiceResult
 from bot.domain import Actor, secret_fingerprint
@@ -9,6 +11,83 @@ from bot.repositories import SqlAlchemyUnitOfWork
 class CodeService:
     def __init__(self, uow_factory=SqlAlchemyUnitOfWork):
         self._uow_factory = uow_factory
+
+    @staticmethod
+    def _serialize(row) -> dict:
+        code_kind = "whitelist" if "Whitelist" in row.code else "renewal" if "Renew" in row.code else "registration"
+        status = row.status or ("used" if row.used is not None else "active")
+        if row.used is not None:
+            status = "used"
+        elif row.expires_at and row.expires_at <= datetime.now():
+            status = "expired"
+        return {
+            "code": row.code,
+            "kind": code_kind,
+            "days": int(row.us or 0),
+            "status": status,
+            "issuer_tg": row.tg,
+            "issuer_account_id": row.issuer_account_id,
+            "used_by_tg": row.used,
+            "used_by_account_id": row.used_by_account_id,
+            "used_at": row.usedtime,
+            "expires_at": row.expires_at,
+        }
+
+    def generate(
+        self,
+        *,
+        kind: str,
+        days: int,
+        count: int,
+        logo: str,
+        issuer_tg: int,
+        issuer_account_id: Optional[str],
+        expires_at: Optional[datetime],
+        actor: Actor,
+    ) -> ServiceResult:
+        if kind not in {"registration", "renewal", "whitelist"}:
+            return ServiceResult("invalid_kind")
+        if count < 1 or count > 500 or (kind != "whitelist" and (days < 1 or days > 3650)):
+            return ServiceResult("invalid_parameters")
+        alphabet = string.ascii_letters + string.digits
+        if expires_at and expires_at.tzinfo is not None:
+            expires_at = expires_at.replace(tzinfo=None)
+        values = []
+        for _index in range(count):
+            suffix = "".join(secrets.choice(alphabet) for _ in range(10))
+            if kind == "whitelist":
+                values.append(f"{logo}-Whitelist_{suffix}")
+            elif kind == "renewal":
+                values.append(f"{logo}-{days}-Renew_{suffix}")
+            else:
+                values.append(f"{logo}-{days}-Register_{suffix}")
+        if any(len(value) > 50 for value in values):
+            return ServiceResult("invalid_parameters")
+        from bot.sql_helper.sql_code import Code
+
+        with self._uow_factory() as uow:
+            rows = [Code(code=value, tg=issuer_tg, us=0 if kind == "whitelist" else days, issuer_account_id=issuer_account_id, status="active", expires_at=expires_at) for value in values]
+            uow.codes.add_rows(rows)
+            uow.operations.audit(actor=actor, action="code.generate", resource_type="registration_code", resource_id=None, detail={"kind": kind, "days": days, "count": count, "expires_at": expires_at})
+            uow.operations.event("code.generated", "registration_code", None, {"kind": kind, "count": count})
+            return ServiceResult("ok", {"items": [self._serialize(row) for row in rows], "count": count})
+
+    def list_codes(self, **filters) -> dict:
+        with self._uow_factory() as uow:
+            rows, total = uow.codes.list(**filters)
+            return {"items": [self._serialize(row) for row in rows], "total": total}
+
+    def revoke(self, *, code_value: str, actor: Actor) -> ServiceResult:
+        with self._uow_factory() as uow:
+            row = uow.codes.get_for_update(code_value)
+            if not row:
+                return ServiceResult("not_found")
+            if row.used is not None:
+                return ServiceResult("used")
+            row.status = "revoked"
+            uow.operations.audit(actor=actor, action="code.revoke", resource_type="registration_code", resource_id=secret_fingerprint(code_value))
+            uow.operations.event("code.updated", "registration_code", secret_fingerprint(code_value), {"status": "revoked"})
+            return ServiceResult("ok", self._serialize(row))
 
     def redeem_whitelist(
         self,
@@ -94,6 +173,11 @@ class CodeService:
                 return ServiceResult("invalid_code")
             if code.used is not None:
                 return ServiceResult("used", {"used": code.used})
+            if code.status not in {None, "active"}:
+                return ServiceResult("invalid_code")
+            if code.expires_at and code.expires_at <= now:
+                code.status = "expired"
+                return ServiceResult("invalid_code")
 
             if kind == "whitelist":
                 if user.lv == "a":
@@ -106,6 +190,16 @@ class CodeService:
                     return ServiceResult("forbidden")
                 user.us = int(user.us or 0) + int(code.us or 0)
                 data = {"issuer_tg": code.tg, "days": code.us}
+                uow.operations.point_transaction(
+                    tg=tg,
+                    balance_type="registration_days",
+                    amount=int(code.us or 0),
+                    balance_after=int(user.us or 0),
+                    reason="redeem_registration_code",
+                    actor=actor,
+                    idempotency_key=idempotency_key,
+                    metadata={"code": secret_fingerprint(code_value)},
+                )
             elif kind == "renewal":
                 current_ex = user.ex or now
                 expired = now > current_ex
@@ -125,6 +219,9 @@ class CodeService:
 
             code.used = tg
             code.usedtime = now
+            account = uow.accounts.by_legacy_tg(tg)
+            code.used_by_account_id = account.id if account else None
+            code.status = "used"
             uow.operations.audit(
                 actor=actor,
                 action=f"code.redeem.{kind}",

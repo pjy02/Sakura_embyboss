@@ -19,7 +19,7 @@ async function load() {
   loading.value = true;
   try {
     const [history, user] = await Promise.all([
-      api<{ items: PointTransaction[] }>(`/me/point-transactions?limit=${limit}&offset=${offset.value}`),
+      api<{ items: PointTransaction[] }>(`/me/account/ledger?limit=${limit}&offset=${offset.value}`),
       profile.value ? Promise.resolve(profile.value) : api<UserProfile>("/me"),
     ]);
     items.value = history.items;
@@ -52,7 +52,7 @@ useRealtimeEvents(["points.changed"], () => load());
     <section class="balance-banner">
       <div><span class="stat-icon"><Coins :size="22" /></span><small>当前积分余额</small></div>
       <strong>{{ formatNumber(profile?.coins) }}</strong>
-      <p>积分用途和兑换规则以 Bot 当前配置为准。</p>
+      <p>积分用途和兑换规则由系统动态设置统一管理。</p>
     </section>
 
     <section class="panel table-panel">

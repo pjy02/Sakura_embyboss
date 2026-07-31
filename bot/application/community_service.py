@@ -39,6 +39,17 @@ def _json(value):
     )
 
 
+def _setting_enabled(uow, key: str, default: bool = True) -> bool:
+    row = uow.operations.get_dynamic_setting(key)
+    if row is None:
+        return default
+    try:
+        value = json.loads(row.value_json)
+    except (TypeError, ValueError):
+        return default
+    return value if type(value) is bool else default
+
+
 def serialize_review(row: MediaReview, *, liked=False) -> dict:
     return {
         "id": row.id,
@@ -112,8 +123,17 @@ def add_notification(
     normalized_body = body.strip()
     if not normalized_title or not normalized_body:
         raise RuntimeError("通知标题和正文不能为空")
-    web_enabled = uow.community.notification_enabled(tg, category, "web")
-    telegram_enabled = uow.community.notification_enabled(tg, category, "telegram")
+    web_enabled = _setting_enabled(
+        uow,
+        "notifications.web_enabled",
+    ) and uow.community.notification_enabled(tg, category, "web")
+    # Web-only accounts use a negative compatibility key in legacy tables. It
+    # is never a Telegram chat ID, so their notifications must remain in-app.
+    telegram_enabled = (
+        _setting_enabled(uow, "notifications.telegram_enabled")
+        and tg > 0
+        and uow.community.notification_enabled(tg, category, "telegram")
+    )
     if not web_enabled and not telegram_enabled:
         return None
     safe_action_url = (

@@ -31,7 +31,7 @@ const loading = ref(true);
 const submitting = ref(false);
 const error = ref("");
 const notice = ref("");
-const tgText = ref("");
+const targetText = ref("");
 const form = reactive({ action: "extend" as BatchAction, days: 30, amount: 100, reason: "批量运营调整", title: "系统通知", body: "", severity: "info", confirm: false });
 
 function allowed(permission: string) {
@@ -39,7 +39,25 @@ function allowed(permission: string) {
 }
 const canUpdate = computed(() => allowed("users:update"));
 const canReadBilling = computed(() => allowed("billing:read"));
-const targets = computed(() => Array.from(new Set((tgText.value.match(/\d+/g) || []).map(Number).filter((item) => item > 0))));
+const telegramTargets = computed(() =>
+  Array.from(
+    new Set(
+      (targetText.value.match(/(?:^|[\s,;])\d+(?=$|[\s,;])/g) || [])
+        .map((item) => Number(item.trim()))
+        .filter((item) => item > 0),
+    ),
+  ),
+);
+const accountTargets = computed(() =>
+  Array.from(
+    new Set(
+      targetText.value.match(
+        /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/gi,
+      ) || [],
+    ),
+  ),
+);
+const targetCount = computed(() => telegramTargets.value.length + accountTargets.value.length);
 const selectedAction = computed(() => actionOptions.find((item) => item.value === form.action) || actionOptions[0]);
 const succeeded = computed(() => history.value.filter((item) => item.status === "succeeded").length);
 const failed = computed(() => history.value.filter((item) => item.status === "failed").length);
@@ -68,8 +86,8 @@ function parameters() {
 async function submitBatch() {
   error.value = "";
   notice.value = "";
-  if (!targets.value.length) {
-    error.value = "请至少填写一个有效的 Telegram ID";
+  if (!targetCount.value) {
+    error.value = "请至少填写一个有效的统一账号 ID 或 Telegram ID";
     return;
   }
   submitting.value = true;
@@ -77,9 +95,9 @@ async function submitBatch() {
     const task = await api<OperationTask>("/admin/operations/batches", {
       method: "POST",
       idempotencyKey: idempotencyKey(`batch-${form.action}`),
-      body: JSON.stringify({ action: form.action, tg_ids: targets.value, parameters: parameters(), confirm: form.confirm }),
+      body: JSON.stringify({ action: form.action, tg_ids: telegramTargets.value, account_ids: accountTargets.value, parameters: parameters(), confirm: form.confirm }),
     });
-    notice.value = `已创建批量任务 ${task.id}，共 ${targets.value.length} 个目标。执行结果会实时写入下方生命周期记录。`;
+    notice.value = `已创建批量任务 ${task.id}，共 ${targetCount.value} 个目标。执行结果会实时写入下方生命周期记录。`;
     form.confirm = false;
   } catch (caught) {
     error.value = caught instanceof Error ? caught.message : "批量任务创建失败";
@@ -114,7 +132,7 @@ useRealtimeEvents(["user.lifecycle.updated", "billing.order.updated", "task.upda
     <div v-if="notice" class="operation-notice"><CheckCircle2 :size="17" />{{ notice }}</div>
 
     <section class="stats-grid admin-stats">
-      <MetricCard label="当前目标" :value="formatNumber(targets.length)" caption="单次最多 500 个用户" :icon="UsersRound" tone="pink" featured />
+      <MetricCard label="当前目标" :value="formatNumber(targetCount)" caption="统一账号或 Telegram ID，单次最多 500 个" :icon="UsersRound" tone="pink" featured />
       <MetricCard label="成功记录" :value="formatNumber(succeeded)" caption="最近 100 条生命周期记录" :icon="CheckCircle2" tone="green" />
       <MetricCard label="失败记录" :value="formatNumber(failed)" caption="失败用户可核对后重新提交" :icon="TriangleAlert" :tone="failed ? 'red' : 'green'" />
       <MetricCard label="交易待核对" :value="formatNumber((reconciliation?.stale_pending || 0) + (reconciliation?.credited_without_ledger || 0) + (reconciliation?.duplicate_credit_entries || 0))" caption="超时订单与账单结构检查" :icon="CircleDollarSign" :tone="reconciliation?.status === 'attention' ? 'gold' : 'cyan'" />
@@ -124,7 +142,7 @@ useRealtimeEvents(["user.lifecycle.updated", "billing.order.updated", "task.upda
       <form class="panel batch-form" @submit.prevent="submitBatch">
         <div class="panel-heading"><div><span class="section-kicker">BATCH COMMAND</span><h2>创建批量任务</h2></div><StatusBadge :label="selectedAction.danger ? '高风险操作' : '需要确认'" :tone="selectedAction.danger ? 'danger' : 'warning'" /></div>
         <label><span>选择操作</span><select v-model="form.action" @change="form.confirm = false"><option v-for="item in actionOptions" :key="item.value" :value="item.value">{{ item.label }} — {{ item.description }}</option></select></label>
-        <label><span>Telegram ID 列表</span><textarea v-model="tgText" rows="7" placeholder="支持逗号、空格或换行分隔，例如：&#10;10001&#10;10002&#10;10003" /><small>已识别 {{ targets.length }} 个不重复目标；不存在的用户会被安全忽略。</small></label>
+        <label><span>统一账号 ID / Telegram ID 列表</span><textarea v-model="targetText" rows="7" placeholder="支持逗号、空格或换行分隔。Web 独立账号请粘贴 UUID，Telegram 用户也可填写数字 ID。" /><small>已识别 {{ accountTargets.length }} 个统一账号、{{ telegramTargets.length }} 个 Telegram ID；不存在的用户会被安全忽略。</small></label>
 
         <div v-if="form.action === 'extend'" class="parameter-box"><label><span>延期天数</span><input v-model.number="form.days" type="number" min="1" max="3650" required /></label></div>
         <div v-else-if="form.action === 'grant_coins' || form.action === 'grant_registration_days'" class="parameter-box two"><label><span>调整数量</span><input v-model.number="form.amount" type="number" min="-10000000" max="10000000" required /></label><label><span>调整原因</span><input v-model.trim="form.reason" maxlength="255" required /></label><p>正数为增加，负数为扣减；不会允许余额被扣到负数。</p></div>
@@ -132,7 +150,7 @@ useRealtimeEvents(["user.lifecycle.updated", "billing.order.updated", "task.upda
         <div v-else class="impact-box" :class="{ danger: selectedAction.danger }"><component :is="selectedAction.icon" :size="20" /><div><strong>{{ selectedAction.label }}</strong><p>{{ selectedAction.description }}。每个用户执行失败不会中断整批任务。</p></div></div>
 
         <label class="confirm-row"><input v-model="form.confirm" type="checkbox" /><span>我已核对目标用户和操作参数，并确认创建后台任务</span></label>
-        <button class="primary-button wide" :disabled="!canUpdate || submitting || !form.confirm"><Send :size="16" />{{ submitting ? "正在创建…" : canUpdate ? `确认执行 · ${targets.length} 个用户` : "当前角色无操作权限" }}</button>
+        <button class="primary-button wide" :disabled="!canUpdate || submitting || !form.confirm"><Send :size="16" />{{ submitting ? "正在创建…" : canUpdate ? `确认执行 · ${targetCount} 个用户` : "当前角色无操作权限" }}</button>
       </form>
 
       <aside class="side-stack">
@@ -149,7 +167,7 @@ useRealtimeEvents(["user.lifecycle.updated", "billing.order.updated", "task.upda
       <div class="panel-heading section-pad"><div><span class="section-kicker">LIFECYCLE HISTORY</span><h2>账号生命周期记录</h2></div><span class="page-count">最近 {{ history.length }} 条</span></div>
       <AdminDataTable :loading="loading" :empty="!history.length" empty-title="暂无批量运营记录" min-width="820px">
         <template #head><tr><th>用户</th><th>操作</th><th>结果</th><th>执行详情</th><th>执行节点</th><th>时间</th></tr></template>
-        <template #body><tr v-for="item in history" :key="item.id"><td><strong>TG · {{ item.tg }}</strong></td><td>{{ actionLabel(item.action) }}</td><td><StatusBadge :label="item.status === 'succeeded' ? '成功' : '失败'" :tone="item.status === 'succeeded' ? 'success' : 'danger'" /></td><td class="detail-cell">{{ detailText(item) }}</td><td>{{ item.actor_id }}</td><td>{{ formatDate(item.created_at) }}</td></tr></template>
+        <template #body><tr v-for="item in history" :key="item.id"><td><strong>{{ item.account_id ? `账号 · ${item.account_id.slice(0, 8)}` : `TG · ${item.tg}` }}</strong></td><td>{{ actionLabel(item.action) }}</td><td><StatusBadge :label="item.status === 'succeeded' ? '成功' : '失败'" :tone="item.status === 'succeeded' ? 'success' : 'danger'" /></td><td class="detail-cell">{{ detailText(item) }}</td><td>{{ item.actor_id }}</td><td>{{ formatDate(item.created_at) }}</td></tr></template>
       </AdminDataTable>
     </section>
   </div>

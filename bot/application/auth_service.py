@@ -6,12 +6,14 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from hashlib import sha256
 from typing import Iterable, Optional
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from bot.application.results import ServiceResult
+from bot.application.account_service import PasswordHasher
 from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.sql_helper.sql_application import WebLoginRequest, WebRole, WebSession, utcnow
+from bot.sql_helper.sql_accounts import Account, AccountIdentity, AccountWallet
 from bot.sql_helper.sql_emby import Emby
 
 
@@ -93,6 +95,10 @@ PERMISSION_CATALOG = {
     },
     "业务运营": {
         "codes:*": "兑换码管理",
+        "codes:read": "查看邀请码",
+        "codes:create": "生成邀请码",
+        "codes:revoke": "作废邀请码",
+        "codes:export": "导出邀请码",
         "partitions:*": "分区管理",
         "billing:*": "交易全部权限",
         "billing:read": "查看交易",
@@ -159,6 +165,7 @@ class WebIdentity:
     roles: tuple[str, ...]
     permissions: frozenset[str]
     csrf_hash: str
+    account_id: str = ""
     purpose: str = "login"
 
     @property
@@ -299,6 +306,8 @@ class WebAuthService:
                         {"tg": tg, "source": "web-registration"},
                     )
 
+            self._ensure_account(uow, tg, display_name)
+
             request.requested_tg = tg
             request.status = "claimed"
             request.claimed_at = now
@@ -392,6 +401,7 @@ class WebAuthService:
             result = self._create_session(
                 uow=uow,
                 tg=request.approved_tg,
+                account_id=self._ensure_account(uow, request.approved_tg).id,
                 auth_method="telegram",
                 user_agent=user_agent,
                 ip_address=ip_address,
@@ -425,6 +435,7 @@ class WebAuthService:
             result = self._create_session(
                 uow=uow,
                 tg=user.tg,
+                account_id=self._ensure_account(uow, user.tg, username).id,
                 auth_method="emby",
                 user_agent=user_agent,
                 ip_address=ip_address,
@@ -439,11 +450,91 @@ class WebAuthService:
             )
             return result
 
+    def create_local_session(
+        self,
+        *,
+        username: str,
+        password: str,
+        user_agent: Optional[str],
+        ip_address: str,
+        purpose: str = "login",
+    ) -> ServiceResult:
+        now = utcnow()
+        normalized = (username or "").strip().casefold()
+        with self._uow_factory() as uow:
+            if uow.auth.recent_security_event_count(
+                "auth.local.failed",
+                ip_address,
+                now - timedelta(minutes=10),
+            ) >= 10:
+                return ServiceResult("rate_limited")
+            identity = uow.accounts.local_identity(normalized, for_update=True)
+            if (
+                not identity
+                or identity.disabled
+                or not identity.password_hash
+                or not PasswordHasher.verify(password, identity.password_hash)
+            ):
+                uow.operations.security_event(
+                    event_type="auth.local.failed",
+                    severity="warning",
+                    subject_kind="local_username",
+                    subject_id=sha256(normalized.encode("utf-8")).hexdigest()[:16],
+                    ip_address=ip_address,
+                )
+                return ServiceResult("invalid_credentials")
+            account = uow.accounts.get(identity.account_id)
+            if not account or account.status not in {"active", "suspended"}:
+                return ServiceResult("account_disabled")
+            identity.last_used_at = now
+            result = self._create_session(
+                uow=uow,
+                tg=account.legacy_tg,
+                account_id=account.id,
+                auth_method="local",
+                user_agent=user_agent,
+                ip_address=ip_address,
+                now=now,
+                purpose=purpose,
+            )
+            uow.operations.audit(
+                actor=Actor(kind="account", identifier=account.id, display_name=identity.username),
+                action="auth.session.create",
+                resource_type="web_session",
+                resource_id=result.data["session_id"],
+                detail={"auth_method": "local"},
+            )
+            return result
+
+    def create_account_session(
+        self,
+        *,
+        account_id: str,
+        user_agent: Optional[str],
+        ip_address: str,
+        purpose: str,
+    ) -> ServiceResult:
+        with self._uow_factory() as uow:
+            account = uow.accounts.get(account_id)
+            if not account or account.status != "active":
+                return ServiceResult("account_disabled")
+            return self._create_session(
+                uow=uow,
+                tg=account.legacy_tg,
+                account_id=account.id,
+                auth_method="local",
+                user_agent=user_agent,
+                ip_address=ip_address,
+                now=utcnow(),
+                purpose=purpose,
+            )
+
     def _create_session(
         self,
         *,
         uow,
         tg: int,
+        account_id: Optional[str],
         auth_method: str,
         user_agent: Optional[str],
         ip_address: str,
@@ -462,6 +553,7 @@ class WebAuthService:
         uow.auth.add_session(
             WebSession(
                 id=session_id,
+                account_id=account_id,
                 tg=tg,
                 token_hash=self.codec.digest(raw_session),
                 csrf_hash=self.codec.digest(raw_csrf),
@@ -481,6 +573,7 @@ class WebAuthService:
                 "session_token": raw_session,
                 "csrf_token": raw_csrf,
                 "expires_at": expires_at,
+                "account_id": account_id,
                 "tg": tg,
                 "auth_method": auth_method,
             },
@@ -529,6 +622,15 @@ class WebAuthService:
             )
             if not session or session.revoked_at or session.expires_at <= now:
                 return None
+            account = (
+                uow.accounts.get(session.account_id)
+                if session.account_id
+                else self._ensure_account(uow, session.tg)
+            )
+            if not account or account.status not in {"active", "suspended"}:
+                return None
+            if not session.account_id:
+                session.account_id = account.id
             if not session.last_seen_at or session.last_seen_at <= now - timedelta(minutes=5):
                 session.last_seen_at = now
             if session.purpose == "registration":
@@ -537,6 +639,7 @@ class WebAuthService:
                 roles, permissions = self._resolve_roles(uow, session.tg)
             return WebIdentity(
                 session_id=session.id,
+                account_id=account.id,
                 tg=session.tg,
                 auth_method=session.auth_method,
                 roles=tuple(sorted(roles)),
@@ -564,7 +667,12 @@ class WebAuthService:
 
     def logout_all(self, tg: int, actor: Actor) -> int:
         with self._uow_factory() as uow:
-            revoked = uow.auth.revoke_user_sessions(tg, utcnow())
+            account = uow.accounts.by_legacy_tg(tg)
+            revoked = (
+                uow.auth.revoke_account_sessions(account.id, utcnow())
+                if account
+                else uow.auth.revoke_user_sessions(tg, utcnow())
+            )
             uow.operations.audit(
                 actor=actor,
                 action="auth.session.revoke_all",
@@ -573,6 +681,45 @@ class WebAuthService:
                 detail={"revoked_sessions": revoked},
             )
             return revoked
+
+    @staticmethod
+    def _ensure_account(uow, tg: int, display_name: Optional[str] = None):
+        account = uow.accounts.by_legacy_tg(int(tg), for_update=True)
+        if account:
+            return account
+        now = utcnow()
+        account = Account(
+            id=str(uuid5(NAMESPACE_URL, f"sakura-account:{int(tg)}")),
+            legacy_tg=int(tg),
+            display_name=(display_name or f"TG {tg}")[:255],
+            status="active",
+            created_at=now,
+            updated_at=now,
+        )
+        uow.accounts.add_account(account)
+        uow.accounts.add_identity(
+            AccountIdentity(
+                id=str(uuid5(NAMESPACE_URL, f"sakura-identity:telegram:{int(tg)}")),
+                account_id=account.id,
+                provider="telegram",
+                subject=str(tg),
+                verified_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        user, _created = uow.users.add_if_missing(int(tg))
+        for balance_type, value in (("coins", user.iv), ("registration_days", user.us)):
+            uow.accounts.add_wallet(
+                AccountWallet(
+                    account_id=account.id,
+                    balance_type=balance_type,
+                    balance=int(value or 0),
+                    revision=1,
+                    updated_at=now,
+                )
+            )
+        return account
 
     def list_roles(self) -> list[dict]:
         with self._uow_factory() as uow:

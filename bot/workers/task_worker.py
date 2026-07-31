@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from bot import LOGGER
 from bot.application.reliability_service import ReliabilityService
+from bot.application.governance_service import DynamicSettingsService
 from bot.application.task_service import TASK_DEFINITIONS, TaskService
 from bot.workers.handlers import TASK_HANDLERS
 
@@ -31,6 +32,7 @@ class TaskWorker:
         self.worker_id = f"task:{socket.gethostname()}:{uuid4().hex[:10]}"
         self.tasks = TaskService()
         self.reliability = ReliabilityService()
+        self.settings = DynamicSettingsService()
         self._runner: asyncio.Task | None = None
         self._stopping = asyncio.Event()
         self._last_worker_heartbeat = 0.0
@@ -93,6 +95,10 @@ class TaskWorker:
 
         await self._heartbeat("busy", task_id)
         LOGGER.info("Task started: %s (%s)", task_id, task_type)
+        try:
+            await asyncio.to_thread(self.settings.apply_runtime_overrides)
+        except Exception as error:
+            LOGGER.warning("Task worker could not refresh dynamic settings: %s", error)
         handler_task = asyncio.create_task(
             handler(task.get("input") or {}),
             name=f"sakura-task-{task_id}",

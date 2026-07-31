@@ -12,6 +12,8 @@
 > 实时同步、自动测试和安全上线说明见 [docs/release-runbook.md](docs/release-runbook.md)。
 > 风险自动化、外部服务探测、Telegram 告警、批量账号运营与交易对账说明见 [docs/operations-center.md](docs/operations-center.md)。
 
+当前 Web 已支持不依赖 Telegram 的本地账号注册和登录。Web、Bot 与独立 Worker 通过统一账号、会员方案、邀请码、钱包账本和动态设置共享业务状态；生产 Compose 中 Worker 为独立容器，Bot 离线不会中断 Web 注册队列。
+
 <p align="center">
 <img src="image/bot2.png" alt="bot"><br>
 <a href="https://github.com/berry8838/Sakura_embyboss/stargazers"><img src="https://img.shields.io/github/stars/berry8838/Sakura_embyboss" alt="stars"></a> 

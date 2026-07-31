@@ -2,7 +2,9 @@ from bot import LOGGER
 from bot.application import DynamicSettingsService
 
 try:
-    DynamicSettingsService().apply_runtime_overrides()
+    _settings = DynamicSettingsService()
+    _settings.materialize_defaults()
+    _settings.apply_runtime_overrides()
 except Exception as error:
     LOGGER.warning(f"动态设置初始加载失败，继续使用 config.json：{error}")
 

@@ -13,23 +13,29 @@ async def sync_favorites_handler(_payload: dict) -> dict:
 
 
 async def sync_moviepilot_handler(_payload: dict) -> dict:
-    from bot.scheduler.sync_mp_download import sync_download_tasks
+    from bot.integrations.telegram_gateway import TelegramGateway
+    from bot.scheduler import sync_mp_download
 
-    result = await sync_download_tasks()
+    sync_mp_download.bot = TelegramGateway()
+    result = await sync_mp_download.sync_download_tasks()
     return result if isinstance(result, dict) else {"completed": True}
 
 
 async def partition_access_handler(_payload: dict) -> dict:
-    from bot.scheduler.partition_access import check_partition_access
+    from bot.integrations.telegram_gateway import TelegramGateway
+    from bot.scheduler import partition_access
 
-    result = await check_partition_access()
+    partition_access.bot = TelegramGateway()
+    result = await partition_access.check_partition_access()
     return result if isinstance(result, dict) else {"completed": True}
 
 
 async def expired_accounts_handler(_payload: dict) -> dict:
-    from bot.scheduler.check_ex import check_expired
+    from bot.integrations.telegram_gateway import TelegramGateway
+    from bot.scheduler import check_ex
 
-    result = await check_expired()
+    check_ex.bot = TelegramGateway()
+    result = await check_ex.check_expired()
     return result if isinstance(result, dict) else {"completed": True}
 
 
@@ -67,13 +73,15 @@ async def telegram_alert_handler(payload: dict) -> dict:
 
 
 async def telegram_notification_handler(payload: dict) -> dict:
-    from bot import bot
+    from bot.integrations.telegram_gateway import TelegramGateway
 
     title = str(payload.get("title") or "Sakura 通知")[:200]
     body = str(payload.get("body") or "")[:2000]
     if not body:
         raise ValueError("Telegram 通知正文不能为空")
-    await bot.send_message(int(payload["tg"]), f"🔔 {title}\n\n{body}", parse_mode=None)
+    await TelegramGateway().send_message(
+        int(payload["tg"]), f"🔔 {title}\n\n{body}", parse_mode=None
+    )
     return {"ok": True, "recipient_tg": int(payload["tg"])}
 
 
@@ -103,22 +111,23 @@ async def _notify_registration_result(payload: dict, result: dict) -> None:
             f"{result.get('message') or '请稍后重新提交注册任务。'}"
         )
     try:
-        from bot import bot
+        from bot.integrations.telegram_gateway import TelegramGateway
 
+        gateway = TelegramGateway()
         if message_id:
-            await bot.edit_message_text(
+            await gateway.edit_message_text(
                 int(chat_id),
                 int(message_id),
                 text,
                 parse_mode=None,
             )
         else:
-            await bot.send_message(int(chat_id), text, parse_mode=None)
+            await gateway.send_message(int(chat_id), text, parse_mode=None)
     except Exception:
         try:
-            from bot import bot
+            from bot.integrations.telegram_gateway import TelegramGateway
 
-            await bot.send_message(int(chat_id), text, parse_mode=None)
+            await TelegramGateway().send_message(int(chat_id), text, parse_mode=None)
         except Exception:
             pass
 

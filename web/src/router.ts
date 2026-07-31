@@ -22,6 +22,18 @@ const childRoutes =
           meta: { title: "站点账号", section: "用户运营", permission: "users:read" },
         },
         {
+          path: "memberships",
+          name: "memberships",
+          component: () => import("@/views/admin/MembershipsView.vue"),
+          meta: { title: "会员与标签", section: "用户运营", permission: "users:read" },
+        },
+        {
+          path: "invitation-codes",
+          name: "invitation-codes",
+          component: () => import("@/views/admin/InvitationCodesView.vue"),
+          meta: { title: "邀请码中心", section: "用户运营", permission: "codes:read" },
+        },
+        {
           path: "operations",
           name: "operations-center",
           component: () => import("@/views/admin/OperationsCenterView.vue"),

@@ -5,6 +5,7 @@ implementing their own write logic.
 """
 
 from .auth_service import TokenCodec, WebAuthService
+from .account_service import AccountService, PasswordHasher
 from .admin_service import AdminQueryService
 from .code_service import CodeService
 from .commerce_service import CommerceService, MediaRequestService, TicketService
@@ -27,6 +28,7 @@ from .user_service import UserService
 
 __all__ = [
     "CodeService",
+    "AccountService",
     "CommerceService",
     "CoreOperationsService",
     "DynamicSettingsService",
@@ -49,4 +51,5 @@ __all__ = [
     "TokenCodec",
     "UserService",
     "WebAuthService",
+    "PasswordHasher",
 ]

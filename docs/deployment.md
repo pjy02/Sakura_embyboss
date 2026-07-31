@@ -18,6 +18,8 @@ cp deploy.env.example .env
 3. 把 `WEB_ADMIN_PATH` 改成 3-64 位、难以猜测且不是 `admin` 的路径。`WEB_USER_PATH` 是用户中心路径。
 4. 推荐用 `openssl rand -hex 32` 分别生成 Web 会话密钥和数据库密码，不要复用 Bot Token。
 
+如果首次部署不准备使用 Telegram 登录，可在 `.env` 临时设置 `SAKURA_BOOTSTRAP_ADMIN_USERNAME` 和 `SAKURA_BOOTSTRAP_ADMIN_PASSWORD`。Web 首次启动会把该登录身份绑定到配置中的 Owner，数据库只保存 scrypt 摘要。确认本地管理员能够登录后删除这两个环境变量；后续启动不会覆盖已经存在的 Owner 本地密码。
+
 生产 Compose 默认只把 Web 绑定到 `127.0.0.1:8838`，MySQL 不对宿主机开放端口。请让 Caddy 或 Nginx 把 HTTPS 站点反向代理到该地址。
 
 ## 2. 启动与检查
@@ -33,10 +35,10 @@ curl -fsS http://127.0.0.1:8838/readyz
 启动顺序由 Compose 保证：
 
 ```text
-MySQL 健康 -> migrate 完成数据库迁移 -> Bot 健康 -> Web 就绪
+MySQL 健康 -> migrate 完成数据库迁移 -> Bot / Worker / Web 独立启动
 ```
 
-`migrate` 是一次性容器，完成后显示 `Exited (0)` 属于正常状态。Bot 承载 Telegram 和后台任务 Worker；Web 使用同一数据库提供 FastAPI、用户中心和管理后台。Compose 会关闭 Bot 内嵌 Web，避免同一服务启动两份。
+`migrate` 是一次性容器，完成后显示 `Exited (0)` 属于正常状态。Bot 只承载 Telegram 交互，Worker 独立执行注册和后台任务，Web 提供 FastAPI、用户中心和管理后台。停止 Bot 不会中断 Web 本地账号登录和注册队列。
 
 完成首次配置后，也可以使用带配置预检、数据库备份、健康等待和失败回退的一键上线脚本：
 
@@ -51,7 +53,7 @@ Compose 也会禁止多个启动进程同时回写 `config.json`；后续通过 
 查看日志：
 
 ```bash
-docker compose logs -f --tail=200 bot web migrate
+docker compose logs -f --tail=200 bot worker web migrate
 ```
 
 升级或切换镜像：

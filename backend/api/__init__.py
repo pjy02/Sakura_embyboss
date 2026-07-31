@@ -1,5 +1,7 @@
 from .admin import router as admin_router
 from .auth import router as auth_router
+from .accounts import admin_router as accounts_admin_router
+from .accounts import me_router as accounts_me_router
 from .commerce import admin_router as commerce_admin_router
 from .commerce import me_router as commerce_me_router
 from .community import admin_router as community_admin_router
@@ -14,6 +16,8 @@ from .tasks import events_router
 
 __all__ = [
     "admin_router",
+    "accounts_admin_router",
+    "accounts_me_router",
     "auth_router",
     "commerce_admin_router",
     "commerce_me_router",

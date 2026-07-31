@@ -71,6 +71,7 @@ class PointTransaction(Base):
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    account_id = Column(String(36), nullable=True)
     tg = Column(BigInteger, nullable=False)
     balance_type = Column(String(32), nullable=False, default="coins")
     amount = Column(Integer, nullable=False)
@@ -255,6 +256,7 @@ class AccountLifecycleEvent(Base):
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    account_id = Column(String(36), nullable=True)
     batch_id = Column(String(36), nullable=False)
     tg = Column(BigInteger, nullable=False)
     action = Column(String(32), nullable=False)
@@ -301,6 +303,7 @@ class WebSession(Base):
     )
 
     id = Column(String(36), primary_key=True)
+    account_id = Column(String(36), nullable=True)
     tg = Column(BigInteger, nullable=False)
     token_hash = Column(String(128), nullable=False)
     csrf_hash = Column(String(128), nullable=False)

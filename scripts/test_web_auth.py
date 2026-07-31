@@ -87,7 +87,9 @@ from backend.api.tasks import _admin_event_prefixes
 from backend.app import create_app
 from backend.settings import WebSettings, get_settings
 from bot.application import (
+    AccountService,
     AdminQueryService,
+    DynamicSettingsService,
     PointService,
     RegistrationService,
     ReliabilityService,
@@ -120,6 +122,11 @@ class WebAuthRouteTests(unittest.TestCase):
             owner_tg=9001,
             admin_tg_ids=[9002],
             uow_factory=self.uow_factory,
+        )
+        self.accounts = AccountService(self.uow_factory)
+        self.dynamic_settings = DynamicSettingsService(
+            self.uow_factory,
+            runtime_values={},
         )
         with self.session_factory() as session:
             session.add_all(
@@ -177,6 +184,11 @@ class WebAuthRouteTests(unittest.TestCase):
             patch(
                 "backend.api.registration.registration_service",
                 RegistrationService(self.uow_factory),
+            ),
+            patch("backend.api.registration.account_service", self.accounts),
+            patch(
+                "backend.api.registration.dynamic_settings",
+                self.dynamic_settings,
             ),
         ]
         for item in self.patches:
@@ -283,6 +295,40 @@ class WebAuthRouteTests(unittest.TestCase):
         )
         self.assertEqual(task.status_code, 200)
         self.assertNotIn("safety_code", task.json()["input"])
+
+    def test_web_registration_can_create_local_identity_without_telegram(self):
+        started = self.client.post(
+            "/api/v1/registration/local/start",
+            json={
+                "login_name": "web-only-user",
+                "password": "web-only-password",
+                "display_name": "Web Only",
+            },
+        )
+        self.assertEqual(started.status_code, 201)
+        account_id = started.json()["account_id"]
+        self.assertTrue(account_id)
+
+        session = self.client.get("/api/v1/auth/session")
+        self.assertEqual(session.status_code, 200)
+        self.assertEqual(session.json()["account_id"], account_id)
+        self.assertEqual(session.json()["auth_method"], "local")
+        self.assertEqual(session.json()["purpose"], "registration")
+
+        submitted = self.client.post(
+            "/api/v1/registration/submit",
+            headers={
+                "X-CSRF-Token": self.client.cookies["sakura_csrf"],
+                "Idempotency-Key": "local-registration-route-test",
+            },
+            json={
+                "username": "web-emby-user",
+                "safety_code": "5678",
+                "registration_code": None,
+            },
+        )
+        self.assertEqual(submitted.status_code, 202)
+        self.assertEqual(submitted.json()["task_type"], "registration.account")
 
     def test_admin_event_prefixes_follow_module_permissions(self):
         identity = WebIdentity(

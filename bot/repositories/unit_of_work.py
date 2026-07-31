@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session as OrmSession
 
 from bot.sql_helper import Session
 from bot.repositories.auth import AuthRepository
+from bot.repositories.accounts import AccountRepository
 from bot.repositories.codes import CodeRepository
 from bot.repositories.commerce import CommerceRepository
 from bot.repositories.community import CommunityRepository
@@ -23,6 +24,7 @@ class SqlAlchemyUnitOfWork:
     def __enter__(self) -> "SqlAlchemyUnitOfWork":
         self.session = self._session_factory()
         self.auth = AuthRepository(self.session)
+        self.accounts = AccountRepository(self.session)
         self.users = UserRepository(self.session)
         self.codes = CodeRepository(self.session)
         self.commerce = CommerceRepository(self.session)

@@ -71,6 +71,15 @@ from bot.sql_helper.sql_application import (
     SystemEvent,
     WebRole,
 )
+from bot.sql_helper.sql_accounts import (
+    Account,
+    AccountIdentity,
+    AccountLedgerEntry,
+    AccountMembership,
+    AccountTag,
+    AccountWallet,
+    MembershipPlan,
+)
 from bot.sql_helper.sql_code import Code
 from bot.sql_helper.sql_commerce import (
     BillingEntry,
@@ -88,6 +97,7 @@ from bot.sql_helper.sql_community import (
 from bot.sql_helper.sql_emby import Emby
 from bot.sql_helper.sql_partition import PartitionCode, PartitionGrant
 from bot.application import (
+    AccountService,
     AccountLifecycleService,
     AdminQueryService,
     CodeService,
@@ -175,6 +185,7 @@ class ApplicationServiceTests(unittest.TestCase):
         )
         self.uow_factory = lambda: SqlAlchemyUnitOfWork(self.session_factory)
         self.actor = Actor.telegram(1001, "tester")
+        self.accounts = AccountService(self.uow_factory)
         self.admin_queries = AdminQueryService(self.uow_factory)
         self.users = UserService(self.uow_factory)
         self.points = PointService(self.uow_factory)
@@ -234,6 +245,9 @@ class ApplicationServiceTests(unittest.TestCase):
         self.assertFalse(second.data["created"])
         with self.session_factory() as session:
             self.assertEqual(session.query(Emby).count(), 1)
+            self.assertEqual(session.query(Account).count(), 1)
+            self.assertEqual(session.query(AccountIdentity).count(), 1)
+            self.assertEqual(session.query(AccountWallet).count(), 2)
             self.assertEqual(session.query(AuditLog).count(), 1)
 
     def test_live_playback_builds_history_and_device_profile(self):
@@ -349,6 +363,149 @@ class ApplicationServiceTests(unittest.TestCase):
             self.assertEqual(session.get(Emby, 1001).iv, 15)
             self.assertEqual(session.query(PointTransaction).count(), 1)
 
+    def test_local_account_identity_membership_tags_and_wallet_ledger(self):
+        created = self.accounts.create_local(
+            username="web-alice",
+            password="a-secure-password",
+            display_name="Alice",
+            actor=Actor.web(9001),
+        )
+        self.assertTrue(created.ok)
+        account_id = created.data["account_id"]
+        legacy_tg = created.data["legacy_tg"]
+        authenticated = self.accounts.authenticate_local(
+            "WEB-ALICE",
+            "a-secure-password",
+        )
+        self.assertTrue(authenticated.ok)
+        self.assertEqual(authenticated.data["account_id"], account_id)
+
+        plan = self.accounts.create_plan(
+            {
+                "code": "monthly",
+                "name": "月度会员",
+                "duration_days": 30,
+                "legacy_level": "b",
+                "entitlements": {"devices": 4},
+                "enabled": True,
+                "is_default": True,
+            },
+            Actor.web(9001),
+        )
+        assigned = self.accounts.assign_plan(
+            account_id=account_id,
+            plan_id=plan["id"],
+            duration_days=45,
+            actor=Actor.web(9001),
+        )
+        self.assertTrue(assigned.ok)
+
+        tag = self.accounts.create_tag(
+            name="新用户",
+            color="#8b7cf6",
+            description="Web 注册用户",
+            actor=Actor.web(9001),
+        )
+        self.assertTrue(tag.ok)
+        changed = self.accounts.assign_tags(
+            account_ids=[account_id],
+            tag_ids=[tag.data["id"]],
+            mode="add",
+            actor=Actor.web(9001),
+        )
+        self.assertEqual(changed["changed"], 1)
+
+        credited = self.points.adjust(
+            tg=legacy_tg,
+            amount=25,
+            balance_type="coins",
+            reason="welcome-credit",
+            actor=Actor.web(9001),
+            idempotency_key="local-welcome-credit",
+        )
+        self.assertTrue(credited.ok)
+        with self.session_factory() as session:
+            self.assertEqual(session.query(Account).count(), 1)
+            self.assertEqual(session.query(AccountIdentity).count(), 1)
+            self.assertEqual(session.query(MembershipPlan).count(), 1)
+            self.assertEqual(session.query(AccountMembership).count(), 1)
+            self.assertEqual(session.query(AccountTag).count(), 1)
+            wallet = session.query(AccountWallet).filter_by(
+                account_id=account_id,
+                balance_type="coins",
+            ).one()
+            self.assertEqual(wallet.balance, 25)
+            ledger = session.query(AccountLedgerEntry).one()
+            self.assertEqual(ledger.account_id, account_id)
+            self.assertEqual(ledger.balance_after, 25)
+            self.assertIsNotNone(ledger.source_transaction_id)
+
+    def test_local_web_auth_session_does_not_require_telegram(self):
+        created = self.accounts.create_local(
+            username="standalone-user",
+            password="standalone-password",
+            display_name=None,
+            actor=Actor.web(9001),
+        )
+        session = self.auth.create_local_session(
+            username="standalone-user",
+            password="standalone-password",
+            user_agent="test-browser",
+            ip_address="127.0.0.1",
+        )
+        self.assertTrue(session.ok)
+        self.assertEqual(session.data["account_id"], created.data["account_id"])
+        self.assertEqual(session.data["auth_method"], "local")
+
+    def test_owner_can_be_bootstrapped_for_local_admin_login_once(self):
+        first = self.accounts.bootstrap_owner(
+            owner_tg=9001,
+            username="local-owner",
+            password="owner-local-password",
+        )
+        second = self.accounts.bootstrap_owner(
+            owner_tg=9001,
+            username="ignored-owner",
+            password="ignored-owner-password",
+        )
+        self.assertTrue(first.ok)
+        self.assertEqual(second.status, "already_configured")
+        session = self.auth.create_local_session(
+            username="local-owner",
+            password="owner-local-password",
+            user_agent="admin-browser",
+            ip_address="127.0.0.1",
+        )
+        self.assertTrue(session.ok)
+        identity = self.auth.authenticate(session.data["session_token"])
+        self.assertIsNotNone(identity)
+        self.assertIn("owner", identity.roles)
+        self.assertEqual(identity.auth_method, "local")
+
+    def test_admin_generated_invitation_codes_keep_legacy_format(self):
+        generated = self.codes.generate(
+            kind="registration",
+            days=60,
+            count=3,
+            logo="SAKURA",
+            issuer_tg=-1,
+            issuer_account_id="account-owner",
+            expires_at=datetime.now() + timedelta(days=7),
+            actor=Actor.web(9001),
+        )
+        self.assertTrue(generated.ok)
+        self.assertEqual(generated.data["count"], 3)
+        self.assertTrue(
+            all(item["code"].startswith("SAKURA-60-Register_") for item in generated.data["items"])
+        )
+        listed = self.codes.list_codes(kind="registration", status="active")
+        self.assertEqual(listed["total"], 3)
+        revoked = self.codes.revoke(
+            code_value=generated.data["items"][0]["code"],
+            actor=Actor.web(9001),
+        )
+        self.assertEqual(revoked.data["status"], "revoked")
+
     def test_check_in_cannot_credit_twice(self):
         self._add_user(iv=0, lv="b")
         now = datetime(2026, 7, 30, 9, 0, 0)
@@ -439,30 +596,31 @@ class ApplicationServiceTests(unittest.TestCase):
             self.assertEqual(user.pwd2, "1234")
 
     def test_registration_code_can_enter_shared_queue_when_closed(self):
-        original = bot_stub._open.stat
-        bot_stub._open.stat = False
-        try:
-            self._add_user(us=0, lv="d")
-            with self.session_factory() as session:
-                session.add(Code(code="SAKURA-30-Register_web", tg=9001, us=30))
-                session.commit()
-            submitted = self.registrations.submit(
-                tg=1001,
-                username="invited-user",
-                safety_code="5678",
-                registration_code="SAKURA-30-Register_web",
-                actor=self.actor,
-                idempotency_key="web-registration-code-1",
+        self.dynamic_settings.update(
+            "registration.enabled",
+            value=False,
+            expected_revision=0,
+            actor=Actor.web(9001),
+        )
+        self._add_user(us=0, lv="d")
+        with self.session_factory() as session:
+            session.add(Code(code="SAKURA-30-Register_web", tg=9001, us=30))
+            session.commit()
+        submitted = self.registrations.submit(
+            tg=1001,
+            username="invited-user",
+            safety_code="5678",
+            registration_code="SAKURA-30-Register_web",
+            actor=self.actor,
+            idempotency_key="web-registration-code-1",
+        )
+        self.assertTrue(submitted.ok)
+        with self.session_factory() as session:
+            self.assertEqual(session.get(Emby, 1001).us, 30)
+            self.assertEqual(
+                session.get(Code, "SAKURA-30-Register_web").used,
+                1001,
             )
-            self.assertTrue(submitted.ok)
-            with self.session_factory() as session:
-                self.assertEqual(session.get(Emby, 1001).us, 30)
-                self.assertEqual(
-                    session.get(Code, "SAKURA-30-Register_web").used,
-                    1001,
-                )
-        finally:
-            bot_stub._open.stat = original
 
     def test_failed_purchase_does_not_create_codes(self):
         self._add_user(iv=2, lv="b")
@@ -709,6 +867,43 @@ class ApplicationServiceTests(unittest.TestCase):
                 .filter(OperationTask.task_type == "notification.telegram")
                 .count(),
                 1,
+            )
+
+    def test_batch_operations_accept_web_only_account_ids(self):
+        created = self.accounts.create_local(
+            username="batch-web-user",
+            password="batch-web-password",
+            display_name=None,
+            actor=Actor.web(9001),
+        )
+        account_id = created.data["account_id"]
+        submitted = self.lifecycle.enqueue_batch(
+            action="grant_coins",
+            tg_ids=[],
+            account_ids=[account_id],
+            parameters={"amount": 40, "reason": "Web 用户批量赠送"},
+            actor=Actor.web(9001),
+            idempotency_key="batch-web-account-1",
+        )
+        self.assertTrue(submitted.ok)
+        with self.session_factory() as session:
+            payload = json.loads(session.get(OperationTask, submitted.data["id"]).input_json)
+        result = asyncio.run(self.lifecycle.execute_batch(payload))
+        self.assertEqual(result["succeeded"], 1)
+        with self.session_factory() as session:
+            account = session.get(Account, account_id)
+            wallet = session.query(AccountWallet).filter_by(
+                account_id=account_id,
+                balance_type="coins",
+            ).one()
+            self.assertEqual(wallet.balance, 40)
+            self.assertEqual(session.get(Emby, account.legacy_tg).iv, 40)
+            self.assertEqual(session.query(AccountLedgerEntry).count(), 1)
+            self.assertEqual(
+                session.query(OperationTask)
+                .filter(OperationTask.task_type == "notification.telegram")
+                .count(),
+                0,
             )
 
     def test_ticket_messages_are_scoped_and_internal_notes_are_hidden(self):
@@ -1231,6 +1426,15 @@ class ApplicationServiceTests(unittest.TestCase):
                 .count(),
                 3,
             )
+
+    def test_dynamic_settings_materialize_all_non_secret_defaults_once(self):
+        first = self.dynamic_settings.materialize_defaults()
+        second = self.dynamic_settings.materialize_defaults()
+        self.assertGreater(first["count"], 30)
+        self.assertEqual(second["count"], 0)
+        settings = self.dynamic_settings.list()["items"]
+        self.assertTrue(settings)
+        self.assertTrue(all(item["source"] == "database" for item in settings))
 
     def test_governance_permissions_are_in_default_roles(self):
         self.assertIn("security:read", DEFAULT_ROLE_PERMISSIONS["admin"])

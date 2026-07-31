@@ -59,10 +59,10 @@ def require_permission(
     dependency = csrf_protected_identity if csrf else current_identity
 
     async def checker(identity: WebIdentity = Depends(dependency)) -> WebIdentity:
-        if telegram_only and identity.auth_method != "telegram":
+        if telegram_only and identity.auth_method not in {"telegram", "local"}:
             raise HTTPException(
                 status_code=403,
-                detail="管理操作必须通过 Telegram 确认登录",
+                detail="管理操作必须使用 Web 本地账号或 Telegram 强身份登录",
             )
         if not identity.has_permission(permission):
             raise HTTPException(status_code=403, detail="权限不足")
@@ -74,6 +74,6 @@ def require_permission(
 async def owner_identity(
     identity: WebIdentity = Depends(csrf_protected_identity),
 ) -> WebIdentity:
-    if identity.auth_method != "telegram" or not identity.is_owner:
+    if identity.auth_method not in {"telegram", "local"} or not identity.is_owner:
         raise HTTPException(status_code=403, detail="仅所有者可执行此操作")
     return identity

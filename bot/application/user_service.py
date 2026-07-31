@@ -1,9 +1,12 @@
 from datetime import datetime
 from typing import Any, Dict, Optional
+from uuid import NAMESPACE_URL, uuid5
 
 from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.application.results import ServiceResult
+from bot.sql_helper.sql_accounts import Account, AccountIdentity, AccountWallet
+from bot.sql_helper.sql_application import utcnow
 
 
 class UserService:
@@ -28,18 +31,72 @@ class UserService:
     def ensure_user(self, tg: int, actor: Optional[Actor] = None) -> ServiceResult:
         actor = actor or Actor.system("user-service")
         with self._uow_factory() as uow:
-            _user, created = uow.users.add_if_missing(tg)
-            if not created:
-                return ServiceResult("ok", {"tg": tg, "created": False})
+            user, created = uow.users.add_if_missing(tg)
+            account = uow.accounts.by_legacy_tg(tg, for_update=True)
+            account_created = account is None
+            if account is None:
+                now = utcnow()
+                account_id = str(uuid5(NAMESPACE_URL, f"sakura-account:{int(tg)}"))
+                account = Account(
+                    id=account_id,
+                    legacy_tg=int(tg),
+                    display_name=f"TG {tg}",
+                    status="active",
+                    created_at=now,
+                    updated_at=now,
+                )
+                uow.accounts.add_account(account)
+                uow.accounts.add_identity(
+                    AccountIdentity(
+                        id=str(uuid5(NAMESPACE_URL, f"sakura-identity:telegram:{int(tg)}")),
+                        account_id=account_id,
+                        provider="telegram",
+                        subject=str(tg),
+                        verified_at=now,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                for balance_type, value in (("coins", user.iv), ("registration_days", user.us)):
+                    uow.accounts.add_wallet(
+                        AccountWallet(
+                            account_id=account_id,
+                            balance_type=balance_type,
+                            balance=int(value or 0),
+                            revision=1,
+                            updated_at=now,
+                        )
+                    )
+            if not created and not account_created:
+                return ServiceResult(
+                    "ok",
+                    {"tg": tg, "account_id": account.id, "created": False},
+                )
             uow.operations.audit(
                 actor=actor,
-                action="user.create",
+                action="user.create" if created else "account.canonical.backfill",
                 resource_type="user",
                 resource_id=str(tg),
-                detail={"source": actor.kind},
+                detail={"source": actor.kind, "account_id": account.id},
             )
-            uow.operations.event("user.created", "user", str(tg), {"tg": tg})
-            return ServiceResult("ok", {"tg": tg, "created": True})
+            if created:
+                uow.operations.event(
+                    "user.created",
+                    "user",
+                    str(tg),
+                    {"tg": tg, "account_id": account.id},
+                )
+            else:
+                uow.operations.event(
+                    "account.created",
+                    "account",
+                    account.id,
+                    {"tg": tg, "account_id": account.id, "source": "legacy-backfill"},
+                )
+            return ServiceResult(
+                "ok",
+                {"tg": tg, "account_id": account.id, "created": created},
+            )
 
     def update_user(
         self,
@@ -117,7 +174,19 @@ class UserService:
             user.cr = datetime.now()
             user.ex = expires_at
             if consume_qualification:
+                consumed_days = int(user.us or 0)
                 user.us = 0
+                if consumed_days:
+                    uow.operations.point_transaction(
+                        tg=tg,
+                        balance_type="registration_days",
+                        amount=-consumed_days,
+                        balance_after=0,
+                        reason="registration_qualification_consumed",
+                        actor=actor,
+                        idempotency_key=f"registration-consume:{tg}:{embyid}",
+                        metadata={"embyid": embyid},
+                    )
 
             uow.operations.audit(
                 actor=actor,
