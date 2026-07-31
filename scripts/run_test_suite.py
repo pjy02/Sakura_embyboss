@@ -13,6 +13,7 @@ TESTS = (
     "scripts/test_application_services.py",
     "scripts/test_task_reliability.py",
     "scripts/test_web_auth.py",
+    "scripts/test_deployment_contract.py",
     "scripts/test_register_queue.py",
     "scripts/test_emby_policy.py",
 )
