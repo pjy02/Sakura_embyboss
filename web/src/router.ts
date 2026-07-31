@@ -75,6 +75,18 @@ const childRoutes =
           meta: { title: "求片订阅", section: "内容社区", permission: "requests:read" },
         },
         {
+          path: "reviews",
+          name: "reviews",
+          component: () => import("@/views/admin/ReviewsView.vue"),
+          meta: { title: "影评中心", section: "内容社区", permission: "reviews:read" },
+        },
+        {
+          path: "notifications",
+          name: "notifications",
+          component: () => import("@/views/admin/NotificationsView.vue"),
+          meta: { title: "通知中心", section: "内容社区", permission: "notifications:read" },
+        },
+        {
           path: "roles",
           name: "roles",
           component: () => import("@/views/admin/RolesView.vue"),
@@ -123,6 +135,18 @@ const childRoutes =
           name: "portal-requests",
           component: () => import("@/views/portal/RequestsView.vue"),
           meta: { title: "我的求片" },
+        },
+        {
+          path: "reviews",
+          name: "portal-reviews",
+          component: () => import("@/views/portal/ReviewsView.vue"),
+          meta: { title: "影评社区" },
+        },
+        {
+          path: "notifications",
+          name: "portal-notifications",
+          component: () => import("@/views/portal/NotificationsView.vue"),
+          meta: { title: "通知中心" },
         },
       ];
 

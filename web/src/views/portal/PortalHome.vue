@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { RouterLink } from "vue-router";
-import { ArrowRight, CalendarDays, CheckCircle2, CircleDollarSign, Clapperboard, Coins, Crown, Film, MessageCircle, Sparkles } from "lucide-vue-next";
+import { ArrowRight, Bell, CalendarDays, CheckCircle2, CircleDollarSign, Clapperboard, Coins, Crown, Film, MessageCircle, Sparkles, Star } from "lucide-vue-next";
 import LoadingBlock from "@/components/LoadingBlock.vue";
 import { api } from "@/lib/api";
 import { daysUntil, formatDate, formatNumber, initials, levelLabel } from "@/lib/format";
@@ -167,6 +167,16 @@ useRealtimeEvents(
         <RouterLink to="/requests">
           <Clapperboard :size="20" />
           <span><strong>求片订阅</strong><small>提交作品并查看下载入库进度</small></span>
+          <ArrowRight :size="15" />
+        </RouterLink>
+        <RouterLink to="/reviews">
+          <Star :size="20" />
+          <span><strong>影评社区</strong><small>分享评分并浏览社区短评</small></span>
+          <ArrowRight :size="15" />
+        </RouterLink>
+        <RouterLink to="/notifications">
+          <Bell :size="20" />
+          <span><strong>通知中心</strong><small>查看业务提醒与系统公告</small></span>
           <ArrowRight :size="15" />
         </RouterLink>
       </section>

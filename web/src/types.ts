@@ -56,6 +56,12 @@ export interface Role {
   name: string;
   permissions: string[];
   is_system: boolean;
+  member_count?: number;
+}
+
+export interface PermissionCatalogGroup {
+  group: string;
+  items: Array<{ permission: string; label: string }>;
 }
 
 export interface AdminOverview {
@@ -257,6 +263,53 @@ export interface MediaRequest {
   canceled_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface MediaReview {
+  id: string;
+  tg: number;
+  media_key: string;
+  media_title: string;
+  media_year: number | null;
+  rating: number;
+  content: string;
+  spoiler: boolean;
+  status: "pending" | "published" | "rejected" | "hidden";
+  like_count: number;
+  report_count: number;
+  liked: boolean;
+  admin_note: string | null;
+  moderated_by: number | null;
+  moderated_at: string | null;
+  created_at: string;
+  updated_at: string;
+  reports?: Array<{
+    id: number;
+    tg: number;
+    reason: string;
+    detail: string | null;
+    created_at: string;
+  }>;
+}
+
+export interface UserNotification {
+  id: string;
+  tg: number;
+  category: "system" | "billing" | "ticket" | "request" | "review";
+  title: string;
+  body: string;
+  severity: "info" | "success" | "warning" | "danger";
+  action_url: string | null;
+  metadata: Record<string, unknown> | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationPreference {
+  category: UserNotification["category"];
+  label: string;
+  web_enabled: boolean;
+  telegram_enabled: boolean;
 }
 
 export interface TelegramLogin {

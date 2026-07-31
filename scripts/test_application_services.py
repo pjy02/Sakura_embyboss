@@ -47,7 +47,7 @@ def _compile_big_integer_as_integer(_type, _compiler, **_kwargs):
 
 
 from bot.sql_helper import Base
-from bot.sql_helper.sql_application import AuditLog, PointTransaction, SystemEvent
+from bot.sql_helper.sql_application import AuditLog, PointTransaction, SystemEvent, WebRole
 from bot.sql_helper.sql_code import Code
 from bot.sql_helper.sql_commerce import (
     BillingEntry,
@@ -56,19 +56,28 @@ from bot.sql_helper.sql_commerce import (
     SupportTicket,
     TicketMessage,
 )
+from bot.sql_helper.sql_community import (
+    MediaReview,
+    ReviewReaction,
+    ReviewReport,
+    UserNotification,
+)
 from bot.sql_helper.sql_emby import Emby
 from bot.sql_helper.sql_partition import PartitionCode, PartitionGrant
 from bot.application import (
+    AdminQueryService,
     CodeService,
     CommerceService,
     CoreOperationsService,
     MediaRequestService,
+    NotificationService,
     PartitionService,
     PointService,
     TicketService,
     TokenCodec,
     UserService,
     WebAuthService,
+    ReviewService,
 )
 from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
@@ -106,12 +115,15 @@ class ApplicationServiceTests(unittest.TestCase):
         )
         self.uow_factory = lambda: SqlAlchemyUnitOfWork(self.session_factory)
         self.actor = Actor.telegram(1001, "tester")
+        self.admin_queries = AdminQueryService(self.uow_factory)
         self.users = UserService(self.uow_factory)
         self.points = PointService(self.uow_factory)
         self.codes = CodeService(self.uow_factory)
         self.commerce = CommerceService(self.uow_factory)
         self.tickets = TicketService(self.uow_factory)
         self.media_requests = MediaRequestService(self.uow_factory)
+        self.notifications = NotificationService(self.uow_factory)
+        self.reviews = ReviewService(self.uow_factory)
         self.partitions = PartitionService(self.uow_factory)
         self.emby_client = StubEmbyClient()
         self.core_operations = CoreOperationsService(
@@ -510,6 +522,170 @@ class ApplicationServiceTests(unittest.TestCase):
                     for event in request_events
                 )
             )
+
+    def test_review_moderation_reactions_reports_and_notifications(self):
+        self._add_user(tg=1001, name="alice")
+        self._add_user(tg=1002, name="bob")
+        review = self.reviews.create(
+            tg=1001,
+            media_key="tmdb:550",
+            media_title="测试电影",
+            media_year=2026,
+            rating=9,
+            content="这是一篇足够长的测试影评内容。",
+            spoiler=True,
+            actor=Actor.web(1001),
+        )
+        with self.assertRaises(RuntimeError):
+            self.reviews.create(
+                tg=1001,
+                media_key="TMDB:550",
+                media_title="测试电影",
+                media_year=2026,
+                rating=8,
+                content="不能对同一作品重复提交影评。",
+                spoiler=False,
+                actor=Actor.web(1001),
+            )
+        published = self.reviews.moderate(
+            review["id"],
+            status="published",
+            admin_note="内容合规",
+            actor=Actor.web(9001),
+        )
+        self.assertEqual(published["status"], "published")
+        liked = self.reviews.react(review["id"], tg=1002, enabled=True)
+        self.assertTrue(liked["liked"])
+        self.assertEqual(liked["like_count"], 1)
+        reported = self.reviews.report(
+            review["id"],
+            tg=1002,
+            reason="spoiler",
+            detail="剧透标记需要更醒目",
+            actor=Actor.web(1002),
+        )
+        self.assertEqual(reported["report_count"], 1)
+        detail = self.reviews.detail_admin(review["id"])
+        self.assertIsNotNone(detail)
+        self.assertEqual(len(detail["reports"]), 1)
+        self.assertEqual(detail["reports"][0]["reason"], "spoiler")
+        with self.assertRaises(RuntimeError):
+            self.reviews.report(
+                review["id"],
+                tg=1002,
+                reason="spoiler",
+                detail=None,
+                actor=Actor.web(1002),
+            )
+        with self.session_factory() as session:
+            self.assertEqual(session.query(MediaReview).count(), 1)
+            self.assertEqual(session.query(ReviewReaction).count(), 1)
+            self.assertEqual(session.query(ReviewReport).count(), 1)
+            notification = session.query(UserNotification).one()
+            self.assertEqual(notification.tg, 1001)
+            self.assertEqual(notification.category, "review")
+
+    def test_notification_scope_preferences_and_broadcast(self):
+        self._add_user(tg=1001, name="alice")
+        self._add_user(tg=1002, name="bob")
+        result = self.notifications.broadcast(
+            target_tg=None,
+            category="system",
+            title="维护通知",
+            body="系统将在今晚进行维护。",
+            severity="warning",
+            action_url=None,
+            actor=Actor.web(9001),
+        )
+        self.assertEqual(result["created"], 2)
+        self.assertEqual(self.notifications.unread_count(1001), 1)
+        item = self.notifications.list(tg=1001)["items"][0]
+        self.assertIsNone(self.notifications.mark_read(item["id"], tg=1002))
+        self.assertIsNotNone(self.notifications.mark_read(item["id"], tg=1001))
+        self.assertEqual(self.notifications.unread_count(1001), 0)
+        self.notifications.update_preference(
+            tg=1001,
+            category="system",
+            web_enabled=False,
+        )
+        second = self.notifications.broadcast(
+            target_tg=None,
+            category="system",
+            title="第二条通知",
+            body="偏好关闭的用户不应收到。",
+            severity="info",
+            action_url=None,
+            actor=Actor.web(9001),
+        )
+        self.assertEqual(second["created"], 1)
+        self.assertEqual(self.notifications.list(tg=1001)["total"], 1)
+        self.assertEqual(self.notifications.list(tg=1002)["total"], 2)
+
+    def test_custom_role_lifecycle_enforces_member_safety(self):
+        self._add_user(tg=1001, name="alice")
+        created = self.auth.create_role(
+            name="content_moderator",
+            permissions=["reviews:read", "reviews:update"],
+            actor_tg=9001,
+        )
+        self.assertTrue(created.ok)
+        role_id = created.data["id"]
+        assigned = self.auth.set_role(
+            target_tg=1001,
+            role_name="content_moderator",
+            enabled=True,
+            actor_tg=9001,
+        )
+        self.assertTrue(assigned.ok)
+        blocked = self.auth.delete_role(role_id=role_id, actor_tg=9001)
+        self.assertEqual(blocked.status, "role_in_use")
+        updated = self.auth.update_role(
+            role_id=role_id,
+            permissions=["reviews:read"],
+            actor_tg=9001,
+        )
+        self.assertTrue(updated.ok)
+        self.auth.set_role(
+            target_tg=1001,
+            role_name="content_moderator",
+            enabled=False,
+            actor_tg=9001,
+        )
+        deleted = self.auth.delete_role(role_id=role_id, actor_tg=9001)
+        self.assertTrue(deleted.ok)
+        audit = self.admin_queries.audit_logs(
+            action="role.create",
+            actor_kind="web",
+            actor_id="9001",
+        )
+        self.assertEqual(audit["total"], 1)
+        self.assertEqual(audit["items"][0]["resource_type"], "web_role")
+        self.admin_queries.record_audit_export(
+            actor=Actor.web(9001),
+            filters={"action": "role.create"},
+            count=1,
+        )
+        export_audit = self.admin_queries.audit_logs(action="audit.export")
+        self.assertEqual(export_audit["total"], 1)
+        self.assertEqual(export_audit["items"][0]["detail"]["exported_rows"], 1)
+
+    def test_configured_admin_uses_editable_database_permissions(self):
+        with self.session_factory() as session:
+            session.add(
+                WebRole(
+                    name="admin",
+                    permissions_json='["reviews:read"]',
+                    is_system=True,
+                )
+            )
+            session.commit()
+        with self.uow_factory() as uow:
+            roles, permissions = self.auth._resolve_roles(uow, 9002)
+        self.assertIn("admin", roles)
+        self.assertIn("reviews:read", permissions)
+        self.assertNotIn("users:*", permissions)
+        admin = next(item for item in self.auth.list_roles() if item["name"] == "admin")
+        self.assertEqual(admin["member_count"], 1)
 
     def test_partition_code_is_only_consumed_after_completion(self):
         self._add_user(embyid="emby-1", name="alice", lv="b")

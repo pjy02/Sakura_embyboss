@@ -13,6 +13,8 @@ from backend.api import (
     auth_router,
     commerce_admin_router,
     commerce_me_router,
+    community_admin_router,
+    community_me_router,
     events_router,
     me_router,
     operations_router,
@@ -111,10 +113,12 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     api_v1.include_router(auth_router)
     api_v1.include_router(me_router)
     api_v1.include_router(commerce_me_router)
+    api_v1.include_router(community_me_router)
     api_v1.include_router(admin_router)
     api_v1.include_router(tasks_router)
     api_v1.include_router(operations_router)
     api_v1.include_router(commerce_admin_router)
+    api_v1.include_router(community_admin_router)
     api_v1.include_router(events_router)
     app.include_router(api_v1)
 

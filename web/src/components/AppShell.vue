@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import {
   ChevronDown,
+  Bell,
   CircleDollarSign,
   CircleUserRound,
   Coins,
@@ -11,6 +12,7 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
+  Star,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -20,11 +22,13 @@ import {
 } from "lucide-vue-next";
 import AdminCommandPalette from "@/components/admin/AdminCommandPalette.vue";
 import BrandMark from "@/components/BrandMark.vue";
+import { useRealtimeEvents } from "@/composables/useRealtime";
 import {
   adminNavigation,
   type AdminNavigationSection,
 } from "@/config/admin-navigation";
 import { runtime } from "@/lib/runtime";
+import { api } from "@/lib/api";
 import { useSessionStore } from "@/stores/session";
 
 const sessionStore = useSessionStore();
@@ -34,6 +38,7 @@ const mobileOpen = ref(false);
 const accountOpen = ref(false);
 const searchOpen = ref(false);
 const busy = ref(false);
+const unreadCount = ref(0);
 const collapsed = ref(window.localStorage.getItem("sakura-admin-sidebar-collapsed") === "1");
 
 const isAdmin = runtime.area === "admin";
@@ -60,6 +65,8 @@ const portalNavigation: AdminNavigationSection[] = [
       { to: "/billing", label: "充值与账单", description: "创建充值订单并查看处理状态", icon: CircleDollarSign },
       { to: "/tickets", label: "我的工单", description: "提交问题并与管理员沟通", icon: HeartHandshake },
       { to: "/requests", label: "我的求片", description: "提交求片并跟踪处理进度", icon: MessageSquareText },
+      { to: "/reviews", label: "影评社区", description: "评分、短评与我的审核状态", icon: Star },
+      { to: "/notifications", label: "通知中心", description: "业务提醒与系统公告", icon: Bell },
       { to: "/account", label: "账户安全", description: "会话、登录与账户操作", icon: ShieldCheck },
     ],
   },
@@ -94,6 +101,11 @@ async function logout() {
   }
 }
 
+async function loadUnreadCount() {
+  if (isAdmin) return;
+  unreadCount.value = (await api<{ count: number }>("/me/notifications/unread-count").catch(() => ({ count: 0 }))).count;
+}
+
 function onGlobalKeydown(event: KeyboardEvent) {
   if (!isAdmin) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
@@ -108,11 +120,20 @@ watch(
     mobileOpen.value = false;
     accountOpen.value = false;
     searchOpen.value = false;
+    loadUnreadCount();
   },
 );
 
-onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
-onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
+onMounted(() => {
+  window.addEventListener("keydown", onGlobalKeydown);
+  window.addEventListener("sakura:notifications-changed", loadUnreadCount);
+  loadUnreadCount();
+});
+if (!isAdmin) useRealtimeEvents(["notification.created"], () => loadUnreadCount());
+onBeforeUnmount(() => {
+  window.removeEventListener("keydown", onGlobalKeydown);
+  window.removeEventListener("sakura:notifications-changed", loadUnreadCount);
+});
 </script>
 
 <template>
@@ -173,7 +194,7 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           <ShieldCheck :size="16" />
           <span>身份与操作均由服务端验证</span>
         </div>
-        <small>SAKURA WEB · 2.1</small>
+        <small>SAKURA WEB · 2.2</small>
       </div>
 
       <button
@@ -212,6 +233,11 @@ onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
           <span class="status-dot" />
           <span>{{ isAdmin ? "服务正常" : "已安全连接" }}</span>
         </div>
+
+        <RouterLink v-if="!isAdmin" class="notification-bell" to="/notifications" aria-label="打开通知中心">
+          <Bell :size="18" />
+          <span v-if="unreadCount">{{ unreadCount > 99 ? "99+" : unreadCount }}</span>
+        </RouterLink>
 
         <div class="account-menu">
           <button class="account-trigger" type="button" :aria-expanded="accountOpen" @click="accountOpen = !accountOpen">

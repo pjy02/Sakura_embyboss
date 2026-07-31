@@ -8,6 +8,7 @@ from bot.sql_helper import (  # noqa: F401
     sql_application,
     sql_code,
     sql_commerce,
+    sql_community,
     sql_emby,
     sql_emby2,
     sql_favorites,

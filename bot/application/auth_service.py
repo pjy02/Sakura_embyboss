@@ -1,5 +1,6 @@
 import hmac
 import json
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -10,7 +11,7 @@ from uuid import uuid4
 from bot.application.results import ServiceResult
 from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
-from bot.sql_helper.sql_application import WebLoginRequest, WebSession, utcnow
+from bot.sql_helper.sql_application import WebLoginRequest, WebRole, WebSession, utcnow
 from bot.sql_helper.sql_emby import Emby
 
 
@@ -32,6 +33,10 @@ DEFAULT_ROLE_PERMISSIONS = {
         "billing:*",
         "tickets:*",
         "requests:*",
+        "reviews:*",
+        "notifications:*",
+        "roles:manage",
+        "audit:export",
     },
     "operator": {
         "users:read",
@@ -49,6 +54,9 @@ DEFAULT_ROLE_PERMISSIONS = {
         "billing:update",
         "tickets:*",
         "requests:*",
+        "reviews:*",
+        "notifications:read",
+        "notifications:send",
     },
     "auditor": {
         "users:read",
@@ -62,8 +70,63 @@ DEFAULT_ROLE_PERMISSIONS = {
         "billing:read",
         "tickets:read",
         "requests:read",
+        "reviews:read",
+        "notifications:read",
     },
     "user": {"self:*"},
+}
+
+PERMISSION_CATALOG = {
+    "用户运营": {
+        "users:*": "用户全部权限",
+        "users:read": "查看用户",
+        "users:update": "调整用户",
+        "playback:*": "播放全部权限",
+        "playback:read": "查看播放",
+        "playback:stop": "终止播放",
+        "devices:*": "设备全部权限",
+        "devices:read": "查看设备",
+        "devices:update": "管理设备",
+    },
+    "业务运营": {
+        "codes:*": "兑换码管理",
+        "partitions:*": "分区管理",
+        "billing:*": "交易全部权限",
+        "billing:read": "查看交易",
+        "billing:update": "处理交易",
+        "tickets:*": "工单全部权限",
+        "tickets:read": "查看工单",
+        "tickets:update": "处理工单",
+        "requests:*": "求片全部权限",
+        "requests:read": "查看求片",
+        "requests:update": "处理求片",
+        "reviews:*": "影评全部权限",
+        "reviews:read": "查看影评",
+        "reviews:update": "审核影评",
+        "notifications:*": "通知全部权限",
+        "notifications:read": "查看通知",
+        "notifications:send": "发送通知",
+    },
+    "系统与安全": {
+        "dashboard:read": "查看仪表盘",
+        "lines:*": "线路全部权限",
+        "lines:read": "查看线路",
+        "lines:update": "管理线路",
+        "tasks:read": "查看任务",
+        "tasks:update": "执行任务",
+        "tasks:*": "管理任务",
+        "audit:read": "查看审计",
+        "audit:export": "导出审计",
+        "security:read": "查看安全事件",
+        "roles:read": "查看角色",
+        "roles:manage": "管理角色",
+        "settings:read": "查看设置",
+    },
+}
+KNOWN_PERMISSIONS = {
+    permission
+    for permissions in PERMISSION_CATALOG.values()
+    for permission in permissions
 }
 
 
@@ -460,16 +523,120 @@ class WebAuthService:
     def list_roles(self) -> list[dict]:
         with self._uow_factory() as uow:
             result = []
+            registered_users = {
+                int(row[0])
+                for row in uow.users.session.query(Emby.tg).all()
+            }
             for role in uow.auth.list_roles():
+                members = uow.auth.role_member_tgs(role.id)
+                if role.name == "owner":
+                    members.add(self.owner_tg)
+                elif role.name == "admin":
+                    members.update(self.admin_tg_ids)
+                elif role.name == "user":
+                    members.update(registered_users)
+                    members.add(self.owner_tg)
+                    members.update(self.admin_tg_ids)
                 result.append(
                     {
                         "id": role.id,
                         "name": role.name,
-                        "permissions": json.loads(role.permissions_json),
+                        "permissions": sorted(self._permissions_for_role(role)),
                         "is_system": role.is_system,
+                        "member_count": len(members),
                     }
                 )
             return result
+
+    def permission_catalog(self) -> list[dict]:
+        return [
+            {
+                "group": group,
+                "items": [
+                    {"permission": permission, "label": label}
+                    for permission, label in permissions.items()
+                ],
+            }
+            for group, permissions in PERMISSION_CATALOG.items()
+        ]
+
+    def create_role(
+        self,
+        *,
+        name: str,
+        permissions: list[str],
+        actor_tg: int,
+    ) -> ServiceResult:
+        normalized = name.strip().lower()
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{2,31}", normalized):
+            return ServiceResult("invalid_name")
+        if not set(permissions).issubset(KNOWN_PERMISSIONS):
+            return ServiceResult("invalid_permissions")
+        with self._uow_factory() as uow:
+            if uow.auth.get_role_by_name(normalized):
+                return ServiceResult("role_exists")
+            role = WebRole(
+                name=normalized,
+                permissions_json=json.dumps(list(dict.fromkeys(permissions))),
+                is_system=False,
+            )
+            uow.auth.add_role(role)
+            uow.flush()
+            uow.operations.audit(
+                actor=Actor.web(actor_tg),
+                action="role.create",
+                resource_type="web_role",
+                resource_id=str(role.id),
+                detail={"name": normalized, "permissions": permissions},
+            )
+            return ServiceResult("ok", {"id": role.id, "name": role.name})
+
+    def update_role(
+        self,
+        *,
+        role_id: int,
+        permissions: list[str],
+        actor_tg: int,
+    ) -> ServiceResult:
+        if not set(permissions).issubset(KNOWN_PERMISSIONS):
+            return ServiceResult("invalid_permissions")
+        with self._uow_factory() as uow:
+            role = uow.auth.get_role(role_id)
+            if role is None:
+                return ServiceResult("role_not_found")
+            if role.name in {"owner", "user"}:
+                return ServiceResult("protected_role")
+            role.permissions_json = json.dumps(list(dict.fromkeys(permissions)))
+            role.updated_at = utcnow()
+            uow.operations.audit(
+                actor=Actor.web(actor_tg),
+                action="role.update",
+                resource_type="web_role",
+                resource_id=str(role.id),
+                detail={"name": role.name, "permissions": permissions},
+            )
+            return ServiceResult("ok", {"id": role.id, "name": role.name})
+
+    def delete_role(self, *, role_id: int, actor_tg: int) -> ServiceResult:
+        with self._uow_factory() as uow:
+            role = uow.auth.get_role(role_id)
+            if role is None:
+                return ServiceResult("role_not_found")
+            if role.is_system:
+                return ServiceResult("protected_role")
+            members = int(uow.auth.role_member_count(role.id))
+            if members:
+                return ServiceResult("role_in_use", {"member_count": members})
+            name = role.name
+            uow.auth.delete_role(role)
+            uow.operations.audit(
+                actor=Actor.web(actor_tg),
+                action="role.delete",
+                resource_type="web_role",
+                resource_id=str(role_id),
+                detail={"name": name},
+            )
+            return ServiceResult("ok", {"name": name})
 
     def roles_for_user(self, tg: int) -> list[str]:
         with self._uow_factory() as uow:
@@ -510,13 +677,29 @@ class WebAuthService:
         if tg == self.owner_tg:
             roles.add("owner")
             permissions.add("*")
+        assigned_roles = uow.auth.get_roles_for_user(tg)
         if tg in self.admin_tg_ids:
             roles.add("admin")
-            permissions.update(DEFAULT_ROLE_PERMISSIONS["admin"])
-        for role in uow.auth.get_roles_for_user(tg):
+            admin_role = next(
+                (role for role in assigned_roles if role.name == "admin"),
+                None,
+            ) or uow.auth.get_role_by_name("admin")
+            permissions.update(
+                self._permissions_for_role(admin_role)
+                if admin_role is not None
+                else DEFAULT_ROLE_PERMISSIONS["admin"]
+            )
+        for role in assigned_roles:
             roles.add(role.name)
-            try:
-                permissions.update(json.loads(role.permissions_json))
-            except (TypeError, ValueError):
-                permissions.update(DEFAULT_ROLE_PERMISSIONS.get(role.name, set()))
+            permissions.update(self._permissions_for_role(role))
         return roles, permissions
+
+    @staticmethod
+    def _permissions_for_role(role: WebRole) -> set[str]:
+        try:
+            value = json.loads(role.permissions_json)
+        except (TypeError, ValueError):
+            value = None
+        if isinstance(value, list) and all(isinstance(item, str) for item in value):
+            return set(value)
+        return set(DEFAULT_ROLE_PERMISSIONS.get(role.name, set()))

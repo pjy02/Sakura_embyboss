@@ -63,6 +63,15 @@ export function actionLabel(action: string) {
     "request.cancel": "取消求片",
     "request.update": "更新求片状态",
     "request.import": "导入 Bot 求片",
+    "review.create": "提交影评",
+    "review.update": "修改影评",
+    "review.delete": "删除影评",
+    "review.report": "举报影评",
+    "review.moderate": "审核影评",
+    "notification.broadcast": "发送通知",
+    "role.create": "创建角色",
+    "role.update": "更新角色权限",
+    "role.delete": "删除角色",
   };
   return labels[action] || action;
 }

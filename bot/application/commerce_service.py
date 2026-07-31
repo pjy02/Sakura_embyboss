@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
+from bot.application.community_service import add_notification
 from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.sql_helper.sql_application import utcnow
@@ -233,6 +234,20 @@ class CommerceService:
                     actor_id=actor.identifier,
                 )
             )
+            add_notification(
+                uow,
+                tg=row.tg,
+                category="billing",
+                title="充值已入账" if approve else "充值订单未通过",
+                body=(
+                    f"订单 {row.order_no} 已确认，{row.coins + row.bonus_coins} 积分已到账。"
+                    if approve
+                    else f"订单 {row.order_no} 未通过审核。" + (f" 备注：{row.admin_note}" if row.admin_note else "")
+                ),
+                severity="success" if approve else "warning",
+                action_url="/billing",
+                metadata={"order_id": row.id, "status": row.status},
+            )
             uow.operations.audit(
                 actor=actor,
                 action="billing.order.create",
@@ -458,6 +473,16 @@ class TicketService:
             if not internal:
                 row.status = "pending_staff" if is_user else "pending_user"
                 row.resolved_at = None
+            if not is_user and not internal:
+                add_notification(
+                    uow,
+                    tg=row.tg,
+                    category="ticket",
+                    title=f"工单 {row.ticket_no} 收到回复",
+                    body=body.strip(),
+                    action_url="/tickets",
+                    metadata={"ticket_id": row.id},
+                )
             uow.operations.audit(
                 actor=actor,
                 action="ticket.reply",
@@ -599,6 +624,7 @@ class MediaRequestService:
             row = uow.commerce.get_media_request(request_id, for_update=True)
             if row is None:
                 return None
+            previous_status = row.status
             if data.get("download_id"):
                 existing = uow.commerce.media_request_by_download_id(data["download_id"])
                 if existing is not None and existing.id != row.id:
@@ -618,6 +644,17 @@ class MediaRequestService:
                 row.canceled_at = row.canceled_at or now
             else:
                 row.canceled_at = None
+            if row.status != previous_status:
+                add_notification(
+                    uow,
+                    tg=row.tg,
+                    category="request",
+                    title=f"求片《{row.title}》状态已更新",
+                    body=f"当前状态：{row.status}。" + (f" 备注：{row.admin_note}" if row.admin_note else ""),
+                    severity="success" if row.status == "completed" else "warning" if row.status == "rejected" else "info",
+                    action_url="/requests",
+                    metadata={"request_id": row.id, "status": row.status},
+                )
             uow.operations.audit(actor=actor, action="request.update", resource_type="media_request", resource_id=request_id, detail=data)
             uow.operations.event(
                 "request.updated",
@@ -681,6 +718,7 @@ class MediaRequestService:
             if row is None:
                 return None
             previous = (row.status, row.progress, row.completed_at)
+            previous_status = row.status
             transfer_text = str(transfer_state).lower() if transfer_state is not None else ""
             if transfer_text in {"true", "1", "success", "completed"}:
                 row.status = "completed"
@@ -699,6 +737,17 @@ class MediaRequestService:
             if previous == (row.status, row.progress, row.completed_at):
                 return serialize_media_request(row)
             row.updated_at = utcnow()
+            if row.status != previous_status:
+                add_notification(
+                    uow,
+                    tg=row.tg,
+                    category="request",
+                    title=f"求片《{row.title}》状态已更新",
+                    body=f"当前状态：{row.status}，进度 {row.progress}%。",
+                    severity="success" if row.status == "completed" else "warning" if row.status == "rejected" else "info",
+                    action_url="/requests",
+                    metadata={"request_id": row.id, "status": row.status, "progress": row.progress},
+                )
             uow.operations.event(
                 "request.updated",
                 "user",

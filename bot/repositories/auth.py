@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from bot.sql_helper.sql_application import (
@@ -78,8 +79,33 @@ class AuthRepository:
     def list_roles(self):
         return self.session.query(WebRole).order_by(WebRole.id.asc()).all()
 
+    def get_role(self, role_id: int):
+        return self.session.get(WebRole, role_id)
+
     def get_role_by_name(self, name: str) -> Optional[WebRole]:
         return self.session.query(WebRole).filter(WebRole.name == name).first()
+
+    def add_role(self, row: WebRole):
+        self.session.add(row)
+
+    def role_member_count(self, role_id: int):
+        return (
+            self.session.query(func.count(WebRoleMember.id))
+            .filter(WebRoleMember.role_id == role_id)
+            .scalar()
+            or 0
+        )
+
+    def role_member_tgs(self, role_id: int) -> set[int]:
+        return {
+            int(row[0])
+            for row in self.session.query(WebRoleMember.tg)
+            .filter(WebRoleMember.role_id == role_id)
+            .all()
+        }
+
+    def delete_role(self, row: WebRole):
+        self.session.delete(row)
 
     def has_role(self, tg: int, role_id: int) -> bool:
         return (
@@ -115,14 +141,54 @@ class AuthRepository:
             .count()
         )
 
-    def list_audit_logs(self, limit: int, offset: int):
-        return (
-            self.session.query(AuditLog)
-            .order_by(AuditLog.created_at.desc())
+    def list_audit_logs(
+        self,
+        *,
+        search=None,
+        actor_kind=None,
+        actor_id=None,
+        action=None,
+        resource_type=None,
+        outcome=None,
+        date_from=None,
+        date_to=None,
+        limit=50,
+        offset=0,
+    ):
+        query = self.session.query(AuditLog)
+        if search:
+            pattern = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    AuditLog.action.like(pattern),
+                    AuditLog.actor_id.like(pattern),
+                    AuditLog.resource_type.like(pattern),
+                    AuditLog.resource_id.like(pattern),
+                    AuditLog.request_id.like(pattern),
+                )
+            )
+        if actor_kind:
+            query = query.filter(AuditLog.actor_kind == actor_kind)
+        if actor_id:
+            query = query.filter(AuditLog.actor_id == actor_id)
+        if action:
+            query = query.filter(AuditLog.action == action)
+        if resource_type:
+            query = query.filter(AuditLog.resource_type == resource_type)
+        if outcome:
+            query = query.filter(AuditLog.outcome == outcome)
+        if date_from:
+            query = query.filter(AuditLog.created_at >= date_from)
+        if date_to:
+            query = query.filter(AuditLog.created_at <= date_to)
+        total = query.count()
+        rows = (
+            query.order_by(AuditLog.created_at.desc())
             .offset(offset)
             .limit(limit)
             .all()
         )
+        return rows, total
 
     def list_point_transactions(self, tg: int, limit: int, offset: int):
         return (

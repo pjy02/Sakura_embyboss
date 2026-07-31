@@ -1,9 +1,10 @@
 import json
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func, or_
 
+from bot.domain import Actor
 from bot.repositories import SqlAlchemyUnitOfWork
 from bot.sql_helper.sql_application import AuditLog, PointTransaction, utcnow
 from bot.sql_helper.sql_emby import Emby
@@ -16,6 +17,12 @@ def _safe_json(value):
         return json.loads(value)
     except (TypeError, ValueError):
         return None
+
+
+def _database_datetime(value):
+    if value is None or value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def serialize_user(user: Emby) -> dict:
@@ -93,10 +100,49 @@ class AdminQueryService:
             rows = uow.auth.list_point_transactions(tg, limit, offset)
             return [self._serialize_point_transaction(row) for row in rows]
 
-    def audit_logs(self, limit: int, offset: int) -> list[dict]:
+    def audit_logs(
+        self,
+        *,
+        search=None,
+        actor_kind=None,
+        actor_id=None,
+        action=None,
+        resource_type=None,
+        outcome=None,
+        date_from=None,
+        date_to=None,
+        limit=50,
+        offset=0,
+    ) -> dict:
         with self._uow_factory() as uow:
-            rows = uow.auth.list_audit_logs(limit, offset)
-            return [self._serialize_audit(row) for row in rows]
+            rows, total = uow.auth.list_audit_logs(
+                search=search,
+                actor_kind=actor_kind,
+                actor_id=actor_id,
+                action=action,
+                resource_type=resource_type,
+                outcome=outcome,
+                date_from=_database_datetime(date_from),
+                date_to=_database_datetime(date_to),
+                limit=limit,
+                offset=offset,
+            )
+            return {
+                "items": [self._serialize_audit(row) for row in rows],
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
+
+    def record_audit_export(self, *, actor: Actor, filters: dict, count: int) -> None:
+        with self._uow_factory() as uow:
+            uow.operations.audit(
+                actor=actor,
+                action="audit.export",
+                resource_type="audit_log",
+                resource_id=None,
+                detail={"filters": filters, "exported_rows": count},
+            )
 
     def overview(self) -> dict:
         now = utcnow()

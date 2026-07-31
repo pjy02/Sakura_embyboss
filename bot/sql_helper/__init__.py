@@ -38,6 +38,7 @@ def _legacy_create_all_tables():
         sql_application,
         sql_code,
         sql_commerce,
+        sql_community,
         sql_emby,
         sql_emby2,
         sql_favorites,

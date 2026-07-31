@@ -8,6 +8,7 @@ from .auth_service import TokenCodec, WebAuthService
 from .admin_service import AdminQueryService
 from .code_service import CodeService
 from .commerce_service import CommerceService, MediaRequestService, TicketService
+from .community_service import NotificationService, ReviewService
 from .core_operations_service import CoreOperationsService
 from .partition_service import PartitionService
 from .point_service import PointService
@@ -20,10 +21,12 @@ __all__ = [
     "CommerceService",
     "CoreOperationsService",
     "MediaRequestService",
+    "NotificationService",
     "AdminQueryService",
     "PartitionService",
     "PointService",
     "ReliabilityService",
+    "ReviewService",
     "TaskService",
     "TicketService",
     "TokenCodec",
