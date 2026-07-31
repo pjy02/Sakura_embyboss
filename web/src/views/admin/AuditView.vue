@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { ChevronLeft, ChevronRight, FileClock, RefreshCw } from "lucide-vue-next";
 import EmptyState from "@/components/EmptyState.vue";
 import LoadingBlock from "@/components/LoadingBlock.vue";
+import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
 import { api } from "@/lib/api";
 import { actionLabel, formatDate } from "@/lib/format";
 import type { AuditLog } from "@/types";
@@ -30,10 +31,14 @@ onMounted(load);
 
 <template>
   <div class="page-stack">
-    <header class="page-heading">
-      <div><span class="eyebrow">AUDIT TRAIL</span><h1>审计日志</h1><p>集中追踪登录、权限和业务数据变更，便于回溯每一次敏感操作。</p></div>
-      <button class="secondary-button" @click="load"><RefreshCw :size="16" /> 刷新</button>
-    </header>
+    <AdminPageHeader
+      eyebrow="AUDIT TRAIL"
+      title="操作记录"
+      description="集中追踪登录、权限和业务数据变更，便于回溯每一次敏感操作。"
+      :icon="FileClock"
+    >
+      <template #actions><button class="secondary-button" @click="load"><RefreshCw :size="16" /> 刷新</button></template>
+    </AdminPageHeader>
     <section class="panel table-panel">
       <div class="panel-heading"><div><span class="section-kicker">SECURITY RECORDS</span><h2>操作记录</h2></div><span class="page-count">第 {{ Math.floor(offset / limit) + 1 }} 页</span></div>
       <LoadingBlock v-if="loading" />

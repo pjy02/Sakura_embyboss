@@ -1,30 +1,63 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { runtime } from "@/lib/runtime";
 import { useSessionStore } from "@/stores/session";
-import LoginView from "@/views/LoginView.vue";
-import AppShell from "@/components/AppShell.vue";
-import PortalHome from "@/views/portal/PortalHome.vue";
-import PointsView from "@/views/portal/PointsView.vue";
-import AccountView from "@/views/portal/AccountView.vue";
-import AdminHome from "@/views/admin/AdminHome.vue";
-import UsersView from "@/views/admin/UsersView.vue";
-import RolesView from "@/views/admin/RolesView.vue";
-import AuditView from "@/views/admin/AuditView.vue";
-import TasksView from "@/views/admin/TasksView.vue";
+
+const LoginView = () => import("@/views/LoginView.vue");
+const AppShell = () => import("@/components/AppShell.vue");
 
 const childRoutes =
   runtime.area === "admin"
     ? [
-        { path: "", name: "admin-home", component: AdminHome },
-        { path: "users", name: "users", component: UsersView },
-        { path: "tasks", name: "tasks", component: TasksView, meta: { permission: "tasks:read" } },
-        { path: "roles", name: "roles", component: RolesView, meta: { permission: "roles:read" } },
-        { path: "audit", name: "audit", component: AuditView, meta: { permission: "audit:read" } },
+        {
+          path: "",
+          name: "admin-home",
+          component: () => import("@/views/admin/AdminHome.vue"),
+          meta: { title: "仪表盘", section: "总览" },
+        },
+        {
+          path: "users",
+          name: "users",
+          component: () => import("@/views/admin/UsersView.vue"),
+          meta: { title: "站点账号", section: "用户运营", permission: "users:read" },
+        },
+        {
+          path: "tasks",
+          name: "tasks",
+          component: () => import("@/views/admin/TasksView.vue"),
+          meta: { title: "系统任务", section: "线路与系统", permission: "tasks:read" },
+        },
+        {
+          path: "roles",
+          name: "roles",
+          component: () => import("@/views/admin/RolesView.vue"),
+          meta: { title: "角色权限", section: "安全管理", permission: "roles:read" },
+        },
+        {
+          path: "audit",
+          name: "audit",
+          component: () => import("@/views/admin/AuditView.vue"),
+          meta: { title: "操作记录", section: "安全管理", permission: "audit:read" },
+        },
       ]
     : [
-        { path: "", name: "portal-home", component: PortalHome },
-        { path: "points", name: "points", component: PointsView },
-        { path: "account", name: "account", component: AccountView },
+        {
+          path: "",
+          name: "portal-home",
+          component: () => import("@/views/portal/PortalHome.vue"),
+          meta: { title: "我的首页" },
+        },
+        {
+          path: "points",
+          name: "points",
+          component: () => import("@/views/portal/PointsView.vue"),
+          meta: { title: "积分明细" },
+        },
+        {
+          path: "account",
+          name: "account",
+          component: () => import("@/views/portal/AccountView.vue"),
+          meta: { title: "账户安全" },
+        },
       ];
 
 export const router = createRouter({

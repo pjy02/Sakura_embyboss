@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import {
-  Activity,
   ChevronDown,
   CircleUserRound,
   Coins,
   House,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
   ShieldCheck,
   Sparkles,
-  Workflow,
-  UserCog,
-  Users,
   X,
 } from "lucide-vue-next";
+import AdminCommandPalette from "@/components/admin/AdminCommandPalette.vue";
 import BrandMark from "@/components/BrandMark.vue";
+import {
+  adminNavigation,
+  type AdminNavigationSection,
+} from "@/config/admin-navigation";
 import { runtime } from "@/lib/runtime";
 import { useSessionStore } from "@/stores/session";
 
@@ -25,40 +29,53 @@ const route = useRoute();
 const router = useRouter();
 const mobileOpen = ref(false);
 const accountOpen = ref(false);
+const searchOpen = ref(false);
 const busy = ref(false);
+const collapsed = ref(window.localStorage.getItem("sakura-admin-sidebar-collapsed") === "1");
 
 const isAdmin = runtime.area === "admin";
+const pageTitle = computed(() => String(route.meta.title || (isAdmin ? "管理控制台" : "个人中心")));
+const pageSection = computed(() => String(route.meta.section || (isAdmin ? "Sakura Operations" : "Sakura Portal")));
+const permissions = computed(() => sessionStore.session?.permissions || []);
+
 function hasPermission(required?: string) {
   if (!required) return true;
-  return Boolean(
-    sessionStore.session?.permissions.some(
-      (permission) =>
-        permission === "*" ||
-        permission === required ||
-        permission === `${required.split(":")[0]}:*`,
-    ),
+  return permissions.value.some(
+    (permission) =>
+      permission === "*" ||
+      permission === required ||
+      permission === `${required.split(":")[0]}:*`,
   );
 }
 
-const nav = computed(() =>
-  (isAdmin
-    ? [
-        { to: "/", label: "运营概览", icon: House },
-        { to: "/users", label: "用户管理", icon: Users },
-        { to: "/tasks", label: "任务中心", icon: Workflow, permission: "tasks:read" },
-        { to: "/roles", label: "角色权限", icon: UserCog, permission: "roles:read" },
-        { to: "/audit", label: "审计日志", icon: Activity, permission: "audit:read" },
-      ]
-    : [
-        { to: "/", label: "我的首页", icon: House },
-        { to: "/points", label: "积分明细", icon: Coins },
-        { to: "/account", label: "账户安全", icon: ShieldCheck },
-      ]
-  ).filter((item) => hasPermission("permission" in item ? item.permission : undefined)),
-);
+const portalNavigation: AdminNavigationSection[] = [
+  {
+    label: "个人中心",
+    items: [
+      { to: "/", label: "我的首页", description: "账户摘要与最近动态", icon: House },
+      { to: "/points", label: "积分明细", description: "积分和注册天数流水", icon: Coins },
+      { to: "/account", label: "账户安全", description: "会话、登录与账户操作", icon: ShieldCheck },
+    ],
+  },
+];
+
+const navigationSections = computed(() => {
+  const source = isAdmin ? adminNavigation : portalNavigation;
+  return source
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => hasPermission(item.permission)),
+    }))
+    .filter((section) => section.items.length);
+});
 
 function active(path: string) {
   return path === "/" ? route.path === "/" : route.path.startsWith(path);
+}
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value;
+  window.localStorage.setItem("sakura-admin-sidebar-collapsed", collapsed.value ? "1" : "0");
 }
 
 async function logout() {
@@ -70,20 +87,41 @@ async function logout() {
     busy.value = false;
   }
 }
+
+function onGlobalKeydown(event: KeyboardEvent) {
+  if (!isAdmin) return;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    searchOpen.value = true;
+  }
+}
+
+watch(
+  () => route.fullPath,
+  () => {
+    mobileOpen.value = false;
+    accountOpen.value = false;
+    searchOpen.value = false;
+  },
+);
+
+onMounted(() => window.addEventListener("keydown", onGlobalKeydown));
+onBeforeUnmount(() => window.removeEventListener("keydown", onGlobalKeydown));
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'sidebar-collapsed': collapsed && isAdmin }">
     <div class="ambient ambient-one" />
     <div class="ambient ambient-two" />
 
     <aside class="sidebar" :class="{ open: mobileOpen }">
       <div class="sidebar-top">
         <BrandMark />
-        <button class="icon-button mobile-only" aria-label="关闭菜单" @click="mobileOpen = false">
+        <button class="icon-button mobile-only" type="button" aria-label="关闭菜单" @click="mobileOpen = false">
           <X :size="20" />
         </button>
       </div>
+
       <div class="workspace-label">
         <span><Sparkles :size="14" /></span>
         <div>
@@ -91,40 +129,86 @@ async function logout() {
           <strong>{{ isAdmin ? "管理控制台" : "个人中心" }}</strong>
         </div>
       </div>
-      <nav class="side-nav">
-        <RouterLink
-          v-for="item in nav"
-          :key="item.to"
-          :to="item.to"
-          :class="{ active: active(item.to) }"
-          @click="mobileOpen = false"
-        >
-          <component :is="item.icon" :size="19" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
+
+      <nav class="side-nav" aria-label="主导航">
+        <section v-for="section in navigationSections" :key="section.label" class="nav-section">
+          <small class="nav-section-label">{{ section.label }}</small>
+          <div>
+            <template v-for="item in section.items" :key="item.to">
+              <button
+                v-if="item.disabled"
+                class="side-nav-item disabled"
+                type="button"
+                :title="collapsed ? `${item.label} · ${item.badge}` : item.description"
+                disabled
+              >
+                <component :is="item.icon" :size="19" />
+                <span class="nav-item-copy"><strong>{{ item.label }}</strong><small>{{ item.description }}</small></span>
+                <em v-if="item.badge">{{ item.badge }}</em>
+              </button>
+              <RouterLink
+                v-else
+                class="side-nav-item"
+                :to="item.to"
+                :class="{ active: active(item.to) }"
+                :title="collapsed ? item.label : item.description"
+                @click="mobileOpen = false"
+              >
+                <component :is="item.icon" :size="19" />
+                <span class="nav-item-copy"><strong>{{ item.label }}</strong><small>{{ item.description }}</small></span>
+              </RouterLink>
+            </template>
+          </div>
+        </section>
       </nav>
+
       <div class="sidebar-foot">
         <div class="privacy-note">
           <ShieldCheck :size="16" />
           <span>身份与操作均由服务端验证</span>
         </div>
-        <small>SAKURA WEB · 2.0</small>
+        <small>SAKURA WEB · 2.1</small>
       </div>
+
+      <button
+        v-if="isAdmin"
+        class="sidebar-collapse desktop-only"
+        type="button"
+        :aria-label="collapsed ? '展开侧边栏' : '收起侧边栏'"
+        @click="toggleCollapsed"
+      >
+        <PanelLeftOpen v-if="collapsed" :size="17" />
+        <PanelLeftClose v-else :size="17" />
+        <span>{{ collapsed ? "展开" : "收起导航" }}</span>
+      </button>
     </aside>
 
-    <button v-if="mobileOpen" class="nav-backdrop" aria-label="关闭菜单" @click="mobileOpen = false" />
+    <button v-if="mobileOpen" class="nav-backdrop" type="button" aria-label="关闭菜单" @click="mobileOpen = false" />
 
     <main class="main-area">
       <header class="topbar">
-        <button class="icon-button mobile-only" aria-label="打开菜单" @click="mobileOpen = true">
+        <button class="icon-button mobile-only" type="button" aria-label="打开菜单" @click="mobileOpen = true">
           <Menu :size="21" />
         </button>
-        <div class="topbar-title">
-          <span class="status-dot" />
-          <span>{{ isAdmin ? "系统运行正常" : "与 Sakura 保持连接" }}</span>
+
+        <div class="topbar-context">
+          <small>{{ pageSection }}</small>
+          <strong>{{ pageTitle }}</strong>
         </div>
+
+        <button v-if="isAdmin" class="global-search-trigger" type="button" @click="searchOpen = true">
+          <Search :size="17" />
+          <span>搜索用户或功能</span>
+          <kbd>⌘ K</kbd>
+        </button>
+
+        <div class="system-health-pill">
+          <span class="status-dot" />
+          <span>{{ isAdmin ? "服务正常" : "已安全连接" }}</span>
+        </div>
+
         <div class="account-menu">
-          <button class="account-trigger" @click="accountOpen = !accountOpen">
+          <button class="account-trigger" type="button" :aria-expanded="accountOpen" @click="accountOpen = !accountOpen">
             <span class="mini-avatar"><CircleUserRound :size="19" /></span>
             <span class="account-copy">
               <strong>{{ sessionStore.session?.tg }}</strong>
@@ -137,16 +221,24 @@ async function logout() {
               <small>登录方式</small>
               <strong>{{ sessionStore.session?.auth_method === "telegram" ? "Telegram" : "Emby" }}</strong>
             </div>
-            <button :disabled="busy" @click="logout">
+            <button :disabled="busy" type="button" @click="logout">
               <LogOut :size="16" />
               {{ busy ? "正在退出…" : "退出登录" }}
             </button>
           </div>
         </div>
       </header>
+
       <section class="page-container">
         <RouterView />
       </section>
     </main>
+
+    <AdminCommandPalette
+      v-if="isAdmin"
+      :open="searchOpen"
+      :permissions="permissions"
+      @close="searchOpen = false"
+    />
   </div>
 </template>

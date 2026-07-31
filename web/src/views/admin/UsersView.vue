@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,14 +11,19 @@ import {
   UserRound,
   X,
 } from "lucide-vue-next";
-import EmptyState from "@/components/EmptyState.vue";
 import LoadingBlock from "@/components/LoadingBlock.vue";
+import AdminDataTable from "@/components/admin/AdminDataTable.vue";
+import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
+import DetailDrawer from "@/components/admin/DetailDrawer.vue";
+import FilterBar from "@/components/admin/FilterBar.vue";
+import StatusBadge from "@/components/admin/StatusBadge.vue";
 import { api, idempotencyKey } from "@/lib/api";
 import { formatDate, formatNumber, initials, levelLabel } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
 import type { Role, UserProfile } from "@/types";
 
 const sessionStore = useSessionStore();
+const route = useRoute();
 const items = ref<UserProfile[]>([]);
 const total = ref(0);
 const loading = ref(true);
@@ -67,6 +73,19 @@ async function showUser(user: UserProfile) {
   drawerLoading.value = true;
   try {
     selected.value = await api<UserProfile>(`/admin/users/${user.tg}`);
+  } finally {
+    drawerLoading.value = false;
+  }
+}
+
+async function openRequestedUser(value: unknown) {
+  const requestedUser = typeof value === "string" ? Number(value) : 0;
+  if (!Number.isSafeInteger(requestedUser) || requestedUser <= 0) return;
+  drawerLoading.value = true;
+  try {
+    selected.value = await api<UserProfile>(`/admin/users/${requestedUser}`);
+  } catch {
+    selected.value = null;
   } finally {
     drawerLoading.value = false;
   }
@@ -129,57 +148,69 @@ watch(level, () => {
   offset.value = 0;
   load();
 });
+watch(() => route.query.user, openRequestedUser);
 
 onMounted(async () => {
   await Promise.all([
     load(),
     api<{ items: Role[] }>("/admin/roles").then((result) => (roles.value = result.items)).catch(() => undefined),
   ]);
+  await openRequestedUser(route.query.user);
 });
 </script>
 
 <template>
   <div class="page-stack">
-    <header class="page-heading">
-      <div><span class="eyebrow">MEMBER DIRECTORY</span><h1>用户管理</h1><p>检索成员、查看账户状态，并执行有审计记录的积分和权限调整。</p></div>
-      <span class="date-chip"><UserRound :size="16" /> 共 {{ formatNumber(total) }} 位成员</span>
-    </header>
+    <AdminPageHeader
+      eyebrow="MEMBER DIRECTORY"
+      title="站点账号"
+      description="检索成员、查看账户状态，并执行有审计记录的积分和权限调整。"
+      :icon="UserRound"
+    >
+      <template #meta><span class="date-chip"><UserRound :size="16" /> 共 {{ formatNumber(total) }} 位成员</span></template>
+    </AdminPageHeader>
 
     <div v-if="success" class="success-banner"><ShieldCheck :size="17" /> {{ success }}</div>
     <section class="panel table-panel">
-      <div class="toolbar">
+      <FilterBar>
         <label class="search-box"><Search :size="18" /><input v-model.trim="search" placeholder="搜索用户名、Telegram ID 或 Emby ID" /></label>
         <label class="select-box"><SlidersHorizontal :size="17" /><select v-model="level"><option value="">全部等级</option><option value="a">A · 白名单</option><option value="b">B · 高级会员</option><option value="c">C · 正式会员</option><option value="d">D · 普通会员</option></select></label>
-      </div>
-      <LoadingBlock v-if="loading" />
-      <EmptyState v-else-if="!items.length" title="没有匹配的用户" description="请调整搜索关键词或等级筛选。" />
-      <div v-else class="responsive-table user-table">
-        <table>
-          <thead><tr><th>用户</th><th>等级</th><th>积分</th><th>注册天数</th><th>到期时间</th><th>状态</th><th /></tr></thead>
-          <tbody>
-            <tr v-for="user in items" :key="user.tg" @click="showUser(user)">
+      </FilterBar>
+      <AdminDataTable
+        class="user-table"
+        :loading="loading"
+        :empty="!items.length"
+        empty-title="没有匹配的用户"
+        empty-description="请调整搜索关键词或等级筛选。"
+      >
+        <template #head><tr><th>用户</th><th>等级</th><th>积分</th><th>注册天数</th><th>到期时间</th><th>状态</th><th /></tr></template>
+        <template #body>
+          <tr v-for="user in items" :key="user.tg" @click="showUser(user)">
               <td><div class="table-user"><span>{{ initials(user.name, user.tg) }}</span><div><strong>{{ user.name || "未创建账户" }}</strong><small>TG · {{ user.tg }}</small></div></div></td>
               <td><span class="level-badge" :data-level="user.level">{{ user.level.toUpperCase() }} · {{ levelLabel(user.level) }}</span></td>
               <td class="strong-cell">{{ formatNumber(user.coins) }}</td>
               <td>{{ formatNumber(user.registration_days) }}</td>
               <td>{{ formatDate(user.expires_at, "长期") }}</td>
-              <td><span class="status-badge" :class="user.has_account ? 'active' : 'muted'">{{ user.has_account ? "已开通" : "未开通" }}</span></td>
+              <td><StatusBadge :label="user.has_account ? '已开通' : '未开通'" :tone="user.has_account ? 'success' : 'muted'" /></td>
               <td><button class="text-button">查看</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="pagination"><span>第 {{ currentPage }} / {{ pages }} 页</span><div><button :disabled="offset === 0" @click="page(-1)"><ChevronLeft :size="16" /> 上一页</button><button :disabled="currentPage >= pages" @click="page(1)">下一页 <ChevronRight :size="16" /></button></div></div>
+          </tr>
+        </template>
+        <template #footer><div class="pagination"><span>第 {{ currentPage }} / {{ pages }} 页</span><div><button :disabled="offset === 0" @click="page(-1)"><ChevronLeft :size="16" /> 上一页</button><button :disabled="currentPage >= pages" @click="page(1)">下一页 <ChevronRight :size="16" /></button></div></div></template>
+      </AdminDataTable>
     </section>
 
-    <button v-if="selected" class="drawer-backdrop" aria-label="关闭详情" @click="selected = null" />
-    <aside class="detail-drawer" :class="{ open: selected }">
+    <DetailDrawer
+      :open="Boolean(selected)"
+      title="用户详情"
+      eyebrow="MEMBER DETAIL"
+      :description="selected ? `Telegram ID · ${selected.tg}` : ''"
+      @close="selected = null"
+    >
       <template v-if="selected">
-        <header><div><span class="section-kicker">MEMBER DETAIL</span><h2>用户详情</h2></div><button class="icon-button" @click="selected = null"><X :size="20" /></button></header>
         <LoadingBlock v-if="drawerLoading" />
         <template v-else>
           <div class="drawer-profile"><span>{{ initials(selected.name, selected.tg) }}</span><div><h3>{{ selected.name || "未创建 Emby 账户" }}</h3><p>Telegram ID · {{ selected.tg }}</p></div></div>
-          <div class="drawer-badges"><span class="level-badge" :data-level="selected.level">{{ levelLabel(selected.level) }}</span><span class="status-badge" :class="selected.has_account ? 'active' : 'muted'">{{ selected.has_account ? "账户正常" : "未开通" }}</span></div>
+          <div class="drawer-badges"><span class="level-badge" :data-level="selected.level">{{ levelLabel(selected.level) }}</span><StatusBadge :label="selected.has_account ? '账户正常' : '未开通'" :tone="selected.has_account ? 'success' : 'muted'" /></div>
           <dl class="detail-list boxed">
             <div><dt>当前积分</dt><dd>{{ formatNumber(selected.coins) }}</dd></div>
             <div><dt>注册天数</dt><dd>{{ formatNumber(selected.registration_days) }}</dd></div>
@@ -188,13 +219,15 @@ onMounted(async () => {
             <div><dt>账户到期</dt><dd>{{ formatDate(selected.expires_at, "长期") }}</dd></div>
             <div><dt>后台角色</dt><dd>{{ selected.roles?.join("、") || "普通用户" }}</dd></div>
           </dl>
-          <div class="drawer-actions">
-            <button v-if="canUpdate" class="primary-button" @click="pointOpen = true"><Coins :size="17" /> 调整积分/天数</button>
-            <button v-if="isOwner" class="secondary-button" @click="roleOpen = true"><ShieldCheck :size="17" /> 管理角色</button>
-          </div>
         </template>
       </template>
-    </aside>
+      <template #actions>
+        <template v-if="selected">
+          <button v-if="canUpdate" class="primary-button" @click="pointOpen = true"><Coins :size="17" /> 调整积分/天数</button>
+          <button v-if="isOwner" class="secondary-button" @click="roleOpen = true"><ShieldCheck :size="17" /> 管理角色</button>
+        </template>
+      </template>
+    </DetailDrawer>
 
     <div v-if="pointOpen" class="modal-layer">
       <form class="modal-card" @submit.prevent="adjustPoints">

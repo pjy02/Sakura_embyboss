@@ -17,6 +17,7 @@ import {
 } from "lucide-vue-next";
 import EmptyState from "@/components/EmptyState.vue";
 import LoadingBlock from "@/components/LoadingBlock.vue";
+import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
 import { api, idempotencyKey } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { useSessionStore } from "@/stores/session";
@@ -152,14 +153,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page-stack">
-    <header class="page-heading">
-      <div>
-        <span class="eyebrow">RELIABLE OPERATIONS</span>
-        <h1>任务中心</h1>
-        <p>耗时操作在后台可靠执行；断电或重启后可自动恢复，并实时同步进度与结果。</p>
-      </div>
-      <button class="secondary-button" @click="load()"><RefreshCw :size="16" /> 刷新状态</button>
-    </header>
+    <AdminPageHeader
+      eyebrow="RELIABLE OPERATIONS"
+      title="系统任务"
+      description="耗时操作在后台可靠执行；断电或重启后可自动恢复，并实时同步进度与结果。"
+      :icon="ServerCog"
+    >
+      <template #actions><button class="secondary-button" @click="load()"><RefreshCw :size="16" /> 刷新状态</button></template>
+    </AdminPageHeader>
 
     <div v-if="error" class="error-banner"><CircleAlert :size="17" /> {{ error }}</div>
 

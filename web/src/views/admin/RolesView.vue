@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { Crown, KeyRound, Shield, ShieldCheck, UserRoundCog } from "lucide-vue-next";
 import LoadingBlock from "@/components/LoadingBlock.vue";
+import AdminPageHeader from "@/components/admin/AdminPageHeader.vue";
 import { api } from "@/lib/api";
 import type { Role } from "@/types";
 
@@ -46,9 +47,12 @@ onMounted(async () => {
 
 <template>
   <div class="page-stack">
-    <header class="page-heading">
-      <div><span class="eyebrow">ROLE BASED ACCESS</span><h1>角色权限</h1><p>角色定义后台访问边界；具体成员分配可在用户详情中完成。</p></div>
-    </header>
+    <AdminPageHeader
+      eyebrow="ROLE BASED ACCESS"
+      title="角色权限"
+      description="角色定义后台访问边界；具体成员分配可在用户详情中完成。"
+      :icon="ShieldCheck"
+    />
     <LoadingBlock v-if="loading" />
     <section v-else class="role-grid">
       <article v-for="role in roles" :key="role.id" class="panel role-card" :data-role="role.name">
