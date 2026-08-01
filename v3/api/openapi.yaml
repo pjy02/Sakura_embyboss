@@ -650,6 +650,112 @@ paths:
       tags: [Administration, Batch Operations]
       security: [{cookieAuth: [], csrfHeader: []}]
       responses: {"200": {description: Operation canceled}}
+  /api/v3/me/playback/online:
+    get:
+      operationId: listMyOnlinePlayback
+      tags: [Playback]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Current playback sessions owned by the account}}
+  /api/v3/me/playback/history:
+    get:
+      operationId: listMyPlaybackHistory
+      tags: [Playback]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Playback history owned by the account}}
+  /api/v3/me/devices:
+    get:
+      operationId: listMyDevices
+      tags: [Devices]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Device profiles observed for the account}}
+  /api/v3/admin/playback/online:
+    get:
+      operationId: listOnlinePlayback
+      tags: [Administration, Playback]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Current playback across isolated Emby instances}}
+  /api/v3/admin/playback/history:
+    get:
+      operationId: listPlaybackHistory
+      tags: [Administration, Playback]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Historical playback snapshots}}
+  /api/v3/admin/devices:
+    get:
+      operationId: listDeviceProfiles
+      tags: [Administration, Devices]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Aggregated device identities and access decisions}}
+  /api/v3/admin/device-rules:
+    get:
+      operationId: listDeviceRules
+      tags: [Administration, Devices]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Built-in and custom allow or deny rules}}
+    post:
+      operationId: createDeviceRule
+      tags: [Administration, Devices]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Device access rule created}}
+  /api/v3/admin/device-rules/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateDeviceRule
+      tags: [Administration, Devices]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Device rule updated with optimistic revision}}
+  /api/v3/admin/risk-rules:
+    get:
+      operationId: listRiskRules
+      tags: [Administration, Risk]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Observation and enforcement risk rules}}
+    post:
+      operationId: createRiskRule
+      tags: [Administration, Risk]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Risk rule created}}
+  /api/v3/admin/risk-rules/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateRiskRule
+      tags: [Administration, Risk]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Risk rule updated with optimistic revision}}
+  /api/v3/admin/risk-events:
+    get:
+      operationId: listRiskEvents
+      tags: [Administration, Risk]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Traceable risk events with immutable evidence}}
+  /api/v3/admin/risk-events/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getRiskEvent
+      tags: [Administration, Risk]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Rule snapshot, evidence, actions and timeline}}
+  /api/v3/admin/risk-events/{id}/acknowledged:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: acknowledgeRiskEvent
+      tags: [Administration, Risk]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Event acknowledged with an audited reason}}
+  /api/v3/admin/risk-events/{id}/resolved:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: resolveRiskEvent
+      tags: [Administration, Risk]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Event resolved with an audited reason}}
+  /api/v3/admin/risk-events/{id}/false-positive:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: markRiskEventFalsePositive
+      tags: [Administration, Risk]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"202": {description: Pending action canceled or reversible action queued for restoration}}
   /open/v1/system/info:
     get:
       operationId: getOpenSystemInfo

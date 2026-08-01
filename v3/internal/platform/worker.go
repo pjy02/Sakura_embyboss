@@ -176,6 +176,12 @@ func (w *Worker) process(ctx context.Context, task claimedTask) (map[string]any,
 		return w.sync(ctx, task, instance, client, strings.TrimPrefix(task.Type, "emby."))
 	case "emby.reconcile":
 		return w.reconcile(ctx, task, instance, client)
+	case "emby.playback_sync":
+		return w.playbackSync(ctx, task, instance, client)
+	case "risk.action":
+		return w.executeRiskAction(ctx, task, instance, client, false)
+	case "risk.revert":
+		return w.executeRiskAction(ctx, task, instance, client, true)
 	default:
 		return nil, PermanentError{Err: fmt.Errorf("unsupported task type %q", task.Type)}
 	}
@@ -188,6 +194,13 @@ func (w *Worker) client(ctx context.Context, instanceID uuid.UUID) (EmbyInstance
 	}
 	if !instance.Enabled {
 		return EmbyInstance{}, nil, PermanentError{Err: errors.New("Emby instance is disabled")}
+	}
+	var circuitOpenUntil *time.Time
+	if err = w.db.QueryRow(ctx, `INSERT INTO emby_instance_runtime_health(instance_id) VALUES($1) ON CONFLICT(instance_id) DO UPDATE SET instance_id=EXCLUDED.instance_id RETURNING circuit_open_until`, instanceID).Scan(&circuitOpenUntil); err != nil {
+		return EmbyInstance{}, nil, err
+	}
+	if circuitOpenUntil != nil && circuitOpenUntil.After(time.Now()) {
+		return EmbyInstance{}, nil, fmt.Errorf("Emby instance circuit is open until %s", circuitOpenUntil.UTC().Format(time.RFC3339))
 	}
 	var ciphertext, nonce []byte
 	var version int
@@ -336,6 +349,7 @@ func (w *Worker) sync(ctx context.Context, task claimedTask, instance EmbyInstan
 	if err = tx.Commit(ctx); err != nil {
 		return nil, err
 	}
+	w.markInstanceSuccess(ctx, instance.ID)
 	return map[string]any{"remote_users": len(users), "bound_users": counts[0], "unclaimed_users": counts[1], "missing_users": counts[2]}, nil
 }
 
@@ -408,6 +422,9 @@ func (w *Worker) reconcile(ctx context.Context, task claimedTask, instance EmbyI
 		return nil, err
 	}
 	_, err = w.db.Exec(ctx, `INSERT INTO remote_state_snapshots(instance_id,task_id,snapshot_kind,status,remote_user_count,bound_user_count,unclaimed_user_count,missing_user_count,changes) VALUES($1,$2,'reconcile','succeeded',$3,$4,$5,$6,$7)`, instance.ID, task.ID, len(users), counts[0], counts[1], missing, jsonBytes(map[string]any{"changed": changed}))
+	if err == nil {
+		w.markInstanceSuccess(ctx, instance.ID)
+	}
 	return map[string]any{"changed": changed, "missing": missing}, err
 }
 
@@ -415,6 +432,177 @@ func (w *Worker) markInstanceFailure(ctx context.Context, instanceID uuid.UUID, 
 	message := truncateError(failure)
 	_, _ = w.db.Exec(ctx, `UPDATE emby_instances SET status='unhealthy',last_error=$2,last_checked_at=NOW(),updated_at=NOW() WHERE id=$1`, instanceID, message)
 	_, _ = w.db.Exec(ctx, `INSERT INTO remote_state_snapshots(instance_id,snapshot_kind,status,error_message) VALUES($1,'probe','failed',$2)`, instanceID, message)
+	maximum, cooldown := 3, 120
+	_ = w.db.QueryRow(ctx, `SELECT (value #>> '{}')::integer FROM dynamic_settings WHERE key='risk.max_instance_failures'`).Scan(&maximum)
+	_ = w.db.QueryRow(ctx, `SELECT (value #>> '{}')::integer FROM dynamic_settings WHERE key='risk.circuit_cooldown_seconds'`).Scan(&cooldown)
+	if maximum < 1 {
+		maximum = 3
+	}
+	if cooldown < 10 {
+		cooldown = 120
+	}
+	_, _ = w.db.Exec(ctx, `INSERT INTO emby_instance_runtime_health(instance_id,consecutive_failures,last_failure_at,last_error) VALUES($1,1,NOW(),$2) ON CONFLICT(instance_id) DO UPDATE SET consecutive_failures=emby_instance_runtime_health.consecutive_failures+1,last_failure_at=NOW(),last_error=$2,circuit_open_until=CASE WHEN emby_instance_runtime_health.consecutive_failures+1 >= $3 THEN NOW()+($4::double precision*INTERVAL '1 second') ELSE emby_instance_runtime_health.circuit_open_until END,updated_at=NOW()`, instanceID, message, maximum, cooldown)
+}
+
+func (w *Worker) markInstanceSuccess(ctx context.Context, instanceID uuid.UUID) {
+	_, _ = w.db.Exec(ctx, `INSERT INTO emby_instance_runtime_health(instance_id,last_success_at) VALUES($1,NOW()) ON CONFLICT(instance_id) DO UPDATE SET consecutive_failures=0,circuit_open_until=NULL,last_success_at=NOW(),last_error=NULL,updated_at=NOW()`, instanceID)
+}
+
+func (w *Worker) playbackSync(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient) (map[string]any, error) {
+	sessions, err := client.sessions(ctx)
+	if err != nil {
+		w.markInstanceFailure(ctx, instance.ID, err)
+		return nil, err
+	}
+	result, err := w.service.IngestPlaybackSnapshot(ctx, instance, sessions, identity.Actor{Kind: "system", ID: w.id})
+	if err != nil {
+		return nil, err
+	}
+	w.markInstanceSuccess(ctx, instance.ID)
+	result["task_id"] = task.ID.String()
+	return result, nil
+}
+
+func (w *Worker) executeRiskAction(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient, revert bool) (map[string]any, error) {
+	actionID, err := uuid.Parse(fmt.Sprint(task.Payload["action_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("risk task has invalid action id")}
+	}
+	var actionType, status, remoteSessionID, remoteUserID string
+	var beforeRaw, actionResultRaw []byte
+	if err = w.db.QueryRow(ctx, `SELECT action_type,status,COALESCE(remote_session_id,''),COALESCE(remote_user_id,''),before_state,result FROM risk_actions WHERE id=$1 AND instance_id=$2`, actionID, instance.ID).Scan(&actionType, &status, &remoteSessionID, &remoteUserID, &beforeRaw, &actionResultRaw); err != nil {
+		return nil, PermanentError{Err: notFound(err)}
+	}
+	if !revert && status == "succeeded" || revert && status == "reverted" {
+		return map[string]any{"action_id": actionID, "replayed": true}, nil
+	}
+	expected := []string{"pending", "failed"}
+	nextStatus := "running"
+	if revert {
+		expected, nextStatus = []string{"revert_pending", "revert_failed"}, "reverting"
+	}
+	result, err := w.db.Exec(ctx, `UPDATE risk_actions SET status=$2,attempts=attempts+1,last_error=NULL,updated_at=NOW() WHERE id=$1 AND status=ANY($3)`, actionID, nextStatus, expected)
+	if err != nil || result.RowsAffected() != 1 {
+		return nil, PermanentError{Err: errors.New("risk action is not executable in its current state")}
+	}
+	actionResult := decodeJSON(actionResultRaw)
+	effectKey := "action_effect_applied"
+	if revert {
+		effectKey = "revert_effect_applied"
+	}
+	effectApplied := boolValue(actionResult[effectKey])
+	var remote embyUser
+	if actionType == "disable_user" && !effectApplied {
+		users, usersErr := client.users(ctx)
+		if usersErr != nil {
+			w.markInstanceFailure(ctx, instance.ID, usersErr)
+			return nil, usersErr
+		}
+		for _, candidate := range users {
+			if candidate.ID == remoteUserID {
+				remote = candidate
+				break
+			}
+		}
+	}
+	before := decodeJSON(beforeRaw)
+	if !revert && !effectApplied {
+		switch actionType {
+		case "stop_session":
+			if len(before) == 0 {
+				before = map[string]any{"session_active": true}
+				if _, err = w.db.Exec(ctx, `UPDATE risk_actions SET before_state=$2,updated_at=NOW() WHERE id=$1 AND status='running'`, actionID, jsonBytes(before)); err != nil {
+					return nil, err
+				}
+			}
+			if err = client.stopSession(ctx, remoteSessionID); err != nil {
+				w.markInstanceFailure(ctx, instance.ID, err)
+				return nil, err
+			}
+		case "disable_user":
+			if remote.ID == "" {
+				return nil, PermanentError{Err: errors.New("risk action remote user is missing")}
+			}
+			if len(before) == 0 {
+				before = map[string]any{"disabled": remote.disabled()}
+				if _, err = w.db.Exec(ctx, `UPDATE risk_actions SET before_state=$2,updated_at=NOW() WHERE id=$1 AND status='running'`, actionID, jsonBytes(before)); err != nil {
+					return nil, err
+				}
+			}
+			if !remote.disabled() {
+				if err = client.setDisabled(ctx, remote, true); err != nil {
+					w.markInstanceFailure(ctx, instance.ID, err)
+					return nil, err
+				}
+			}
+		default:
+			return nil, PermanentError{Err: errors.New("unsupported risk action")}
+		}
+	} else if revert && !effectApplied {
+		if actionType != "disable_user" {
+			return nil, PermanentError{Err: errors.New("risk action is not reversible")}
+		}
+		if remote.ID == "" {
+			return nil, PermanentError{Err: errors.New("risk action remote user is missing")}
+		}
+		wasDisabled, _ := before["disabled"].(bool)
+		if remote.disabled() != wasDisabled {
+			if err = client.setDisabled(ctx, remote, wasDisabled); err != nil {
+				w.markInstanceFailure(ctx, instance.ID, err)
+				return nil, err
+			}
+		}
+	}
+	remoteAfter := map[string]any{"disabled": actionType == "disable_user" && !revert, "session_stopped": actionType == "stop_session" && !revert, "restored": revert}
+	if !effectApplied {
+		if _, err = w.db.Exec(ctx, `UPDATE risk_actions SET after_state=$2,result=result||$3::jsonb,updated_at=NOW() WHERE id=$1`, actionID, jsonBytes(remoteAfter), jsonBytes(map[string]any{effectKey: true})); err != nil {
+			return nil, err
+		}
+	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	completedStatus, timelineType := "succeeded", "action_succeeded"
+	if revert {
+		completedStatus, timelineType = "reverted", "action_reverted"
+		_, err = tx.Exec(ctx, `UPDATE risk_actions SET status=$2,before_state=CASE WHEN $2='succeeded' THEN $3 ELSE before_state END,after_state=$4,result=result||$5::jsonb,last_error=NULL,reverted_at=NOW(),updated_at=NOW() WHERE id=$1`, actionID, completedStatus, jsonBytes(before), jsonBytes(map[string]any{"restored": true}), jsonBytes(map[string]any{"task_id": task.ID}))
+	} else {
+		_, err = tx.Exec(ctx, `UPDATE risk_actions SET status=$2,before_state=$3,after_state=$4,result=result||$5::jsonb,last_error=NULL,executed_at=NOW(),updated_at=NOW() WHERE id=$1`, actionID, completedStatus, jsonBytes(before), jsonBytes(map[string]any{"disabled": actionType == "disable_user", "session_stopped": actionType == "stop_session"}), jsonBytes(map[string]any{"task_id": task.ID}))
+	}
+	if err != nil {
+		return nil, err
+	}
+	var eventID uuid.UUID
+	if err = tx.QueryRow(ctx, `SELECT event_id FROM risk_actions WHERE id=$1`, actionID).Scan(&eventID); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO risk_event_timeline(event_id,event_type,actor,reason,details) SELECT event_id,$2,$3,reason,$4 FROM risk_actions WHERE id=$1`, actionID, timelineType, "system:"+w.id, jsonBytes(map[string]any{"action_id": actionID, "action_type": actionType})); err != nil {
+		return nil, err
+	}
+	if actionType == "disable_user" {
+		disabled := !revert
+		if previous, ok := before["disabled"].(bool); revert {
+			disabled = previous && ok
+		}
+		statusValue := "active"
+		if disabled {
+			statusValue = "suspended"
+		}
+		_, err = tx.Exec(ctx, `UPDATE emby_account_bindings SET remote_disabled=$3,status=$4,last_synced_at=NOW(),last_error=NULL,updated_at=NOW() WHERE instance_id=$1 AND remote_user_id=$2`, instance.ID, remoteUserID, disabled, statusValue)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err = audit(ctx, tx, identity.Actor{Kind: "system", ID: w.id}, "risk_action."+completedStatus, "risk_event", eventID.String(), map[string]any{"action_id": actionID, "action_type": actionType}); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	w.markInstanceSuccess(ctx, instance.ID)
+	return map[string]any{"action_id": actionID, "status": completedStatus}, nil
 }
 
 func (w *Worker) finish(ctx context.Context, task claimedTask, result map[string]any) error {
@@ -444,6 +632,20 @@ func (w *Worker) fail(ctx context.Context, task claimedTask, failure error) erro
 	_, err = tx.Exec(ctx, `UPDATE platform_tasks SET status=$2,last_error=$3,available_at=NOW()+($4::double precision*INTERVAL '1 second'),lease_owner=NULL,lease_expires_at=NULL,finished_at=CASE WHEN $2 IN ('failed','dead') THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$1 AND lease_owner=$5`, task.ID, status, message, delay, w.id)
 	if err == nil && task.Type == "emby.provision" {
 		_, err = tx.Exec(ctx, `UPDATE emby_provision_requests SET status=CASE WHEN $2 IN ('failed','dead') THEN 'failed' ELSE 'pending' END,last_error=$3,updated_at=NOW() WHERE task_id=$1`, task.ID, status, message)
+	}
+	if err == nil && (task.Type == "risk.action" || task.Type == "risk.revert") {
+		if actionID, parseErr := uuid.Parse(fmt.Sprint(task.Payload["action_id"])); parseErr == nil {
+			actionStatus := "failed"
+			timelineType := "action_failed"
+			if task.Type == "risk.revert" {
+				actionStatus = "revert_failed"
+				timelineType = "revert_failed"
+			}
+			_, err = tx.Exec(ctx, `UPDATE risk_actions SET status=$2,last_error=$3,updated_at=NOW() WHERE id=$1`, actionID, actionStatus, message)
+			if err == nil {
+				_, err = tx.Exec(ctx, `INSERT INTO risk_event_timeline(event_id,event_type,actor,reason,details) SELECT event_id,$2,$3,$4,$5 FROM risk_actions WHERE id=$1`, actionID, timelineType, "system:"+w.id, message, jsonBytes(map[string]any{"action_id": actionID, "task_id": task.ID, "attempt": task.Attempts, "task_status": status}))
+			}
+		}
 	}
 	if err != nil {
 		return err

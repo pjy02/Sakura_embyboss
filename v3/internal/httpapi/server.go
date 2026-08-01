@@ -34,6 +34,7 @@ func New(options Options) http.Handler {
 	if options.Identity != nil && options.Platform != nil {
 		registerPlatformRoutes(mux, options)
 		registerCommerceRoutes(mux, options)
+		registerRiskRoutes(mux, options)
 	}
 	mux.HandleFunc("GET /api/v3/system/info", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, map[string]string{

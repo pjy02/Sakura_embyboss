@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Service) EnqueueInstanceTask(ctx context.Context, taskType string, instanceID uuid.UUID, idempotencyKey string, actor identity.Actor) (Task, error) {
-	if taskType != "emby.sync" && taskType != "emby.reconcile" && taskType != "emby.import" {
+	if taskType != "emby.sync" && taskType != "emby.reconcile" && taskType != "emby.import" && taskType != "emby.playback_sync" {
 		return Task{}, identity.ErrInvalid
 	}
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
@@ -157,12 +157,15 @@ func (s *Service) ScheduleDue(ctx context.Context, now time.Time) error {
 	if err = rows.Err(); err != nil {
 		return err
 	}
-	var syncSeconds, reconcileSeconds int
+	var syncSeconds, reconcileSeconds, playbackSeconds int
 	if err = s.db.QueryRow(ctx, `SELECT (value #>> '{}')::integer FROM dynamic_settings WHERE key='emby.sync_interval_seconds'`).Scan(&syncSeconds); err != nil || syncSeconds < 30 {
 		syncSeconds = 300
 	}
 	if err = s.db.QueryRow(ctx, `SELECT (value #>> '{}')::integer FROM dynamic_settings WHERE key='emby.reconcile_interval_seconds'`).Scan(&reconcileSeconds); err != nil || reconcileSeconds < 60 {
 		reconcileSeconds = 900
+	}
+	if err = s.db.QueryRow(ctx, `SELECT (value #>> '{}')::integer FROM dynamic_settings WHERE key='playback.sync_interval_seconds'`).Scan(&playbackSeconds); err != nil || playbackSeconds < 10 {
+		playbackSeconds = 30
 	}
 	actor := identity.Actor{Kind: "system", ID: "worker-scheduler"}
 	for _, id := range ids {
@@ -172,6 +175,10 @@ func (s *Service) ScheduleDue(ctx context.Context, now time.Time) error {
 		}
 		reconcileBucket := now.Unix() / int64(reconcileSeconds)
 		if _, enqueueErr := s.EnqueueInstanceTask(ctx, "emby.reconcile", id, fmt.Sprintf("auto-%d", reconcileBucket), actor); enqueueErr != nil && !errors.Is(enqueueErr, identity.ErrConflict) {
+			return enqueueErr
+		}
+		playbackBucket := now.Unix() / int64(playbackSeconds)
+		if _, enqueueErr := s.EnqueueInstanceTask(ctx, "emby.playback_sync", id, fmt.Sprintf("auto-%d", playbackBucket), actor); enqueueErr != nil && !errors.Is(enqueueErr, identity.ErrConflict) {
 			return enqueueErr
 		}
 	}

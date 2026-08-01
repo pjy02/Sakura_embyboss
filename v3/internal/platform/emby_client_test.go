@@ -24,6 +24,15 @@ func TestEmbyClientUsesTokenAndSupportsUsers(t *testing.T) {
 	mux.HandleFunc("POST /prefix/emby/Users/New", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"Id": "u2", "Name": "bob"})
 	})
+	mux.HandleFunc("GET /prefix/emby/Sessions", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("ActiveWithinSeconds") != "90" {
+			t.Fatalf("unexpected session query: %s", r.URL.RawQuery)
+		}
+		_ = json.NewEncoder(w).Encode([]any{map[string]any{"Id": "s1", "UserId": "u1", "Client": "Emby Web", "NowPlayingItem": map[string]any{"Id": "m1", "Name": "Movie"}}})
+	})
+	mux.HandleFunc("POST /prefix/emby/Sessions/s1/Playing/Stop", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	client, err := newEmbyClient(EmbyInstance{ID: uuid.New(), BaseURL: server.URL + "/prefix", VerifyTLS: true}, "secret")
@@ -41,5 +50,12 @@ func TestEmbyClientUsesTokenAndSupportsUsers(t *testing.T) {
 	created, err := client.createUser(context.Background(), "bob")
 	if err != nil || created.ID != "u2" {
 		t.Fatalf("create failed: %#v %v", created, err)
+	}
+	sessions, err := client.sessions(context.Background())
+	if err != nil || len(sessions) != 1 || sessions[0].ID != "s1" {
+		t.Fatalf("sessions failed: %#v %v", sessions, err)
+	}
+	if err = client.stopSession(context.Background(), "s1"); err != nil {
+		t.Fatalf("stop session failed: %v", err)
 	}
 }

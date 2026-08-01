@@ -70,6 +70,29 @@ func TestStage4MigrationContainsBalancedLedgerAndBatchState(t *testing.T) {
 	}
 }
 
+func TestStage5MigrationContainsPlaybackDeviceAndTraceableRiskState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage5 string
+	for _, migration := range migrations {
+		if migration.Version == 5 {
+			stage5 = migration.SQL
+		}
+	}
+	for _, table := range []string{"emby_instance_runtime_health", "playback_sessions", "playback_history", "device_profiles", "device_access_rules", "risk_rules", "risk_events", "risk_actions", "risk_event_timeline"} {
+		if !strings.Contains(stage5, "CREATE TABLE "+table) {
+			t.Fatalf("stage 5 migration is missing %s", table)
+		}
+	}
+	for _, invariant := range []string{"observation_mode", "before_state", "revert_pending", "dedupe_key"} {
+		if !strings.Contains(stage5, invariant) {
+			t.Fatalf("stage 5 migration is missing risk invariant %s", invariant)
+		}
+	}
+}
+
 func TestRunIsIdempotent(t *testing.T) {
 	databaseURL := os.Getenv("SAKURA_V3_TEST_DATABASE_URL")
 	if databaseURL == "" {

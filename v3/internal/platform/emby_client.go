@@ -36,6 +36,21 @@ type embyUser struct {
 	Raw    map[string]any `json:"-"`
 }
 
+type embyPlaybackSession struct {
+	ID              string         `json:"Id"`
+	UserID          string         `json:"UserId"`
+	UserName        string         `json:"UserName"`
+	Client          string         `json:"Client"`
+	DeviceName      string         `json:"DeviceName"`
+	DeviceID        string         `json:"DeviceId"`
+	RemoteEndPoint  string         `json:"RemoteEndPoint"`
+	ApplicationVer  string         `json:"ApplicationVersion"`
+	NowPlayingItem  map[string]any `json:"NowPlayingItem"`
+	PlayState       map[string]any `json:"PlayState"`
+	TranscodingInfo map[string]any `json:"TranscodingInfo"`
+	Raw             map[string]any `json:"-"`
+}
+
 func (u embyUser) disabled() bool {
 	value, _ := u.Policy["IsDisabled"].(bool)
 	return value
@@ -53,7 +68,11 @@ func newEmbyClient(instance EmbyInstance, token string) (*embyClient, error) {
 
 func (c *embyClient) endpoint(fragment string) string {
 	copyURL := *c.baseURL
-	copyURL.Path = path.Join(c.baseURL.Path, "emby", fragment)
+	parts := strings.SplitN(fragment, "?", 2)
+	copyURL.Path = path.Join(c.baseURL.Path, "emby", parts[0])
+	if len(parts) == 2 {
+		copyURL.RawQuery = parts[1]
+	}
 	return copyURL.String()
 }
 
@@ -134,6 +153,25 @@ func (c *embyClient) users(ctx context.Context) ([]embyUser, error) {
 	return users, nil
 }
 
+func (c *embyClient) sessions(ctx context.Context) ([]embyPlaybackSession, error) {
+	var raw []map[string]any
+	if err := c.request(ctx, http.MethodGet, "Sessions?ActiveWithinSeconds=90", nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]embyPlaybackSession, 0, len(raw))
+	for _, item := range raw {
+		encoded, _ := json.Marshal(item)
+		var session embyPlaybackSession
+		_ = json.Unmarshal(encoded, &session)
+		session.Raw = item
+		itemID, _ := session.NowPlayingItem["Id"].(string)
+		if session.ID != "" && itemID != "" {
+			out = append(out, session)
+		}
+	}
+	return out, nil
+}
+
 func (c *embyClient) createUser(ctx context.Context, username string) (embyUser, error) {
 	var user embyUser
 	if err := c.request(ctx, http.MethodPost, "Users/New", map[string]string{"Name": username}, &user); err != nil {
@@ -158,4 +196,11 @@ func (c *embyClient) setDisabled(ctx context.Context, user embyUser, disabled bo
 	}
 	policy["IsDisabled"] = disabled
 	return c.request(ctx, http.MethodPost, "Users/"+url.PathEscape(user.ID)+"/Policy", policy, nil)
+}
+
+func (c *embyClient) stopSession(ctx context.Context, sessionID string) error {
+	if strings.TrimSpace(sessionID) == "" {
+		return errors.New("Emby session id is empty")
+	}
+	return c.request(ctx, http.MethodPost, "Sessions/"+url.PathEscape(sessionID)+"/Playing/Stop", nil, nil)
 }

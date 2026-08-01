@@ -125,3 +125,15 @@ go build ./...
 设置 `SAKURA_V3_TEST_DATABASE_URL` 后，测试会在独立 PostgreSQL schema 中真实运行迁移，并验收幂等建号、失败重试、多实例绑定、远端导入、认领与快照。
 
 完整 HTTP 合同见运行时 `/openapi.yaml` 或 [api/openapi.yaml](api/openapi.yaml)。
+
+## 播放、设备与风险中心
+
+Worker 会按 `playback.sync_interval_seconds` 为每个已启用的 Emby 实例分别创建 `emby.playback_sync` 任务。在线播放是可更新快照，播放历史会在换片或会话结束时收尾；设备画像按实例、远端用户和设备键聚合，不把单次会话当成永久设备。
+
+- 设备规则支持全局或指定实例、允许名单、拒绝名单、精确/包含/前缀/正则匹配。内置常见客户端允许名单可以禁用或调整优先级，自定义规则使用同一业务层。
+- 允许名单优先于拒绝名单；已允许设备仍可产生观察事件，但不会触发自动封禁或停止播放。
+- 风险规则支持并发播放、转码、高码率、远端地址和自定义字段条件。`observation_mode=true` 时只保存证据、规则快照和告警，不创建远端处置任务。
+- 自动处置通过独立 `risk.action` 任务执行。每个事件都保存命中原因、证据、当时的规则版本、处置前后状态和时间线。
+- 管理员标记误判时，未执行动作会被取消；已经执行的账号禁用会创建 `risk.revert` 补偿任务并恢复处置前状态。正在执行的动作会拒绝并发撤销，待动作完成后可再次提交。
+- 风险 Telegram 接收账号通过动态设置 `risk.telegram_alert_account_ids` 配置；`risk.notify_affected_account` 控制是否同时通知已绑定 Telegram 的受影响账号。消息复用可靠通知队列。
+- 每个 Emby 实例独立累计失败并开启熔断，阈值和冷却时间由 `risk.max_instance_failures`、`risk.circuit_cooldown_seconds` 控制。一个实例请求失败只会重试该实例的任务，其他实例仍会继续采集。
