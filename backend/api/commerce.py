@@ -76,6 +76,7 @@ class CreateMediaRequestPayload(BaseModel):
     year: Optional[int] = Field(None, ge=1888, le=2200)
     media_type: Literal["movie", "series", "anime", "documentary", "other"] = "other"
     description: Optional[str] = Field(None, max_length=2000)
+    external_ref: Optional[str] = Field(None, max_length=255, pattern=r"^(tmdb:(movie|tv):\d+)?$")
 
 
 class MediaRequestUpdatePayload(BaseModel):
@@ -403,6 +404,7 @@ async def create_my_media_request(
         year=payload.year,
         media_type=payload.media_type,
         description=payload.description,
+        external_ref=payload.external_ref,
         actor=Actor.web(identity.tg),
     )
 

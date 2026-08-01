@@ -74,6 +74,7 @@ def validate(
         "MYSQL_ROOT_PASSWORD",
         "MYSQL_PASSWORD",
         "SAKURA_WEB_SESSION_SECRET",
+        "SAKURA_CREDENTIAL_MASTER_KEY",
         "SAKURA_PUBLIC_BASE_URL",
         "SAKURA_TRUSTED_HOSTS",
         "WEB_ADMIN_PATH",
@@ -84,6 +85,11 @@ def validate(
             error(f"{key} 未填写或仍是示例值")
 
     secret = env.get("SAKURA_WEB_SESSION_SECRET", "")
+    credential_secret = env.get("SAKURA_CREDENTIAL_MASTER_KEY", "")
+    if credential_secret and len(credential_secret.encode("utf-8")) < 32:
+        error("SAKURA_CREDENTIAL_MASTER_KEY 至少需要 32 字节")
+    if credential_secret and credential_secret == secret:
+        error("凭据主密钥应与 Web 会话密钥相互独立")
     if secret and len(secret.encode("utf-8")) < 32:
         error("SAKURA_WEB_SESSION_SECRET 至少需要 32 字节")
     if (

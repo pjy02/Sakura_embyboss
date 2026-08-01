@@ -13,6 +13,9 @@ from .operations_center import router as operations_center_router
 from .registration import router as registration_router
 from .tasks import admin_router as tasks_router
 from .tasks import events_router
+from .platform import admin_router as platform_admin_router
+from .platform import media_router
+from .platform import open_router
 
 __all__ = [
     "admin_router",
@@ -30,4 +33,7 @@ __all__ = [
     "operations_center_router",
     "registration_router",
     "tasks_router",
+    "platform_admin_router",
+    "media_router",
+    "open_router",
 ]

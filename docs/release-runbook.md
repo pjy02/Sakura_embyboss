@@ -19,7 +19,7 @@
 python3 scripts/preflight.py --env-file .env --config config.json
 ```
 
-检查会拒绝示例密钥、HTTP 公网地址、不安全 Cookie、通配可信域名、保留管理路径、重复数据库密码和无效 Bot/Emby 配置。使用 `latest` 只会给出警告；生产环境推荐固定版本，例如：
+检查会拒绝示例密钥、HTTP 公网地址、不安全 Cookie、通配可信域名、保留管理路径、重复数据库密码、缺失或复用的凭据主密钥，以及无效 Bot/Emby 配置。使用 `latest` 只会给出警告；生产环境推荐固定版本，例如：
 
 ```dotenv
 SAKURA_IMAGE=233bit/sakura_embyboss:2.3.0
@@ -36,7 +36,7 @@ bash scripts/deploy.sh
 1. 配置预检与 Compose 结构检查；
 2. 如果 MySQL 已运行，使用一致性快照备份数据库，并备份 `config.json`；
 3. 记录当前应用镜像作为临时回滚镜像；
-4. 拉取新镜像，等待 MySQL、Bot 和 Web 健康；
+4. 拉取新镜像，等待 MySQL、迁移、Bot、独立 Worker 和 Web 就绪；
 5. 新版本未在 180 秒内就绪时，自动切回上线前应用镜像。
 
 备份保存在 `db_backup/releases/`。自动回退只回退应用镜像，不会自动执行数据库降级；当前版本使用新增、扩展型迁移，但上线前仍应保留数据库备份。
@@ -75,7 +75,7 @@ CI 现在依次运行：
 docker compose --env-file .env ps -a
 curl -fsS http://127.0.0.1:8838/healthz
 curl -fsS http://127.0.0.1:8838/readyz
-docker compose --env-file .env logs --tail=200 bot web migrate
+docker compose --env-file .env logs --tail=200 bot worker web migrate
 ```
 
 再从能够访问公网域名的设备运行完整检查：

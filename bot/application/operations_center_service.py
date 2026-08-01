@@ -309,6 +309,22 @@ class DiagnosticService:
         if targets:
             results.extend(await asyncio.gather(*(self._probe_http(**target) for target in targets)))
         try:
+            from bot.application.platform_service import MultiEmbyService
+
+            managed = await MultiEmbyService(self._uow_factory).probe_all()
+            for item in managed.get("items", []):
+                results.append({
+                    "service_name": f"emby:{item['name']}",
+                    "service_kind": "media",
+                    "status": item.get("status", "unhealthy"),
+                    "latency_ms": item.get("last_latency_ms"),
+                    "status_code": 200 if item.get("status") == "healthy" else None,
+                    "message": item.get("last_error") or "Emby API 正常",
+                    "checked_at": item.get("last_checked_at") or utcnow(),
+                })
+        except Exception as error:
+            results.append(self._result("emby:managed", "media", "unhealthy", perf_counter(), None, str(error)))
+        try:
             self._persist(results)
         except Exception as error:
             await self._fallback_alert(results, error)
@@ -398,6 +414,18 @@ class DiagnosticService:
         if moviepilot and getattr(moviepilot, "status", False) and getattr(moviepilot, "url", None):
             headers = {"Authorization": str(moviepilot.access_token)} if getattr(moviepilot, "access_token", None) else None
             targets.append({"name": "moviepilot", "kind": "automation", "url": str(moviepilot.url), "headers": headers})
+        try:
+            from bot.application.governance_service import DynamicSettingsService
+            from bot.application.platform_service import CredentialService
+
+            service = DynamicSettingsService()
+            managed_url = str(service.get("integrations.moviepilot_url")["value"] or "").rstrip("/")
+            managed_token = CredentialService().reveal(provider="moviepilot")
+            if managed_url and managed_token and not any(item["name"] == "moviepilot" for item in targets):
+                token = managed_token if managed_token.lower().startswith("bearer ") else f"Bearer {managed_token}"
+                targets.append({"name": "moviepilot", "kind": "automation", "url": managed_url, "headers": {"Authorization": token}})
+        except Exception:
+            pass
         return targets
 
     def _persist(self, results: list[dict]) -> None:
@@ -515,24 +543,40 @@ class AccountLifecycleService:
                 raise RuntimeError("用户不存在")
             embyid = user.embyid
             current_expiry = user.ex
+            account = uow.accounts.by_legacy_tg(tg)
+            account_id = account.id if account else None
+        managed_bindings = []
+        if account_id and action in {"suspend", "restore", "clear_account"}:
+            try:
+                from bot.application.platform_service import MultiEmbyService
+
+                managed_bindings = MultiEmbyService(self._uow_factory).bindings_for_account(account_id)
+            except Exception:
+                managed_bindings = []
         client = self._emby_client
-        if client is None and action in {"suspend", "restore", "clear_account"}:
+        if client is None and action in {"suspend", "restore", "clear_account"} and not managed_bindings:
             from bot.func_helper.emby import emby as client
         actor = Actor.system("account-lifecycle-worker")
         if action == "suspend":
-            if embyid and not await client.emby_change_policy(str(embyid), disable=True):
+            if managed_bindings:
+                await self._apply_managed_emby(managed_bindings, "suspend")
+            elif embyid and not await client.emby_change_policy(str(embyid), disable=True):
                 raise RuntimeError("Emby 禁用账号失败")
             self._notify(tg, "账号已暂停", "你的 Emby 账号已被管理员暂停。如有疑问请提交工单。", "warning")
             self._set_account_status(tg, "suspended")
             return {"embyid": embyid}
         if action == "restore":
-            if embyid and not await client.emby_change_policy(str(embyid), disable=False):
+            if managed_bindings:
+                await self._apply_managed_emby(managed_bindings, "restore")
+            elif embyid and not await client.emby_change_policy(str(embyid), disable=False):
                 raise RuntimeError("Emby 恢复账号失败")
             self._notify(tg, "账号已恢复", "你的 Emby 账号已恢复使用。", "success")
             self._set_account_status(tg, "active")
             return {"embyid": embyid}
         if action == "clear_account":
-            if embyid and not await client.emby_del(str(embyid)):
+            if managed_bindings:
+                await self._apply_managed_emby(managed_bindings, "delete")
+            elif embyid and not await client.emby_del(str(embyid)):
                 raise RuntimeError("Emby 删除账号失败")
             result = self._users.update_user(tg, {"embyid": None, "name": None, "pwd": None, "pwd2": None, "lv": "d", "cr": None, "ex": None}, actor, action="user.lifecycle.clear", idempotency_key=f"lifecycle:clear_account:{tg}:{parameters.get('batch_id', '')}")
             if not result.ok:
@@ -563,6 +607,34 @@ class AccountLifecycleService:
             self._notify(tg, str(parameters.get("title") or "系统通知")[:200], str(parameters.get("body") or "")[:2000], str(parameters.get("severity") or "info"))
             return {"notified": True}
         raise RuntimeError("不支持的账号动作")
+
+    async def _apply_managed_emby(self, bindings: list[dict], action: str) -> None:
+        from bot.application.platform_service import MultiEmbyService
+        from bot.sql_helper.sql_platform import AccountEmbyBinding
+
+        service = MultiEmbyService(self._uow_factory)
+        for binding in bindings:
+            if action == "delete":
+                ok = await service.delete_user(
+                    instance_id=binding["instance_id"],
+                    emby_user_id=binding["emby_user_id"],
+                )
+            else:
+                ok = await service.set_user_disabled(
+                    instance_id=binding["instance_id"],
+                    emby_user_id=binding["emby_user_id"],
+                    disabled=action == "suspend",
+                )
+            if not ok:
+                raise RuntimeError(f"Emby 实例 {binding['instance_id']} 执行 {action} 失败")
+        if action == "delete":
+            with self._uow_factory() as uow:
+                ids = [item["id"] for item in bindings]
+                rows = uow.session.query(AccountEmbyBinding).filter(AccountEmbyBinding.id.in_(ids)).all()
+                for row in rows:
+                    row.status = "deleted"
+                    row.last_synced_at = utcnow()
+                    row.updated_at = row.last_synced_at
 
     def _notify(self, tg: int, title: str, body: str, severity: str) -> None:
         self._notifications.broadcast(target_tg=tg, category="system", title=title, body=body, severity=severity if severity in {"info", "success", "warning", "danger"} else "info", action_url="/account", actor=Actor.system("account-lifecycle-worker"))

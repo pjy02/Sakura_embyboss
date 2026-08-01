@@ -24,6 +24,9 @@ from backend.api import (
     me_router,
     operations_router,
     operations_center_router,
+    platform_admin_router,
+    media_router,
+    open_router,
     registration_router,
     tasks_router,
 )
@@ -150,7 +153,10 @@ def create_app(settings: WebSettings | None = None) -> FastAPI:
     api_v1.include_router(community_admin_router)
     api_v1.include_router(events_router)
     api_v1.include_router(governance_router)
+    api_v1.include_router(platform_admin_router)
+    api_v1.include_router(media_router)
     app.include_router(api_v1)
+    app.include_router(open_router)
 
     @app.get("/healthz", tags=["health"])
     def health():

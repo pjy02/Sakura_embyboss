@@ -77,6 +77,17 @@ async def is_client_blocked(client: str) -> bool:
     if not client:
         return False
 
+    # Database rules are shared by Bot, Web and workers.  Existing config.json
+    # lists remain a compatibility fallback when no database rule matches.
+    try:
+        from bot.application.platform_service import DeviceRuleService
+
+        decision = DeviceRuleService().evaluate(client, record_hit=True)
+        if decision.get("matched"):
+            return decision.get("action") == "block"
+    except Exception as e:
+        LOGGER.warning(f"数据库客户端规则暂不可用，回退 config.json: {e}")
+
     mode = get_client_filter_mode()
 
     if mode == "whitelist":
@@ -138,11 +149,16 @@ async def log_blocked_request(
         LOGGER.error(f"记录拦截请求失败: {str(e)}")
 
 
-async def terminate_blocked_session(session_id: str, client_name: str) -> bool:
+async def terminate_blocked_session(session_id: str, client_name: str, instance_id: str = None) -> bool:
     """终止被拦截的会话"""
     try:
         reason = f"检测到可疑客户端: {client_name}"
-        success = await emby.terminate_session(session_id, reason)
+        if instance_id:
+            from bot.application.platform_service import MultiEmbyAggregateClient
+
+            success = await MultiEmbyAggregateClient().terminate_session(f"{instance_id}:{session_id}", reason)
+        else:
+            success = await emby.terminate_session(session_id, reason)
         if success:
             LOGGER.info(f"成功终止可疑会话 {session_id}")
         else:
@@ -201,6 +217,7 @@ async def handle_client_filter_webhook(request: Request):
         emby_id = user_info.get("Id", "")
         session_id = session_info.get("Id", "")
         client_name = session_info.get("Client", "")
+        managed_instance_id = request.query_params.get("instance_id")
 
         if not client_name:
             return {"status": "ignored", "message": "No Client info found"}
@@ -213,15 +230,60 @@ async def handle_client_filter_webhook(request: Request):
             terminate_success = False
             # 根据配置决定是否终止会话
             if getattr(config, "client_filter_terminate_session", True):
-                terminate_success = await terminate_blocked_session(session_id, client_name)
+                terminate_success = await terminate_blocked_session(session_id, client_name, managed_instance_id)
             block_success = False
 
             user_details = sql_get_emby(emby_id)
+            if managed_instance_id:
+                try:
+                    from bot.repositories import SqlAlchemyUnitOfWork
+                    from bot.sql_helper.sql_accounts import Account
+                    from bot.sql_helper.sql_platform import AccountEmbyBinding
+
+                    with SqlAlchemyUnitOfWork() as uow:
+                        user_details = (
+                            uow.session.query(Emby)
+                            .join(Account, Account.legacy_tg == Emby.tg)
+                            .join(AccountEmbyBinding, AccountEmbyBinding.account_id == Account.id)
+                            .filter(
+                                AccountEmbyBinding.instance_id == managed_instance_id,
+                                AccountEmbyBinding.emby_user_id == str(emby_id),
+                            )
+                            .first()
+                        )
+                except Exception as e:
+                    LOGGER.error(f"查询多 Emby 账号绑定失败: {e}")
             if getattr(config, "client_filter_block_user", False):
-                block_success = await emby.emby_change_policy(emby_id=emby_id, disable=True)
+                if managed_instance_id:
+                    from bot.application.platform_service import MultiEmbyService
+
+                    block_success = await MultiEmbyService().set_user_disabled(instance_id=managed_instance_id, emby_user_id=str(emby_id), disabled=True)
+                else:
+                    block_success = await emby.emby_change_policy(emby_id=emby_id, disable=True)
                 if block_success:
                     if user_details:
                         sql_update_emby(Emby.tg == user_details.tg, lv="c")
+
+            try:
+                from bot.repositories import SqlAlchemyUnitOfWork
+
+                with SqlAlchemyUnitOfWork() as uow:
+                    uow.operations.security_event(
+                        event_type="device.client_blocked",
+                        severity="danger" if block_success else "warning",
+                        subject_kind="emby_user",
+                        subject_id=str(emby_id or ""),
+                        detail={
+                            "client_name": client_name,
+                            "session_id": session_id,
+                            "user_name": user_name,
+                            "tg": user_details.tg if user_details else None,
+                            "session_terminated": terminate_success,
+                            "account_blocked": block_success,
+                        },
+                    )
+            except Exception as e:
+                LOGGER.error(f"写入客户端风险事件失败: {e}")
 
             # 记录拦截信息
             await log_blocked_request(

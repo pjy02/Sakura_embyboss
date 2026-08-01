@@ -556,3 +556,118 @@ export interface ConfigRevision {
   actor_id: string;
   created_at: string;
 }
+
+export interface DeviceClientRule {
+  id: number;
+  name: string;
+  pattern: string;
+  match_type: "exact" | "contains" | "glob" | "regex";
+  action: "allow" | "block" | "observe";
+  enabled: boolean;
+  built_in: boolean;
+  priority: number;
+  hit_count: number;
+  notes: string | null;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ManagedCredential {
+  id: string;
+  name: string;
+  provider: string;
+  credential_type: "api_token" | "api_key" | "password" | "bearer";
+  fingerprint: string;
+  metadata: Record<string, unknown>;
+  active: boolean;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmbyInstance {
+  id: string;
+  name: string;
+  base_url: string;
+  credential_id: string;
+  enabled: boolean;
+  is_default: boolean;
+  verify_tls: boolean;
+  priority: number;
+  status: "unknown" | "healthy" | "unhealthy";
+  last_error: string | null;
+  last_latency_ms: number | null;
+  last_checked_at: string | null;
+  binding_count: number;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaCatalogItem {
+  provider: "tmdb";
+  media_type: "movie" | "tv";
+  provider_id: string;
+  external_ref: string;
+  title: string;
+  original_title: string | null;
+  year: number | null;
+  overview: string | null;
+  poster_url: string | null;
+  backdrop_url: string | null;
+  vote_average: number;
+  genres: Array<{ id: number; name: string }>;
+  cached_until: string;
+}
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  description: string | null;
+  trigger_type: "event" | "interval";
+  trigger_value: string;
+  conditions: Record<string, unknown>;
+  actions: Array<Record<string, unknown>>;
+  enabled: boolean;
+  cooldown_seconds: number;
+  last_cursor: number;
+  last_run_at: string | null;
+  revision: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  rule_id: string;
+  event_id: number | null;
+  status: string;
+  action_results: Array<Record<string, unknown>>;
+  error_message: string | null;
+  started_at: string;
+  finished_at: string | null;
+  created_at: string;
+}
+
+export interface ApiClient {
+  id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  active: boolean;
+  expires_at: string | null;
+  last_used_at: string | null;
+  last_ip: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BackupArtifact {
+  name: string;
+  size: number;
+  created_at: string;
+  sha256: string;
+}

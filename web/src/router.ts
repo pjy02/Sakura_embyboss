@@ -70,6 +70,24 @@ const childRoutes =
           meta: { title: "系统任务", section: "线路与系统", permission: "tasks:read" },
         },
         {
+          path: "automation",
+          name: "automation-center",
+          component: () => import("@/views/admin/AutomationCenterView.vue"),
+          meta: { title: "自动化中心", section: "线路与系统", permission: "automation:read" },
+        },
+        {
+          path: "system/infrastructure",
+          name: "infrastructure",
+          component: () => import("@/views/admin/InfrastructureView.vue"),
+          meta: { title: "集成与凭据", section: "线路与系统", permission: "integrations:read" },
+        },
+        {
+          path: "system/recovery",
+          name: "recovery",
+          component: () => import("@/views/admin/RecoveryView.vue"),
+          meta: { title: "备份与恢复", section: "线路与系统", permission: "backups:read" },
+        },
+        {
           path: "system/status",
           name: "system-status",
           component: () => import("@/views/admin/SystemStatusView.vue"),
@@ -104,6 +122,12 @@ const childRoutes =
           name: "requests",
           component: () => import("@/views/admin/RequestsView.vue"),
           meta: { title: "求片订阅", section: "内容社区", permission: "requests:read" },
+        },
+        {
+          path: "media",
+          name: "admin-media-center",
+          component: () => import("@/views/MediaCenterView.vue"),
+          meta: { title: "TMDB 影片中心", section: "内容社区", permission: "media:read" },
         },
         {
           path: "reviews",
@@ -178,6 +202,12 @@ const childRoutes =
           name: "portal-requests",
           component: () => import("@/views/portal/RequestsView.vue"),
           meta: { title: "我的求片" },
+        },
+        {
+          path: "media",
+          name: "portal-media-center",
+          component: () => import("@/views/MediaCenterView.vue"),
+          meta: { title: "影片中心" },
         },
         {
           path: "reviews",

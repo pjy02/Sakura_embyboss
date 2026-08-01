@@ -25,6 +25,16 @@ from .operations_center_service import (
 )
 from .task_service import TaskService
 from .user_service import UserService
+from .platform_service import (
+    ApiClientService,
+    AutomationService,
+    BackupService,
+    CredentialService,
+    DeviceRuleService,
+    MediaCatalogService,
+    MoviePilotGateway,
+    MultiEmbyService,
+)
 
 __all__ = [
     "CodeService",
@@ -52,4 +62,12 @@ __all__ = [
     "UserService",
     "WebAuthService",
     "PasswordHasher",
+    "ApiClientService",
+    "AutomationService",
+    "BackupService",
+    "CredentialService",
+    "DeviceRuleService",
+    "MediaCatalogService",
+    "MoviePilotGateway",
+    "MultiEmbyService",
 ]

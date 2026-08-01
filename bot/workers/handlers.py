@@ -21,6 +21,13 @@ async def sync_moviepilot_handler(_payload: dict) -> dict:
     return result if isinstance(result, dict) else {"completed": True}
 
 
+async def sync_core_operations_handler(_payload: dict) -> dict:
+    from bot.application.core_operations_service import CoreOperationsService
+
+    result = await CoreOperationsService().sync_live_sessions()
+    return {"source": result["source"], "live_sessions": result["total"], "error": result.get("error")}
+
+
 async def partition_access_handler(_payload: dict) -> dict:
     from bot.integrations.telegram_gateway import TelegramGateway
     from bot.scheduler import partition_access
@@ -91,6 +98,21 @@ async def users_batch_handler(payload: dict) -> dict:
     return await AccountLifecycleService().execute_batch(payload)
 
 
+async def automation_handler(_payload: dict) -> dict:
+    from bot.application.platform_service import AutomationService
+
+    return await AutomationService().evaluate()
+
+
+async def emby_instances_handler(_payload: dict) -> dict:
+    from bot.application.platform_service import MultiEmbyService
+
+    service = MultiEmbyService()
+    if not service.feature_enabled():
+        return {"items": [], "healthy": 0, "total": 0, "disabled": True}
+    return await service.probe_all()
+
+
 async def _notify_registration_result(payload: dict, result: dict) -> None:
     chat_id = payload.get("notification_chat_id")
     message_id = payload.get("notification_message_id")
@@ -135,6 +157,7 @@ async def _notify_registration_result(payload: dict, result: dict) -> None:
 TASK_HANDLERS: dict[str, TaskHandler] = {
     "sync.favorites": sync_favorites_handler,
     "sync.moviepilot": sync_moviepilot_handler,
+    "sync.core_operations": sync_core_operations_handler,
     "maintenance.partition_access": partition_access_handler,
     "maintenance.expired_accounts": expired_accounts_handler,
     "maintenance.backup_database": backup_database_handler,
@@ -143,4 +166,6 @@ TASK_HANDLERS: dict[str, TaskHandler] = {
     "alert.telegram": telegram_alert_handler,
     "notification.telegram": telegram_notification_handler,
     "users.batch": users_batch_handler,
+    "automation.evaluate": automation_handler,
+    "monitor.emby_instances": emby_instances_handler,
 }

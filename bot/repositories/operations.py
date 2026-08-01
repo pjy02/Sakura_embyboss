@@ -152,16 +152,16 @@ class OperationRepository:
         aggregate_type: str,
         aggregate_id: Optional[str],
         payload: Any,
-    ) -> None:
-        self.session.add(
-            SystemEvent(
-                event_type=event_type,
-                aggregate_type=aggregate_type,
-                aggregate_id=aggregate_id,
-                payload_json=_json(payload),
-                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
-            )
+    ) -> SystemEvent:
+        row = SystemEvent(
+            event_type=event_type,
+            aggregate_type=aggregate_type,
+            aggregate_id=aggregate_id,
+            payload_json=_json(payload),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
+        self.session.add(row)
+        return row
 
     def security_event(
         self,

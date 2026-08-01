@@ -136,9 +136,21 @@ class CoreOperationsService:
     @property
     def emby_client(self):
         if self._emby_client is None:
-            from bot.func_helper.emby import emby
+            try:
+                from bot.application.platform_service import MultiEmbyAggregateClient, MultiEmbyService
 
-            self._emby_client = emby
+                managed = MultiEmbyService(self._uow_factory)
+                self._emby_client = (
+                    MultiEmbyAggregateClient(managed)
+                    if managed.feature_enabled() and managed.has_enabled_instances()
+                    else None
+                )
+            except Exception:
+                self._emby_client = None
+            if self._emby_client is None:
+                from bot.func_helper.emby import emby
+
+                self._emby_client = emby
         return self._emby_client
 
     async def sync_live_sessions(self) -> dict:

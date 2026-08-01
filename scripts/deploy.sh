@@ -50,7 +50,7 @@ echo "正在拉取镜像并启动服务..."
 "${compose[@]}" pull
 if "${compose[@]}" up -d --remove-orphans --wait --wait-timeout 180; then
   "${compose[@]}" ps
-  echo "上线完成，Web、Bot 和数据库均已通过健康检查。"
+  echo "上线完成，MySQL、迁移、Bot、独立 Worker 和 Web 均已就绪。"
   [[ -n "${rollback_image}" ]] && echo "本次临时回滚镜像：${rollback_image}"
   exit 0
 fi

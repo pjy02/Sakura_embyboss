@@ -1,3 +1,5 @@
+import os
+
 from bot.application import MediaRequestService
 from bot import LOGGER, bot, config
 from bot.func_helper.moviepilot import (
@@ -142,6 +144,6 @@ async def sync_download_tasks():
 
 
 # 如果MoviePilot功能开启，添加定时任务
-if config.moviepilot.status:
+if config.moviepilot.status and os.getenv("SAKURA_TASK_WORKER_ENABLED", "1") != "0":
     scheduler.add_job(sync_download_tasks, 'interval',
                      seconds=60, id='sync_download_tasks')

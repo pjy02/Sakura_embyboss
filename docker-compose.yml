@@ -10,6 +10,7 @@ x-app-environment: &app-environment
   SAKURA_DB_IS_DOCKER: "1"
   SAKURA_DB_CONTAINER: mysql
   SAKURA_CONFIG_SAVE_ON_START: "0"
+  SAKURA_CREDENTIAL_MASTER_KEY: ${SAKURA_CREDENTIAL_MASTER_KEY:-}
 
 x-app-volumes: &app-volumes
   - ./config.json:/app/config.json

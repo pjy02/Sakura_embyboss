@@ -16,21 +16,45 @@ class BackupDBUtils:
             os.makedirs(backup_dir)
         # 根据时间创建当前备份文件
         backup_file = os.path.join(backup_dir, f'{database_name}-{datetime.now().strftime("%Y-%m-%d-%H-%M-%S")}.sql')
-        command = f"mysqldump -h{host} --no-tablespaces -P{port} -u{user} -p\'{password}\' {database_name} > {backup_file}"
-        skip_ssl_command = f"mysqldump -h{host} --skip-ssl --no-tablespaces -P{port} -u{user} -p\'{password}\' {database_name} > {backup_file}"
-        return_code = -1
+        base_command = [
+            "mysqldump", f"-h{host}", "--no-tablespaces", f"-P{port}",
+            f"-u{user}", database_name,
+        ]
+        process_env = {**os.environ, "MYSQL_PWD": str(password)}
+
+        async def run_dump(extra_args=None):
+            # Avoid a shell so credentials and config values cannot alter the
+            # command.  The password is provided through MYSQL_PWD instead of
+            # being exposed in the process argument list.
+            with open(backup_file, "wb") as output:
+                process = await asyncio.create_subprocess_exec(
+                    *(base_command[:1] + list(extra_args or []) + base_command[1:]),
+                    stdout=output,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=process_env,
+                )
+                _stdout, stderr = await process.communicate()
+            return process.returncode, (stderr or b"").decode("utf-8", errors="replace")
+
         try:
-            process = await asyncio.create_subprocess_shell(command)
-            await process.communicate()
-            return_code = process.returncode
+            return_code, error_output = await run_dump()
             if return_code != 0:
                 LOGGER.warning(f"BOT数据库备份失败，使用 skip-ssl方式尝试备份")
-                process = await asyncio.create_subprocess_shell(skip_ssl_command)
-                await process.communicate()
-                return_code = process.returncode
+                return_code, error_output = await run_dump(["--skip-ssl"])
             if return_code != 0:
-                LOGGER.error(f"BOT数据库备份失败, error code: {return_code}")
+                LOGGER.error(
+                    f"BOT数据库备份失败, error code: {return_code}, "
+                    f"detail: {error_output[-500:]}"
+                )
+                try:
+                    os.remove(backup_file)
+                except FileNotFoundError:
+                    pass
                 return None
+            try:
+                os.chmod(backup_file, 0o600)
+            except OSError:
+                pass
             LOGGER.info(f"BOT数据库备份成功,文件保存为 {backup_file}")
             # 获取所有备份文件，并且通过时间进行排序
             all_backups = sorted(glob.glob(os.path.join(backup_dir, f'{database_name}-*.sql')))

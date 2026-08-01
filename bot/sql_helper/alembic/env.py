@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from bot.sql_helper import Base
 from bot.sql_helper import (  # noqa: F401
+    sql_accounts,
     sql_application,
     sql_code,
     sql_commerce,
@@ -14,6 +15,7 @@ from bot.sql_helper import (  # noqa: F401
     sql_favorites,
     sql_partition,
     sql_operations,
+    sql_platform,
     sql_request_record,
 )
 

@@ -21,6 +21,7 @@ import {
   Workflow,
   TicketCheck,
   BadgeCheck,
+  DatabaseBackup,
 } from "lucide-vue-next";
 
 export interface AdminNavigationItem {
@@ -226,6 +227,39 @@ export const adminNavigation: AdminNavigationSection[] = [
         description: "功能开关、通知与运行参数",
         icon: Settings2,
         permission: "settings:read",
+      },
+    ],
+  },
+  {
+    label: "平台能力",
+    items: [
+      {
+        to: "/media",
+        label: "TMDB 影片中心",
+        description: "影片资料、搜索与求片联动",
+        icon: Clapperboard,
+        permission: "media:read",
+      },
+      {
+        to: "/automation",
+        label: "自动化中心",
+        description: "事件触发、定时规则与执行记录",
+        icon: Workflow,
+        permission: "automation:read",
+      },
+      {
+        to: "/system/infrastructure",
+        label: "集成与凭据",
+        description: "多 Emby、凭据中心与开放 API",
+        icon: ServerCog,
+        permission: "integrations:read",
+      },
+      {
+        to: "/system/recovery",
+        label: "备份与恢复",
+        description: "数据库备份、摘要校验与下载",
+        icon: DatabaseBackup,
+        permission: "backups:read",
       },
     ],
   },

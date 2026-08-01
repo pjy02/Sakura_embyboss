@@ -24,9 +24,10 @@ try:
 except ValueError:
     sync_seconds = 30
     LOGGER.warning("SAKURA_OPERATIONS_SYNC_SECONDS 无效，已使用默认值 30 秒")
-scheduler.add_job(
-    sync_core_operations,
-    "interval",
-    seconds=sync_seconds,
-    id="sync_core_operations",
-)
+if os.getenv("SAKURA_TASK_WORKER_ENABLED", "1") != "0":
+    scheduler.add_job(
+        sync_core_operations,
+        "interval",
+        seconds=sync_seconds,
+        id="sync_core_operations",
+    )

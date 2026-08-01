@@ -5,6 +5,8 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from bot.sql_helper.sql_emby import Emby
+from bot.sql_helper.sql_accounts import Account
+from bot.sql_helper.sql_platform import AccountEmbyBinding
 from bot.sql_helper.sql_operations import (
     KnownDevice,
     LineEndpoint,
@@ -20,6 +22,19 @@ class CoreOperationsRepository:
     def account_for_emby_user(self, emby_user_id: Optional[str]):
         if not emby_user_id:
             return None
+        if ":" in str(emby_user_id):
+            instance_id, remote_user_id = str(emby_user_id).split(":", 1)
+            binding = self.session.query(AccountEmbyBinding).filter(
+                AccountEmbyBinding.instance_id == instance_id,
+                AccountEmbyBinding.emby_user_id == remote_user_id,
+            ).first()
+            if binding:
+                return (
+                    self.session.query(Emby)
+                    .join(Account, Account.legacy_tg == Emby.tg)
+                    .filter(Account.id == binding.account_id)
+                    .first()
+                )
         return (
             self.session.query(Emby)
             .filter(Emby.embyid == str(emby_user_id))

@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Bell,
   CircleDollarSign,
+  Clapperboard,
   CircleUserRound,
   Coins,
   House,
@@ -67,6 +68,12 @@ function hasPermission(required?: string) {
 }
 
 const portalNavigation: AdminNavigationSection[] = [
+  {
+    label: "影片与求片",
+    items: [
+      { to: "/media", label: "影片中心", description: "搜索 TMDB 并直接创建求片", icon: Clapperboard },
+    ],
+  },
   {
     label: "个人中心",
     items: [

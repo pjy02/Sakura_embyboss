@@ -289,6 +289,13 @@ SETTING_DEFINITIONS = (
     SettingDefinition("web.default_page_size", "Web 与 API", "默认分页数量", "后台表格首次加载的记录数量。", "integer", 50, (), 10, 200),
     SettingDefinition("integrations.moviepilot_enabled", "外部集成", "启用 MoviePilot", "同步 MoviePilot 下载任务和求片进度。", "boolean", False, ("moviepilot", "status"), restart_required=True),
     SettingDefinition("integrations.moviepilot_price", "外部集成", "MoviePilot 单价", "求片下载使用的积分单价。", "integer", 1, ("moviepilot", "price"), 0, 100000),
+    SettingDefinition("scheduler.automation_enabled", "定时任务", "启用自动化引擎", "由独立 Worker 消费系统事件并执行已启用的自动化规则。", "boolean", True, ()),
+    SettingDefinition("scheduler.automation_seconds", "定时任务", "自动化扫描秒数", "独立 Worker 扫描自动化规则和新事件的间隔。", "integer", 15, (), 5, 3600),
+    SettingDefinition("scheduler.diagnostics_minutes", "定时任务", "诊断间隔分钟", "独立 Worker 自动执行外部服务与多 Emby 探测的间隔。", "integer", 5, (), 1, 1440),
+    SettingDefinition("scheduler.backup_hour", "定时任务", "每日备份小时", "独立 Worker 每日自动创建数据库备份的本地小时。", "integer", 2, (), 0, 23),
+    SettingDefinition("integrations.moviepilot_url", "外部集成", "MoviePilot 地址", "MoviePilot API 基础地址；访问令牌存入凭据中心。", "string", "", ()),
+    SettingDefinition("integrations.open_api_enabled", "外部集成", "启用开放 API", "允许 API Key 访问 /api/open/v1。", "boolean", False, ()),
+    SettingDefinition("integrations.multi_emby_enabled", "外部集成", "启用多 Emby", "优先使用数据库中的默认 Emby 实例，未配置时回退 config.json。", "boolean", True, ()),
 )
 SETTING_REGISTRY = {item.key: item for item in SETTING_DEFINITIONS}
 

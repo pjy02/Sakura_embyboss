@@ -14,9 +14,9 @@ cp deploy.env.example .env
 必须完成以下修改：
 
 1. 在 `config.json` 中填写 Telegram Bot、Emby、owner/admin 等业务配置。Compose 会通过环境变量覆盖数据库地址和密码，因此不需要把真实数据库密码再写进 JSON。
-2. 在 `.env` 中设置镜像名、两个 MySQL 密码、`SAKURA_WEB_SESSION_SECRET`、公网 HTTPS 地址和可信域名。
+2. 在 `.env` 中设置镜像名、两个 MySQL 密码、`SAKURA_WEB_SESSION_SECRET`、`SAKURA_CREDENTIAL_MASTER_KEY`、公网 HTTPS 地址和可信域名。凭据主密钥至少 32 字节，必须独立于会话密钥；保存过 TMDB、MoviePilot 或 Emby 凭据后不得更换，否则历史密文将无法解密。
 3. 把 `WEB_ADMIN_PATH` 改成 3-64 位、难以猜测且不是 `admin` 的路径。`WEB_USER_PATH` 是用户中心路径。
-4. 推荐用 `openssl rand -hex 32` 分别生成 Web 会话密钥和数据库密码，不要复用 Bot Token。
+4. 推荐用 `openssl rand -hex 32` 分别生成 Web 会话密钥、凭据主密钥和数据库密码，不要相互复用，也不要复用 Bot Token。
 
 如果首次部署不准备使用 Telegram 登录，可在 `.env` 临时设置 `SAKURA_BOOTSTRAP_ADMIN_USERNAME` 和 `SAKURA_BOOTSTRAP_ADMIN_PASSWORD`。Web 首次启动会把该登录身份绑定到配置中的 Owner，数据库只保存 scrypt 摘要。确认本地管理员能够登录后删除这两个环境变量；后续启动不会覆盖已经存在的 Owner 本地密码。
 

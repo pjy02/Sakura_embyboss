@@ -671,6 +671,7 @@ class MediaRequestService:
         media_type: str,
         description: Optional[str],
         actor: Actor,
+        external_ref: Optional[str] = None,
     ) -> dict:
         now = utcnow()
         request_id = str(uuid4())
@@ -683,6 +684,7 @@ class MediaRequestService:
                 year=year,
                 media_type=media_type,
                 description=(description or "").strip() or None,
+                external_ref=(external_ref or "").strip() or None,
                 source="web",
                 created_at=now,
                 updated_at=now,
@@ -697,6 +699,11 @@ class MediaRequestService:
             )
             uow.flush()
             return serialize_media_request(row)
+
+    def get(self, request_id: str, *, tg: Optional[int] = None) -> Optional[dict]:
+        with self._uow_factory() as uow:
+            row = uow.commerce.get_media_request(request_id, tg=tg)
+            return serialize_media_request(row) if row else None
 
     def list(self, *, tg=None, status=None, search=None, limit=50, offset=0) -> dict:
         with self._uow_factory() as uow:

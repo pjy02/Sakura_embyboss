@@ -377,14 +377,33 @@ class RegistrationService:
                     "当前 Telegram 已经绑定 Emby 账号",
                 )
 
-        if self._emby_client is None:
-            from bot.func_helper.emby import emby
+        with self._uow_factory() as uow:
+            account = uow.accounts.by_legacy_tg(tg)
+            account_id = str(payload.get("account_id") or (account.id if account else ""))
 
-            emby_client = emby
-        else:
-            emby_client = self._emby_client
+        emby_client = self._emby_client
+        managed_instance_id = None
+        created = None
+        if emby_client is None and account_id:
+            from bot.application.platform_service import MultiEmbyService
 
-        created = await emby_client.emby_create(name=username, days=days)
+            managed_service = MultiEmbyService(self._uow_factory)
+            if managed_service.feature_enabled():
+                managed = await managed_service.create_user(
+                    account_id=account_id,
+                    username=username,
+                    days=days,
+                    instance_id=payload.get("emby_instance_id"),
+                )
+                if managed:
+                    created = managed[:3]
+                    managed_instance_id = managed[3]
+        if created is None:
+            if emby_client is None:
+                from bot.func_helper.emby import emby
+
+                emby_client = emby
+            created = await emby_client.emby_create(name=username, days=days)
         if not created:
             return await self._failure(
                 tg,
@@ -405,16 +424,14 @@ class RegistrationService:
                 actor=Actor.system("registration-worker"),
             )
         except Exception:
-            try:
-                await emby_client.emby_del(emby_id=str(emby_id))
-            except Exception:
-                pass
+            await self._rollback_remote_account(
+                emby_client, managed_instance_id, str(emby_id), account_id
+            )
             raise
         if not completed.ok:
-            try:
-                await emby_client.emby_del(emby_id=str(emby_id))
-            except Exception:
-                pass
+            await self._rollback_remote_account(
+                emby_client, managed_instance_id, str(emby_id), account_id
+            )
             return await self._failure(
                 tg,
                 completed.status,
@@ -436,8 +453,8 @@ class RegistrationService:
             "emby_id": str(emby_id),
             "emby_password": str(emby_password),
             "expires_at": expires_at,
+            "emby_instance_id": managed_instance_id,
         }
-        account_id = payload.get("account_id")
         if account_id:
             try:
                 from bot.application.account_service import AccountService
@@ -463,6 +480,35 @@ class RegistrationService:
                 },
             )
         return result
+
+    async def _rollback_remote_account(
+        self,
+        emby_client,
+        managed_instance_id,
+        emby_id: str,
+        account_id: str,
+    ) -> None:
+        try:
+            if managed_instance_id:
+                from bot.application.platform_service import MultiEmbyService
+                from bot.sql_helper.sql_platform import AccountEmbyBinding
+
+                await MultiEmbyService(self._uow_factory).delete_user(
+                    instance_id=managed_instance_id,
+                    emby_user_id=emby_id,
+                )
+                with self._uow_factory() as uow:
+                    binding = uow.session.query(AccountEmbyBinding).filter(
+                        AccountEmbyBinding.account_id == account_id,
+                        AccountEmbyBinding.instance_id == managed_instance_id,
+                        AccountEmbyBinding.emby_user_id == emby_id,
+                    ).first()
+                    if binding:
+                        uow.session.delete(binding)
+            elif emby_client is not None:
+                await emby_client.emby_del(emby_id=emby_id)
+        except Exception:
+            pass
 
     async def _failure(self, tg: int, code: str, message: str) -> dict:
         with self._uow_factory() as uow:

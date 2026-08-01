@@ -45,6 +45,7 @@ def _legacy_create_all_tables():
         sql_favorites,
         sql_partition,
         sql_operations,
+        sql_platform,
         sql_request_record,
     )
 
