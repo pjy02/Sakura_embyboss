@@ -12,10 +12,12 @@ import (
 	"github.com/pjy02/Sakura_embyboss/v3/internal/config"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/health"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/httpapi"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/identity"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/logging"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/postgres"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/redisstore"
 	runservice "github.com/pjy02/Sakura_embyboss/v3/internal/run"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/security"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/version"
 )
 
@@ -42,12 +44,24 @@ func execute() error {
 	defer database.Close()
 	cache := redisstore.New(cfg.RedisAddress, cfg.RedisPassword, cfg.RedisDatabase)
 	defer cache.Close()
+	vault, err := security.NewVault(cfg.CredentialMasterKey)
+	if err != nil {
+		return err
+	}
+	identityService := identity.New(database.Pool(), cfg.SessionTTL, vault)
+	if err := identityService.BootstrapOwner(ctx, cfg.BootstrapAdminUsername, cfg.BootstrapAdminPassword); err != nil {
+		return err
+	}
 
 	handler := httpapi.New(httpapi.Options{
-		Environment:  cfg.Environment,
-		Version:      version.Version,
-		Logger:       logger,
-		ProbeTimeout: cfg.DependencyTimeout,
+		Environment:      cfg.Environment,
+		Version:          version.Version,
+		Logger:           logger,
+		ProbeTimeout:     cfg.DependencyTimeout,
+		Identity:         identityService,
+		SessionCookie:    cfg.SessionCookie,
+		CookieSecure:     cfg.CookieSecure,
+		InternalBotToken: cfg.InternalBotToken,
 		Probes: []health.Probe{
 			{Name: "postgres", Check: database.Ping},
 			{Name: "redis", Check: cache.Ping},

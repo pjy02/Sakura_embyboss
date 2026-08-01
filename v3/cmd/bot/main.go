@@ -13,6 +13,7 @@ import (
 	"github.com/pjy02/Sakura_embyboss/v3/internal/health"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/logging"
 	runservice "github.com/pjy02/Sakura_embyboss/v3/internal/run"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/telegrambot"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/upstream"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/version"
 )
@@ -40,8 +41,15 @@ func execute() error {
 	).Register(mux)
 	server := &http.Server{Addr: cfg.HealthAddress, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	logger.Info("Sakura v3 Bot shell starting", "version", version.Version, "commit", version.Commit)
+	adapter := telegrambot.New(telegrambot.Config{
+		APIBase:          cfg.TelegramAPIBase,
+		InternalAPIURL:   cfg.InternalAPIURL,
+		InternalAPIToken: cfg.InternalBotToken,
+		BotToken:         cfg.TelegramBotToken,
+		RequestTimeout:   40 * time.Second,
+	}, logger)
 	return runservice.Group(ctx, logger,
 		runservice.HTTPServer(server, cfg.ShutdownTimeout, logger),
-		runservice.Heartbeat("bot-adapter", 30*time.Second, logger),
+		adapter.Run,
 	)
 }

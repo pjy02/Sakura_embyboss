@@ -45,6 +45,246 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemInfo"
+  /api/v3/auth/register:
+    post:
+      operationId: registerLocalAccount
+      tags: [Authentication]
+      summary: Register a Web account without Telegram.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201": {description: Account created}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v3/auth/login:
+    post:
+      operationId: loginLocalAccount
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Session cookie and CSRF token created.
+          headers:
+            Set-Cookie: {schema: {type: string}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /api/v3/auth/session:
+    get:
+      operationId: getSession
+      tags: [Authentication]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Current account}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+  /api/v3/auth/logout:
+    post:
+      operationId: logout
+      tags: [Authentication]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "204": {description: Session revoked}
+  /api/v3/me:
+    get:
+      operationId: getCurrentAccount
+      tags: [Accounts]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Unified account and identities}
+  /api/v3/me/telegram/link-requests:
+    post:
+      operationId: createTelegramLinkRequest
+      tags: [Identities]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "201": {description: One-time binding code created}
+  /api/v3/me/telegram/link-requests/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getTelegramLinkRequest
+      tags: [Identities]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Binding state}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v3/admin/accounts:
+    get:
+      operationId: listAccounts
+      tags: [Administration]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Accounts visible to accounts.read}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /api/v3/admin/accounts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    get:
+      operationId: getAccount
+      tags: [Administration]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Unified account detail}
+        "404": {$ref: "#/components/responses/NotFound"}
+  /api/v3/admin/accounts/{id}/lifecycle:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    patch:
+      operationId: changeAccountLifecycle
+      tags: [Administration]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "200": {description: Lifecycle changed and inactive sessions revoked}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /api/v3/admin/accounts/{id}/roles:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    put:
+      operationId: assignAccountRoles
+      tags: [RBAC]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "200": {description: Role assignment replaced}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /api/v3/admin/roles:
+    get:
+      operationId: listRoles
+      tags: [RBAC]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Roles and permissions}
+  /api/v3/admin/permissions:
+    get:
+      operationId: listPermissions
+      tags: [RBAC]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Permission catalog}
+  /api/v3/admin/roles/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: {type: string}
+    put:
+      operationId: saveCustomRole
+      tags: [RBAC]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "200": {description: Custom role saved}
+        "403": {$ref: "#/components/responses/Forbidden"}
+  /api/v3/admin/settings:
+    get:
+      operationId: listDynamicSettings
+      tags: [Settings]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Current versioned settings}
+  /api/v3/admin/settings/{key}:
+    parameters:
+      - $ref: "#/components/parameters/SettingKey"
+    patch:
+      operationId: updateDynamicSetting
+      tags: [Settings]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "200": {description: New setting revision}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v3/admin/settings/{key}/history:
+    parameters:
+      - $ref: "#/components/parameters/SettingKey"
+    get:
+      operationId: getDynamicSettingHistory
+      tags: [Settings]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Immutable setting revisions}
+  /api/v3/admin/settings/{key}/rollback:
+    parameters:
+      - $ref: "#/components/parameters/SettingKey"
+    post:
+      operationId: rollbackDynamicSetting
+      tags: [Settings]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "200": {description: Rollback recorded as a new revision}
+        "409": {$ref: "#/components/responses/Conflict"}
+  /api/v3/admin/credentials:
+    get:
+      operationId: listCredentialMetadata
+      tags: [Credentials]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Masked credential metadata}
+  /api/v3/admin/credentials/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema: {type: string}
+    put:
+      operationId: putCredential
+      tags: [Credentials]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "200": {description: Credential encrypted at rest}
+    delete:
+      operationId: deleteCredential
+      tags: [Credentials]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "204": {description: Credential deleted}
+  /api/v3/admin/api-scopes:
+    get:
+      operationId: listAPIScopes
+      tags: [API Clients]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Supported scope catalog}
+  /api/v3/admin/api-clients:
+    get:
+      operationId: listAPIClients
+      tags: [API Clients]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: API clients without token secrets}
+    post:
+      operationId: createAPIClient
+      tags: [API Clients]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "201": {description: API token returned once}
+  /api/v3/admin/api-clients/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ID"
+    delete:
+      operationId: revokeAPIClient
+      tags: [API Clients]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses:
+        "204": {description: Client revoked}
+  /api/v3/admin/audit:
+    get:
+      operationId: listAuditLogs
+      tags: [Audit]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Immutable management audit trail}
+  /open/v1/system/info:
+    get:
+      operationId: getOpenSystemInfo
+      tags: [Open API]
+      security: [{bearerAuth: []}]
+      responses:
+        "200": {description: Information protected by system:read scope}
+        "403": {$ref: "#/components/responses/Forbidden"}
   /openapi.yaml:
     get:
       operationId: getOpenAPISpec
@@ -57,7 +297,49 @@ paths:
               schema:
                 type: string
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sakura_v3_session
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    SettingKey:
+      name: key
+      in: path
+      required: true
+      schema: {type: string}
+  responses:
+    BadRequest: {description: Invalid request}
+    Unauthorized: {description: Authentication required or invalid}
+    Forbidden: {description: Permission, CSRF token, or scope denied}
+    NotFound: {description: Resource not found}
+    Conflict: {description: Revision or uniqueness conflict}
   schemas:
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: {type: string, minLength: 3, maxLength: 32}
+        password: {type: string, minLength: 10, maxLength: 128}
+        display_name: {type: string, maxLength: 255}
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: {type: string}
+        password: {type: string}
     HealthResponse:
       type: object
       required: [status, service]

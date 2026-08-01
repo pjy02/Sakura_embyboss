@@ -55,6 +55,18 @@ func TestComposeDefinesIndependentProcesses(t *testing.T) {
 			t.Fatalf("Bot must not receive %s", key)
 		}
 	}
+	if _, ok := botEnvironment["SAKURA_V3_INTERNAL_BOT_TOKEN"]; !ok {
+		t.Fatal("Bot must receive its scoped internal API token")
+	}
+	if _, ok := botEnvironment["SAKURA_V3_CREDENTIAL_MASTER_KEY"]; ok {
+		t.Fatal("Bot must not receive the credential encryption master key")
+	}
+	apiEnvironment := document.Services["api"].Environment
+	for _, key := range []string{"SAKURA_V3_CREDENTIAL_MASTER_KEY", "SAKURA_V3_INTERNAL_BOT_TOKEN", "SAKURA_V3_SESSION_COOKIE"} {
+		if _, ok := apiEnvironment[key]; !ok {
+			t.Fatalf("API is missing %s", key)
+		}
+	}
 	migrateEnvironment := document.Services["migrate"].Environment
 	for key := range migrateEnvironment {
 		if strings.Contains(key, "REDIS") {

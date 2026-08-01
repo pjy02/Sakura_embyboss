@@ -82,6 +82,7 @@ jobs:
           go build -o "${RUNNER_TEMP}/sakura-worker" ./cmd/worker
           go build -o "${RUNNER_TEMP}/sakura-bot" ./cmd/bot
           go build -o "${RUNNER_TEMP}/sakura-migrate" ./cmd/migrate
+          go build -o "${RUNNER_TEMP}/sakura-import-v2" ./cmd/import-v2
 
   container:
     name: Compose and container build

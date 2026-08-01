@@ -24,7 +24,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -o /out/sakura-bot ./cmd/bot && \
     CGO_ENABLED=0 go build -trimpath \
       -ldflags "-s -w -X github.com/pjy02/Sakura_embyboss/v3/internal/version.Version=${VERSION} -X github.com/pjy02/Sakura_embyboss/v3/internal/version.Commit=${VCS_REF} -X github.com/pjy02/Sakura_embyboss/v3/internal/version.BuiltAt=${BUILD_DATE}" \
-      -o /out/sakura-migrate ./cmd/migrate
+      -o /out/sakura-migrate ./cmd/migrate && \
+    CGO_ENABLED=0 go build -trimpath \
+      -ldflags "-s -w -X github.com/pjy02/Sakura_embyboss/v3/internal/version.Version=${VERSION} -X github.com/pjy02/Sakura_embyboss/v3/internal/version.Commit=${VCS_REF} -X github.com/pjy02/Sakura_embyboss/v3/internal/version.BuiltAt=${BUILD_DATE}" \
+      -o /out/sakura-import-v2 ./cmd/import-v2
 
 FROM alpine:3.21
 
