@@ -89,3 +89,30 @@ func TestRegisterCommandUsesSharedProvisioningAPI(t *testing.T) {
 		t.Fatalf("result=%+v requested=%v err=%v", result, requested.Load(), err)
 	}
 }
+
+func TestTelegramNotificationDeliveryUsesInternalOutbox(t *testing.T) {
+	var sent, completed atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v3/internal/notifications/telegram/next":
+			if r.Header.Get("Authorization") != "Bearer internal-test-token" {
+				t.Fatal("missing internal authorization")
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"notification_id": "notification-1", "telegram_user_id": 42, "title": "Notice", "body": "Hello"})
+		case strings.Contains(r.URL.Path, "/sendMessage"):
+			sent.Store(true)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		case strings.HasSuffix(r.URL.Path, "/notification-1/complete"):
+			completed.Store(true)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	bot := New(Config{APIBase: server.URL, InternalAPIURL: server.URL, InternalAPIToken: "internal-test-token", RequestTimeout: time.Second}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	worked, err := bot.deliverNextNotification(context.Background(), "telegram-token")
+	if err != nil || !worked || !sent.Load() || !completed.Load() {
+		t.Fatalf("worked=%v sent=%v completed=%v err=%v", worked, sent.Load(), completed.Load(), err)
+	}
+}

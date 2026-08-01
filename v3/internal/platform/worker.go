@@ -52,6 +52,11 @@ func (w *Worker) Run(ctx context.Context) error {
 		if err != nil {
 			w.logger.Warn("platform task cycle failed", "error", err)
 		}
+		batchWorked, batchErr := w.service.ProcessNextBatch(ctx, w.id, w.lease)
+		if batchErr != nil {
+			w.logger.Warn("batch operation cycle failed", "error", batchErr)
+		}
+		worked = worked || batchWorked
 		if time.Since(w.lastPlan) >= 30*time.Second {
 			if err = w.service.ScheduleDue(ctx, time.Now()); err != nil {
 				w.logger.Warn("task scheduling failed", "error", err)

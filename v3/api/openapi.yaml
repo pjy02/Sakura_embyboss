@@ -448,6 +448,208 @@ paths:
       tags: [Administration, Emby]
       security: [{cookieAuth: []}]
       responses: {"200": {description: Immutable remote state snapshots}}
+  /api/v3/recharge-products:
+    get:
+      operationId: listPublicRechargeProducts
+      tags: [Commerce]
+      responses: {"200": {description: Enabled wallet recharge products}}
+  /api/v3/membership-products:
+    get:
+      operationId: listPublicMembershipProducts
+      tags: [Commerce]
+      responses: {"200": {description: Enabled membership products}}
+  /api/v3/me/wallet:
+    get:
+      operationId: getMyWallet
+      tags: [Wallet]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Balance derived from posted ledger entries}}
+  /api/v3/me/wallet/ledger:
+    get:
+      operationId: listMyLedger
+      tags: [Wallet]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Immutable balanced transactions}}
+  /api/v3/me/recharge-orders:
+    get:
+      operationId: listMyRechargeOrders
+      tags: [Commerce]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Current account recharge orders}}
+    post:
+      operationId: createRechargeOrder
+      tags: [Commerce]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses: {"201": {description: Pending recharge order created idempotently}}
+  /api/v3/me/recharge-orders/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getMyRechargeOrder
+      tags: [Commerce]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Recharge order owned by current account}}
+  /api/v3/me/membership-purchases:
+    post:
+      operationId: purchaseMembershipWithWallet
+      tags: [Commerce, Membership]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses: {"201": {description: Balanced wallet debit and membership extension}}
+  /api/v3/me/notifications:
+    get:
+      operationId: listMyNotifications
+      tags: [Notifications]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Notifications addressed to current account}}
+  /api/v3/me/notifications/{id}/read:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: markNotificationRead
+      tags: [Notifications]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"204": {description: Notification marked read}}
+  /api/v3/internal/payments/{provider}/callback:
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema: {type: string}
+    post:
+      operationId: confirmPaymentCallback
+      tags: [Internal, Commerce]
+      security: [{bearerAuth: []}]
+      responses: {"200": {description: Callback recorded and credited exactly once}}
+  /api/v3/internal/notifications/telegram/next:
+    get:
+      operationId: claimTelegramNotification
+      tags: [Internal, Notifications]
+      security: [{bearerAuth: []}]
+      responses:
+        "200": {description: Leased Telegram notification}
+        "204": {description: No pending notification}
+  /api/v3/admin/recharge-products:
+    get:
+      operationId: listAllRechargeProducts
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: All recharge products}}
+    post:
+      operationId: createRechargeProduct
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Recharge product created}}
+  /api/v3/admin/membership-products:
+    get:
+      operationId: listAllMembershipProducts
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: All membership products}}
+    post:
+      operationId: createMembershipProduct
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Membership product created}}
+  /api/v3/admin/recharge-orders:
+    get:
+      operationId: listRechargeOrders
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Recharge orders across accounts}}
+  /api/v3/admin/recharge-refunds:
+    get:
+      operationId: listRechargeRefunds
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Posted recharge refunds}}
+  /api/v3/admin/recharge-orders/{id}/refunds:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: refundRechargeOrder
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses: {"201": {description: Refund reversal posted}}
+  /api/v3/admin/accounts/{id}/wallet-adjustments:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: adjustAccountWallet
+      tags: [Administration, Wallet]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses: {"201": {description: Audited balanced adjustment posted}}
+  /api/v3/admin/accounts/{id}/wallet:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getAccountWallet
+      tags: [Administration, Wallet]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Derived account balance}}
+  /api/v3/admin/account-tags:
+    get:
+      operationId: listAccountTags
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Account tag catalog}}
+    post:
+      operationId: createAccountTag
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Account tag created}}
+  /api/v3/admin/batch-operations:
+    get:
+      operationId: listBatchOperations
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Durable batch operation progress}}
+    post:
+      operationId: createBatchOperation
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses: {"202": {description: Stable target set queued for processing}}
+  /api/v3/admin/batch-operations/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getBatchOperation
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Counts, state and last error}}
+  /api/v3/admin/batch-operations/{id}/items:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: listBatchOperationItems
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Per-account status and error details}}
+  /api/v3/admin/batch-operations/{id}/pause:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: pauseBatchOperation
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Pending execution paused}}
+  /api/v3/admin/batch-operations/{id}/resume:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: resumeBatchOperation
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Paused execution resumed}}
+  /api/v3/admin/batch-operations/{id}/retry:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: retryBatchOperation
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Failed items queued again}}
+  /api/v3/admin/batch-operations/{id}/cancel:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: cancelBatchOperation
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Operation canceled}}
   /open/v1/system/info:
     get:
       operationId: getOpenSystemInfo

@@ -65,8 +65,69 @@ func (b *Bot) Run(ctx context.Context) error {
 			}
 			b.handleUpdate(ctx, token, update)
 		}
+		for delivered := 0; delivered < 5; delivered++ {
+			worked, deliveryErr := b.deliverNextNotification(ctx, token)
+			if deliveryErr != nil {
+				b.logger.Warn("Telegram notification delivery failed", "error", deliveryErr)
+				break
+			}
+			if !worked {
+				break
+			}
+		}
 	}
 	return nil
+}
+
+func (b *Bot) deliverNextNotification(ctx context.Context, token string) (bool, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, b.config.InternalAPIURL+"/api/v3/internal/notifications/telegram/next", nil)
+	if err != nil {
+		return false, err
+	}
+	request.Header.Set("Authorization", "Bearer "+b.config.InternalAPIToken)
+	response, err := b.client.Do(request)
+	if err != nil {
+		return false, safeNetworkError("notification claim", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode == http.StatusNoContent {
+		return false, nil
+	}
+	if response.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		return false, fmt.Errorf("notification claim returned status %d", response.StatusCode)
+	}
+	var item struct {
+		NotificationID string `json:"notification_id"`
+		TelegramUserID int64  `json:"telegram_user_id"`
+		Title          string `json:"title"`
+		Body           string `json:"body"`
+	}
+	if err = json.NewDecoder(io.LimitReader(response.Body, 64<<10)).Decode(&item); err != nil {
+		return false, err
+	}
+	sendErr := b.sendMessage(ctx, token, item.TelegramUserID, item.Title+"\n\n"+item.Body)
+	completeBody := map[string]string{}
+	if sendErr != nil {
+		completeBody["error"] = sendErr.Error()
+	}
+	encoded, _ := json.Marshal(completeBody)
+	completeRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, b.config.InternalAPIURL+"/api/v3/internal/notifications/telegram/"+url.PathEscape(item.NotificationID)+"/complete", bytes.NewReader(encoded))
+	if err != nil {
+		return true, err
+	}
+	completeRequest.Header.Set("Authorization", "Bearer "+b.config.InternalAPIToken)
+	completeRequest.Header.Set("Content-Type", "application/json")
+	completeResponse, err := b.client.Do(completeRequest)
+	if err != nil {
+		return true, err
+	}
+	defer completeResponse.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(completeResponse.Body, 4096))
+	if completeResponse.StatusCode != http.StatusNoContent {
+		return true, fmt.Errorf("notification completion returned status %d", completeResponse.StatusCode)
+	}
+	return true, sendErr
 }
 
 type update struct {

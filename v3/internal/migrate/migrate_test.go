@@ -47,6 +47,29 @@ func TestStage3MigrationContainsDurablePlatformState(t *testing.T) {
 	}
 }
 
+func TestStage4MigrationContainsBalancedLedgerAndBatchState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage4 string
+	for _, migration := range migrations {
+		if migration.Version == 4 {
+			stage4 = migration.SQL
+		}
+	}
+	for _, table := range []string{"wallets", "ledger_transactions", "ledger_entries", "recharge_products", "recharge_orders", "recharge_refunds", "membership_purchases", "account_tags", "batch_operations", "account_notifications"} {
+		if !strings.Contains(stage4, "CREATE TABLE "+table) {
+			t.Fatalf("stage 4 migration is missing %s", table)
+		}
+	}
+	for _, invariant := range []string{"sakura_ledger_entry_guard", "sakura_ledger_transaction_guard", "ledger transaction is not balanced"} {
+		if !strings.Contains(stage4, invariant) {
+			t.Fatalf("stage 4 migration is missing invariant %s", invariant)
+		}
+	}
+}
+
 func TestRunIsIdempotent(t *testing.T) {
 	databaseURL := os.Getenv("SAKURA_V3_TEST_DATABASE_URL")
 	if databaseURL == "" {
