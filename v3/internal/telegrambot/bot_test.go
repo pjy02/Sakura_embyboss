@@ -63,3 +63,29 @@ func TestBindCommandUsesInternalAPIWithoutDatabase(t *testing.T) {
 		t.Fatalf("confirmed=%v sent=%v", confirmed.Load(), sent.Load())
 	}
 }
+
+func TestRegisterCommandUsesSharedProvisioningAPI(t *testing.T) {
+	var requested atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/internal/emby/provision-requests" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer internal-test-token" {
+			t.Fatal("missing scoped internal token")
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["telegram_user_id"] != float64(42) || body["username"] != "emby_user" || body["invitation_code"] != "invite-code" {
+			t.Fatalf("unexpected body: %#v", body)
+		}
+		requested.Store(true)
+		_ = json.NewEncoder(w).Encode(map[string]any{"task": map[string]any{"id": "task-1", "status": "pending"}, "username": "emby_user"})
+	}))
+	defer server.Close()
+	bot := New(Config{InternalAPIURL: server.URL, InternalAPIToken: "internal-test-token", RequestTimeout: time.Second}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	result, err := bot.requestProvision(context.Background(), 42, "tester", "emby_user", "invite-code", "", "same-request")
+	if err != nil || !requested.Load() || result.Task.ID != "task-1" {
+		t.Fatalf("result=%+v requested=%v err=%v", result, requested.Load(), err)
+	}
+}

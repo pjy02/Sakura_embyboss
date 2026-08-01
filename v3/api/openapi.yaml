@@ -277,6 +277,177 @@ paths:
       security: [{cookieAuth: []}]
       responses:
         "200": {description: Immutable management audit trail}
+  /api/v3/membership-plans:
+    get:
+      operationId: listPublicMembershipPlans
+      tags: [Membership]
+      responses:
+        "200": {description: Enabled membership plans and entitlements}
+  /api/v3/me/membership:
+    get:
+      operationId: getMyMembership
+      tags: [Membership]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Current membership}
+  /api/v3/me/invitations/redeem:
+    post:
+      operationId: redeemInvitation
+      tags: [Invitations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses:
+        "200": {description: Membership activated or renewed idempotently}
+  /api/v3/me/emby-bindings:
+    get:
+      operationId: listMyEmbyBindings
+      tags: [Emby]
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Bindings across all Emby instances}
+  /api/v3/me/emby/provision-requests:
+    post:
+      operationId: requestEmbyProvisioning
+      tags: [Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses:
+        "202": {description: Idempotent asynchronous provisioning task}
+  /api/v3/me/emby/provision-requests/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getMyEmbyProvisioning
+      tags: [Emby]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Task state and time-limited generated password}}
+  /api/v3/me/emby-claims:
+    post:
+      operationId: claimImportedEmbyUser
+      tags: [Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Remote user bound to current account}}
+  /api/v3/admin/membership-plans:
+    get:
+      operationId: listMembershipPlans
+      tags: [Administration, Membership]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: All membership plans}}
+    post:
+      operationId: createMembershipPlan
+      tags: [Administration, Membership]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Plan created}}
+  /api/v3/admin/membership-plans/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateMembershipPlan
+      tags: [Administration, Membership]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Plan updated with optimistic revision check}}
+  /api/v3/admin/accounts/{id}/membership:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: assignMembership
+      tags: [Administration, Membership]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Membership assigned or extended}}
+  /api/v3/admin/invitations:
+    get:
+      operationId: listInvitations
+      tags: [Administration, Invitations]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Masked invitation metadata}}
+    post:
+      operationId: generateInvitations
+      tags: [Administration, Invitations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Raw invitation codes returned once}}
+  /api/v3/admin/invitations/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    delete:
+      operationId: revokeInvitation
+      tags: [Administration, Invitations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"204": {description: Invitation revoked}}
+  /api/v3/admin/emby/instances:
+    get:
+      operationId: listEmbyInstances
+      tags: [Administration, Emby]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Instances and health}}
+    post:
+      operationId: createEmbyInstance
+      tags: [Administration, Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Instance created}}
+  /api/v3/admin/emby/instances/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateEmbyInstance
+      tags: [Administration, Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Instance updated}}
+  /api/v3/admin/emby/bindings:
+    get:
+      operationId: listEmbyBindings
+      tags: [Administration, Emby]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Account bindings across instances}}
+  /api/v3/admin/emby/remote-users:
+    get:
+      operationId: listImportedEmbyUsers
+      tags: [Administration, Emby]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Imported, claimable and missing remote users}}
+  /api/v3/admin/emby/remote-users/{id}/claim-token:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: createEmbyClaimToken
+      tags: [Administration, Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: One-time claim token returned once}}
+  /api/v3/admin/emby/remote-users/{id}/claim:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: adminClaimEmbyUser
+      tags: [Administration, Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Remote user assigned to an account}}
+  /api/v3/admin/emby/instances/{id}/adopt-legacy:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: adoptLegacyEmbyIdentities
+      tags: [Administration, Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: v2 Emby identities converted to instance bindings}}
+  /api/v3/admin/emby/instances/{id}/tasks:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: enqueueEmbyInstanceTask
+      tags: [Administration, Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses: {"202": {description: Import, sync or reconciliation task queued}}
+  /api/v3/admin/emby/tasks:
+    get:
+      operationId: listEmbyTasks
+      tags: [Administration, Emby]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Provision, import, sync and reconciliation tasks}}
+  /api/v3/admin/emby/tasks/{id}/retry:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: retryEmbyTask
+      tags: [Administration, Emby]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"202": {description: Failed task reset for retry}}
+  /api/v3/admin/emby/instances/{id}/snapshots:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: listEmbySnapshots
+      tags: [Administration, Emby]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Immutable remote state snapshots}}
   /open/v1/system/info:
     get:
       operationId: getOpenSystemInfo
@@ -310,6 +481,11 @@ components:
       type: http
       scheme: bearer
   parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 160}
     ID:
       name: id
       in: path

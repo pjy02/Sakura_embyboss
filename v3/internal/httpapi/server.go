@@ -9,6 +9,7 @@ import (
 	apiContract "github.com/pjy02/Sakura_embyboss/v3/api"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/health"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/identity"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/platform"
 )
 
 type Options struct {
@@ -18,6 +19,7 @@ type Options struct {
 	Probes           []health.Probe
 	ProbeTimeout     time.Duration
 	Identity         *identity.Service
+	Platform         *platform.Service
 	SessionCookie    string
 	CookieSecure     bool
 	InternalBotToken string
@@ -28,6 +30,9 @@ func New(options Options) http.Handler {
 	health.New("api", options.ProbeTimeout, options.Probes...).Register(mux)
 	if options.Identity != nil {
 		registerIdentityRoutes(mux, options)
+	}
+	if options.Identity != nil && options.Platform != nil {
+		registerPlatformRoutes(mux, options)
 	}
 	mux.HandleFunc("GET /api/v3/system/info", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, map[string]string{

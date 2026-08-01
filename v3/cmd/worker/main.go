@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,9 +13,11 @@ import (
 	"github.com/pjy02/Sakura_embyboss/v3/internal/config"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/health"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/logging"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/platform"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/postgres"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/redisstore"
 	runservice "github.com/pjy02/Sakura_embyboss/v3/internal/run"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/security"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/version"
 )
 
@@ -41,6 +44,12 @@ func execute() error {
 	defer database.Close()
 	cache := redisstore.New(cfg.RedisAddress, cfg.RedisPassword, cfg.RedisDatabase)
 	defer cache.Close()
+	vault, err := security.NewVault(cfg.CredentialMasterKey)
+	if err != nil {
+		return err
+	}
+	workerID := fmt.Sprintf("worker-%d", os.Getpid())
+	worker := platform.NewWorker(database.Pool(), vault, logger, workerID, cfg.WorkerPollInterval, cfg.WorkerLeaseDuration)
 
 	mux := http.NewServeMux()
 	health.New("worker", cfg.DependencyTimeout,
@@ -51,6 +60,6 @@ func execute() error {
 	logger.Info("Sakura v3 Worker starting", "version", version.Version, "commit", version.Commit)
 	return runservice.Group(ctx, logger,
 		runservice.HTTPServer(server, cfg.ShutdownTimeout, logger),
-		runservice.Heartbeat("worker-runtime", 30*time.Second, logger),
+		worker.Run,
 	)
 }

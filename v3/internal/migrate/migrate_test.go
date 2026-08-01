@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -24,6 +25,24 @@ func TestDiscoverMigrationsIsOrderedAndChecksummed(t *testing.T) {
 		}
 		if index > 0 && migrations[index-1].Version >= migration.Version {
 			t.Fatal("migrations are not strictly ordered")
+		}
+	}
+}
+
+func TestStage3MigrationContainsDurablePlatformState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage3 string
+	for _, migration := range migrations {
+		if migration.Version == 3 {
+			stage3 = migration.SQL
+		}
+	}
+	for _, table := range []string{"membership_plans", "invitation_codes", "emby_instances", "emby_account_bindings", "remote_emby_users", "platform_tasks", "remote_state_snapshots"} {
+		if !strings.Contains(stage3, "CREATE TABLE "+table) {
+			t.Fatalf("stage 3 migration is missing %s", table)
 		}
 	}
 }

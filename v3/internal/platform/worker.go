@@ -1,0 +1,455 @@
+package platform
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"math"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/identity"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/security"
+)
+
+type Worker struct {
+	db       *pgxpool.Pool
+	vault    *security.Vault
+	service  *Service
+	logger   *slog.Logger
+	id       string
+	poll     time.Duration
+	lease    time.Duration
+	lastPlan time.Time
+}
+
+type claimedTask struct {
+	ID       uuid.UUID
+	Type     string
+	Payload  map[string]any
+	Attempts int
+	Maximum  int
+}
+
+func NewWorker(db *pgxpool.Pool, vault *security.Vault, logger *slog.Logger, id string, poll, lease time.Duration) *Worker {
+	if poll <= 0 {
+		poll = time.Second
+	}
+	if lease < 30*time.Second {
+		lease = 90 * time.Second
+	}
+	return &Worker{db: db, vault: vault, service: New(db, vault), logger: logger, id: id, poll: poll, lease: lease}
+}
+
+func (w *Worker) Run(ctx context.Context) error {
+	w.logger.Info("platform worker started", "worker_id", w.id)
+	for ctx.Err() == nil {
+		worked, err := w.ProcessNext(ctx)
+		if err != nil {
+			w.logger.Warn("platform task cycle failed", "error", err)
+		}
+		if time.Since(w.lastPlan) >= 30*time.Second {
+			if err = w.service.ScheduleDue(ctx, time.Now()); err != nil {
+				w.logger.Warn("task scheduling failed", "error", err)
+			}
+			w.lastPlan = time.Now()
+		}
+		if !worked && !waitContext(ctx, w.poll) {
+			return nil
+		}
+	}
+	return nil
+}
+
+func waitContext(ctx context.Context, duration time.Duration) bool {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+func (w *Worker) ProcessNext(ctx context.Context) (bool, error) {
+	task, ok, err := w.claim(ctx)
+	if err != nil || !ok {
+		return ok, err
+	}
+	taskContext, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		w.keepLease(taskContext, task.ID)
+	}()
+	result, processErr := w.process(taskContext, task)
+	cancel()
+	<-done
+	if processErr == nil {
+		return true, w.finish(ctx, task, result)
+	}
+	w.logger.Warn("platform task failed", "task_id", task.ID, "task_type", task.Type, "attempt", task.Attempts, "error", processErr)
+	return true, w.fail(ctx, task, processErr)
+}
+
+func (w *Worker) claim(ctx context.Context) (claimedTask, bool, error) {
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return claimedTask{}, false, err
+	}
+	defer tx.Rollback(ctx)
+	var item claimedTask
+	var raw []byte
+	err = tx.QueryRow(ctx, `
+		SELECT id,task_type,payload,attempts+1,max_attempts
+		FROM platform_tasks
+		WHERE ((status IN ('pending','retry') AND available_at<=NOW()) OR (status='running' AND lease_expires_at<NOW()))
+		ORDER BY available_at,created_at
+		FOR UPDATE SKIP LOCKED LIMIT 1`).Scan(&item.ID, &item.Type, &raw, &item.Attempts, &item.Maximum)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return claimedTask{}, false, nil
+	}
+	if err != nil {
+		return claimedTask{}, false, err
+	}
+	item.Payload = decodeJSON(raw)
+	_, err = tx.Exec(ctx, `UPDATE platform_tasks SET status='running',attempts=$2,started_at=COALESCE(started_at,NOW()),lease_owner=$3,lease_expires_at=NOW()+($4::double precision*INTERVAL '1 second'),updated_at=NOW() WHERE id=$1`, item.ID, item.Attempts, w.id, w.lease.Seconds())
+	if err != nil {
+		return claimedTask{}, false, err
+	}
+	if item.Type == "emby.provision" {
+		_, err = tx.Exec(ctx, `UPDATE emby_provision_requests SET status='provisioning',updated_at=NOW() WHERE task_id=$1 AND status IN ('pending','failed','provisioning')`, item.ID)
+		if err != nil {
+			return claimedTask{}, false, err
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return claimedTask{}, false, err
+	}
+	return item, true, nil
+}
+
+func (w *Worker) keepLease(ctx context.Context, taskID uuid.UUID) {
+	interval := w.lease / 3
+	if interval < 5*time.Second {
+		interval = 5 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			result, err := w.db.Exec(ctx, `UPDATE platform_tasks SET lease_expires_at=NOW()+($3::double precision*INTERVAL '1 second'),updated_at=NOW() WHERE id=$1 AND status='running' AND lease_owner=$2`, taskID, w.id, w.lease.Seconds())
+			if err != nil || result.RowsAffected() != 1 {
+				w.logger.Warn("task lease renewal failed", "task_id", taskID, "error", err)
+				return
+			}
+		}
+	}
+}
+
+func (w *Worker) process(ctx context.Context, task claimedTask) (map[string]any, error) {
+	instanceID, err := uuid.Parse(fmt.Sprint(task.Payload["instance_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("task has invalid instance id")}
+	}
+	instance, client, err := w.client(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	switch task.Type {
+	case "emby.provision":
+		return w.provision(ctx, task, instance, client)
+	case "emby.sync", "emby.import":
+		return w.sync(ctx, task, instance, client, strings.TrimPrefix(task.Type, "emby."))
+	case "emby.reconcile":
+		return w.reconcile(ctx, task, instance, client)
+	default:
+		return nil, PermanentError{Err: fmt.Errorf("unsupported task type %q", task.Type)}
+	}
+}
+
+func (w *Worker) client(ctx context.Context, instanceID uuid.UUID) (EmbyInstance, *embyClient, error) {
+	instance, err := w.service.GetInstance(ctx, instanceID)
+	if err != nil {
+		return EmbyInstance{}, nil, PermanentError{Err: err}
+	}
+	if !instance.Enabled {
+		return EmbyInstance{}, nil, PermanentError{Err: errors.New("Emby instance is disabled")}
+	}
+	var ciphertext, nonce []byte
+	var version int
+	if err = w.db.QueryRow(ctx, `SELECT ciphertext,nonce,key_version FROM credentials WHERE name=$1`, instance.CredentialName).Scan(&ciphertext, &nonce, &version); err != nil {
+		return EmbyInstance{}, nil, PermanentError{Err: errors.New("Emby credential is missing")}
+	}
+	secret, err := w.vault.Decrypt(ciphertext, nonce, version)
+	if err != nil {
+		return EmbyInstance{}, nil, PermanentError{Err: fmt.Errorf("Emby credential cannot be decrypted: %w", err)}
+	}
+	client, err := newEmbyClient(instance, string(secret))
+	return instance, client, err
+}
+
+func (w *Worker) provision(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient) (map[string]any, error) {
+	requestID, err := uuid.Parse(fmt.Sprint(task.Payload["provision_request_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("provision task has invalid request id")}
+	}
+	var accountID uuid.UUID
+	var username string
+	var ciphertext, nonce []byte
+	var keyVersion int
+	var preflight bool
+	var knownRemoteID *string
+	err = w.db.QueryRow(ctx, `SELECT account_id,requested_username,password_ciphertext,password_nonce,password_key_version,preflight_completed,remote_user_id FROM emby_provision_requests WHERE id=$1`, requestID).Scan(&accountID, &username, &ciphertext, &nonce, &keyVersion, &preflight, &knownRemoteID)
+	if err != nil {
+		return nil, PermanentError{Err: notFound(err)}
+	}
+	password, err := w.vault.Decrypt(ciphertext, nonce, keyVersion)
+	if err != nil {
+		return nil, PermanentError{Err: err}
+	}
+	users, err := client.users(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var remote embyUser
+	for _, candidate := range users {
+		if normalize(candidate.Name) == normalize(username) {
+			remote = candidate
+			break
+		}
+	}
+	if knownRemoteID != nil && *knownRemoteID != "" {
+		for _, candidate := range users {
+			if candidate.ID == *knownRemoteID {
+				remote = candidate
+				break
+			}
+		}
+	}
+	if remote.ID != "" && !preflight {
+		return nil, PermanentError{Err: fmt.Errorf("Emby username %q already existed before provisioning", username)}
+	}
+	if remote.ID == "" {
+		if !preflight {
+			tag, markErr := w.db.Exec(ctx, `UPDATE emby_provision_requests SET preflight_completed=TRUE,updated_at=NOW() WHERE id=$1 AND NOT preflight_completed`, requestID)
+			if markErr != nil || tag.RowsAffected() != 1 {
+				return nil, fmt.Errorf("cannot reserve remote creation: %w", markErr)
+			}
+		}
+		remote, err = client.createUser(ctx, username)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = w.db.Exec(ctx, `UPDATE emby_provision_requests SET remote_user_id=$2,updated_at=NOW() WHERE id=$1`, requestID, remote.ID); err != nil {
+			return nil, err
+		}
+	}
+	if err = client.setPassword(ctx, remote.ID, string(password)); err != nil {
+		return nil, err
+	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var binding Binding
+	err = tx.QueryRow(ctx, `SELECT id,account_id,instance_id,remote_user_id,remote_username,status,origin,is_primary,remote_disabled,remote_snapshot,created_at,updated_at FROM emby_account_bindings WHERE instance_id=$1 AND remote_user_id=$2`, instance.ID, remote.ID).Scan(&binding.ID, &binding.AccountID, &binding.InstanceID, &binding.RemoteUserID, &binding.RemoteUsername, &binding.Status, &binding.Origin, &binding.IsPrimary, &binding.RemoteDisabled, &binding.RemoteSnapshot, &binding.CreatedAt, &binding.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		binding, err = w.service.createBindingTx(ctx, tx, accountID, instance.ID, remote.ID, username, false, remote.Raw, "provision", identity.Actor{Kind: "system", ID: w.id})
+	}
+	if err != nil {
+		return nil, err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO remote_emby_users(id,instance_id,remote_user_id,username,username_normalized,disabled,claim_status,binding_id,snapshot) VALUES($1,$2,$3,$4,$5,FALSE,'claimed',$6,$7) ON CONFLICT(instance_id,remote_user_id) DO UPDATE SET username=EXCLUDED.username,username_normalized=EXCLUDED.username_normalized,disabled=FALSE,claim_status='claimed',binding_id=EXCLUDED.binding_id,snapshot=EXCLUDED.snapshot,last_seen_at=NOW(),missing_since=NULL,updated_at=NOW()`, uuid.New(), instance.ID, remote.ID, username, normalize(username), binding.ID, jsonBytes(remote.Raw))
+	if err == nil {
+		_, err = tx.Exec(ctx, `UPDATE emby_provision_requests SET status='succeeded',remote_user_id=$2,last_error=NULL,updated_at=NOW() WHERE id=$1`, requestID, remote.ID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return map[string]any{"binding_id": binding.ID, "remote_user_id": remote.ID, "username": username}, nil
+}
+
+func (w *Worker) sync(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient, kind string) (map[string]any, error) {
+	info, latency, err := client.probe(ctx)
+	if err != nil {
+		w.markInstanceFailure(ctx, instance.ID, err)
+		return nil, err
+	}
+	users, err := client.users(ctx)
+	if err != nil {
+		w.markInstanceFailure(ctx, instance.ID, err)
+		return nil, err
+	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	seen := make([]string, 0, len(users))
+	for _, user := range users {
+		seen = append(seen, user.ID)
+		_, err = tx.Exec(ctx, `INSERT INTO remote_emby_users(id,instance_id,remote_user_id,username,username_normalized,disabled,claim_status,snapshot) VALUES($1,$2,$3,$4,$5,$6,'unclaimed',$7) ON CONFLICT(instance_id,remote_user_id) DO UPDATE SET username=EXCLUDED.username,username_normalized=EXCLUDED.username_normalized,disabled=EXCLUDED.disabled,snapshot=EXCLUDED.snapshot,last_seen_at=NOW(),missing_since=NULL,claim_status=CASE WHEN remote_emby_users.binding_id IS NULL THEN 'unclaimed' ELSE 'claimed' END,updated_at=NOW()`, uuid.New(), instance.ID, user.ID, user.Name, normalize(user.Name), user.disabled(), jsonBytes(user.Raw))
+		if err != nil {
+			return nil, err
+		}
+		_, err = tx.Exec(ctx, `UPDATE emby_account_bindings SET remote_username=$3,remote_disabled=$4,remote_snapshot=$5,status=CASE WHEN $4 THEN 'suspended' ELSE 'active' END,last_synced_at=NOW(),last_error=NULL,updated_at=NOW() WHERE instance_id=$1 AND remote_user_id=$2`, instance.ID, user.ID, user.Name, user.disabled(), jsonBytes(user.Raw))
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err = tx.Exec(ctx, `UPDATE remote_emby_users SET claim_status='missing',missing_since=COALESCE(missing_since,NOW()),updated_at=NOW() WHERE instance_id=$1 AND NOT (remote_user_id=ANY($2::text[]))`, instance.ID, seen)
+	if err == nil {
+		_, err = tx.Exec(ctx, `UPDATE emby_account_bindings SET status='missing',last_error='remote user missing',updated_at=NOW() WHERE instance_id=$1 AND NOT (remote_user_id=ANY($2::text[]))`, instance.ID, seen)
+	}
+	latencyMS := int(latency.Milliseconds())
+	if err == nil {
+		_, err = tx.Exec(ctx, `UPDATE emby_instances SET status='healthy',server_id=$2,server_version=$3,last_error=NULL,last_latency_ms=$4,last_checked_at=NOW(),last_snapshot_at=NOW(),updated_at=NOW() WHERE id=$1`, instance.ID, info.ID, info.Version, latencyMS)
+	}
+	counts, changes, countErr := snapshotCounts(ctx, tx, instance.ID)
+	if err == nil {
+		err = countErr
+	}
+	if err == nil {
+		_, err = tx.Exec(ctx, `INSERT INTO remote_state_snapshots(instance_id,task_id,snapshot_kind,status,remote_user_count,bound_user_count,unclaimed_user_count,missing_user_count,changes) VALUES($1,$2,$3,'succeeded',$4,$5,$6,$7,$8)`, instance.ID, task.ID, kind, len(users), counts[0], counts[1], counts[2], jsonBytes(changes))
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return map[string]any{"remote_users": len(users), "bound_users": counts[0], "unclaimed_users": counts[1], "missing_users": counts[2]}, nil
+}
+
+func snapshotCounts(ctx context.Context, tx pgx.Tx, instanceID uuid.UUID) ([3]int, map[string]any, error) {
+	var counts [3]int
+	err := tx.QueryRow(ctx, `SELECT COUNT(*) FILTER (WHERE binding_id IS NOT NULL),COUNT(*) FILTER (WHERE claim_status='unclaimed'),COUNT(*) FILTER (WHERE claim_status='missing') FROM remote_emby_users WHERE instance_id=$1`, instanceID).Scan(&counts[0], &counts[1], &counts[2])
+	return counts, map[string]any{"captured_by": "worker"}, err
+}
+
+func (w *Worker) reconcile(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient) (map[string]any, error) {
+	users, err := client.users(ctx)
+	if err != nil {
+		w.markInstanceFailure(ctx, instance.ID, err)
+		return nil, err
+	}
+	byID := make(map[string]embyUser, len(users))
+	for _, user := range users {
+		byID[user.ID] = user
+	}
+	rows, err := w.db.Query(ctx, `SELECT b.id,b.remote_user_id,a.status,COALESCE(m.expires_at <= NOW(),TRUE) FROM emby_account_bindings b JOIN accounts a ON a.id=b.account_id LEFT JOIN LATERAL (SELECT expires_at FROM account_memberships WHERE account_id=a.id AND status IN ('active','grace') ORDER BY expires_at DESC LIMIT 1) m ON TRUE WHERE b.instance_id=$1 AND b.status<>'deleted'`, instance.ID)
+	if err != nil {
+		return nil, err
+	}
+	type desired struct {
+		bindingID uuid.UUID
+		remoteID  string
+		disabled  bool
+	}
+	var items []desired
+	for rows.Next() {
+		var item desired
+		var accountStatus string
+		var expired bool
+		if err = rows.Scan(&item.bindingID, &item.remoteID, &accountStatus, &expired); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		item.disabled = accountStatus != "active" || expired
+		items = append(items, item)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	changed, missing := 0, 0
+	for _, item := range items {
+		remote, ok := byID[item.remoteID]
+		if !ok {
+			missing++
+			_, _ = w.db.Exec(ctx, `UPDATE emby_account_bindings SET status='missing',last_error='remote user missing',updated_at=NOW() WHERE id=$1`, item.bindingID)
+			continue
+		}
+		if remote.disabled() != item.disabled {
+			if err = client.setDisabled(ctx, remote, item.disabled); err != nil {
+				return nil, err
+			}
+			changed++
+		}
+		status := "active"
+		if item.disabled {
+			status = "suspended"
+		}
+		_, err = w.db.Exec(ctx, `UPDATE emby_account_bindings SET status=$2,remote_disabled=$3,last_synced_at=NOW(),last_error=NULL,updated_at=NOW() WHERE id=$1`, item.bindingID, status, item.disabled)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var counts [3]int
+	if err = w.db.QueryRow(ctx, `SELECT COUNT(*) FILTER (WHERE binding_id IS NOT NULL),COUNT(*) FILTER (WHERE claim_status='unclaimed'),COUNT(*) FILTER (WHERE claim_status='missing') FROM remote_emby_users WHERE instance_id=$1`, instance.ID).Scan(&counts[0], &counts[1], &counts[2]); err != nil {
+		return nil, err
+	}
+	_, err = w.db.Exec(ctx, `INSERT INTO remote_state_snapshots(instance_id,task_id,snapshot_kind,status,remote_user_count,bound_user_count,unclaimed_user_count,missing_user_count,changes) VALUES($1,$2,'reconcile','succeeded',$3,$4,$5,$6,$7)`, instance.ID, task.ID, len(users), counts[0], counts[1], missing, jsonBytes(map[string]any{"changed": changed}))
+	return map[string]any{"changed": changed, "missing": missing}, err
+}
+
+func (w *Worker) markInstanceFailure(ctx context.Context, instanceID uuid.UUID, failure error) {
+	message := truncateError(failure)
+	_, _ = w.db.Exec(ctx, `UPDATE emby_instances SET status='unhealthy',last_error=$2,last_checked_at=NOW(),updated_at=NOW() WHERE id=$1`, instanceID, message)
+	_, _ = w.db.Exec(ctx, `INSERT INTO remote_state_snapshots(instance_id,snapshot_kind,status,error_message) VALUES($1,'probe','failed',$2)`, instanceID, message)
+}
+
+func (w *Worker) finish(ctx context.Context, task claimedTask, result map[string]any) error {
+	_, err := w.db.Exec(ctx, `UPDATE platform_tasks SET status='succeeded',result=$2,last_error=NULL,lease_owner=NULL,lease_expires_at=NULL,finished_at=NOW(),updated_at=NOW() WHERE id=$1 AND lease_owner=$3`, task.ID, jsonBytes(result), w.id)
+	return err
+}
+
+func (w *Worker) fail(ctx context.Context, task claimedTask, failure error) error {
+	permanent := false
+	var permanentErr PermanentError
+	if errors.As(failure, &permanentErr) {
+		permanent = true
+	}
+	status := "retry"
+	if permanent {
+		status = "failed"
+	} else if task.Attempts >= task.Maximum {
+		status = "dead"
+	}
+	delay := math.Min(math.Pow(2, float64(task.Attempts)), 300)
+	message := truncateError(failure)
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `UPDATE platform_tasks SET status=$2,last_error=$3,available_at=NOW()+($4::double precision*INTERVAL '1 second'),lease_owner=NULL,lease_expires_at=NULL,finished_at=CASE WHEN $2 IN ('failed','dead') THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$1 AND lease_owner=$5`, task.ID, status, message, delay, w.id)
+	if err == nil && task.Type == "emby.provision" {
+		_, err = tx.Exec(ctx, `UPDATE emby_provision_requests SET status=CASE WHEN $2 IN ('failed','dead') THEN 'failed' ELSE 'pending' END,last_error=$3,updated_at=NOW() WHERE task_id=$1`, task.ID, status, message)
+	}
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func truncateError(err error) string {
+	message := strings.TrimSpace(err.Error())
+	if len(message) > 1800 {
+		message = message[:1800]
+	}
+	return message
+}

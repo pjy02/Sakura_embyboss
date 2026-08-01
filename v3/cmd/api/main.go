@@ -14,6 +14,7 @@ import (
 	"github.com/pjy02/Sakura_embyboss/v3/internal/httpapi"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/identity"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/logging"
+	"github.com/pjy02/Sakura_embyboss/v3/internal/platform"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/postgres"
 	"github.com/pjy02/Sakura_embyboss/v3/internal/redisstore"
 	runservice "github.com/pjy02/Sakura_embyboss/v3/internal/run"
@@ -49,6 +50,7 @@ func execute() error {
 		return err
 	}
 	identityService := identity.New(database.Pool(), cfg.SessionTTL, vault)
+	platformService := platform.New(database.Pool(), vault)
 	if err := identityService.BootstrapOwner(ctx, cfg.BootstrapAdminUsername, cfg.BootstrapAdminPassword); err != nil {
 		return err
 	}
@@ -59,6 +61,7 @@ func execute() error {
 		Logger:           logger,
 		ProbeTimeout:     cfg.DependencyTimeout,
 		Identity:         identityService,
+		Platform:         platformService,
 		SessionCookie:    cfg.SessionCookie,
 		CookieSecure:     cfg.CookieSecure,
 		InternalBotToken: cfg.InternalBotToken,

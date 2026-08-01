@@ -61,6 +61,13 @@ func TestComposeDefinesIndependentProcesses(t *testing.T) {
 	if _, ok := botEnvironment["SAKURA_V3_CREDENTIAL_MASTER_KEY"]; ok {
 		t.Fatal("Bot must not receive the credential encryption master key")
 	}
+	workerEnvironment := document.Services["worker"].Environment
+	if _, ok := workerEnvironment["SAKURA_V3_CREDENTIAL_MASTER_KEY"]; !ok {
+		t.Fatal("Worker must receive the credential encryption master key for Emby connections")
+	}
+	if _, ok := workerEnvironment["SAKURA_V3_INTERNAL_BOT_TOKEN"]; ok {
+		t.Fatal("Worker must not receive the Bot internal API token")
+	}
 	apiEnvironment := document.Services["api"].Environment
 	for _, key := range []string{"SAKURA_V3_CREDENTIAL_MASTER_KEY", "SAKURA_V3_INTERNAL_BOT_TOKEN", "SAKURA_V3_SESSION_COOKIE"} {
 		if _, ok := apiEnvironment[key]; !ok {

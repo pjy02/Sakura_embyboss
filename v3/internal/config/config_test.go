@@ -57,6 +57,21 @@ func TestMigrateDoesNotRequireRedis(t *testing.T) {
 	}
 }
 
+func TestWorkerOwnsCredentialKeyButNotBotSecrets(t *testing.T) {
+	t.Setenv("SAKURA_V3_DATABASE_URL", "postgres://user:pass@db:5432/sakura")
+	t.Setenv("SAKURA_V3_REDIS_ADDRESS", "redis:6379")
+	t.Setenv("SAKURA_V3_CREDENTIAL_MASTER_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("SAKURA_V3_INTERNAL_BOT_TOKEN", "must-not-leak-to-worker-at-least-32")
+	t.Setenv("SAKURA_V3_TELEGRAM_BOT_TOKEN", "must-not-leak")
+	cfg, err := Load(RoleWorker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CredentialMasterKey == "" || cfg.InternalBotToken != "" || cfg.TelegramBotToken != "" {
+		t.Fatal("worker secret boundary is incorrect")
+	}
+}
+
 func TestInvalidDurationIsRejected(t *testing.T) {
 	t.Setenv("SAKURA_V3_DATABASE_URL", "postgres://user:pass@db:5432/sakura")
 	t.Setenv("SAKURA_V3_SHUTDOWN_TIMEOUT", "never")

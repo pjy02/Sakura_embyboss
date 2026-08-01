@@ -43,6 +43,8 @@ type Config struct {
 	BootstrapAdminPassword string
 	TelegramBotToken       string
 	TelegramAPIBase        string
+	WorkerPollInterval     time.Duration
+	WorkerLeaseDuration    time.Duration
 }
 
 func Load(role Role) (Config, error) {
@@ -63,6 +65,14 @@ func Load(role Role) (Config, error) {
 		return Config{}, err
 	}
 	cookieSecure, err := envBool("SAKURA_V3_COOKIE_SECURE", true)
+	if err != nil {
+		return Config{}, err
+	}
+	workerPoll, err := envDuration("SAKURA_V3_WORKER_POLL_INTERVAL", time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	workerLease, err := envDuration("SAKURA_V3_WORKER_LEASE_DURATION", 90*time.Second)
 	if err != nil {
 		return Config{}, err
 	}
@@ -89,6 +99,8 @@ func Load(role Role) (Config, error) {
 		BootstrapAdminPassword: os.Getenv("SAKURA_V3_BOOTSTRAP_ADMIN_PASSWORD"),
 		TelegramBotToken:       strings.TrimSpace(os.Getenv("SAKURA_V3_TELEGRAM_BOT_TOKEN")),
 		TelegramAPIBase:        strings.TrimRight(env("SAKURA_V3_TELEGRAM_API_BASE", "https://api.telegram.org"), "/"),
+		WorkerPollInterval:     workerPoll,
+		WorkerLeaseDuration:    workerLease,
 	}
 	// Do not merely avoid using unrelated secrets: remove them from process
 	// configuration so accidental future logging or wiring cannot expose them.
@@ -96,7 +108,6 @@ func Load(role Role) (Config, error) {
 	case RoleAPI:
 		cfg.TelegramBotToken = ""
 	case RoleWorker:
-		cfg.CredentialMasterKey = ""
 		cfg.InternalBotToken = ""
 		cfg.BootstrapAdminUsername = ""
 		cfg.BootstrapAdminPassword = ""
@@ -155,10 +166,12 @@ func (c Config) Validate() error {
 	if c.Role == RoleAPI && c.HTTPAddress == "" {
 		return errors.New("SAKURA_V3_HTTP_ADDR must not be empty")
 	}
-	if c.Role == RoleAPI {
+	if c.Role == RoleAPI || c.Role == RoleWorker {
 		if !validMasterKey(c.CredentialMasterKey) {
 			return errors.New("SAKURA_V3_CREDENTIAL_MASTER_KEY must be 32 bytes encoded as 64 hex or unpadded base64")
 		}
+	}
+	if c.Role == RoleAPI {
 		if len(c.InternalBotToken) < 32 {
 			return errors.New("SAKURA_V3_INTERNAL_BOT_TOKEN must contain at least 32 characters")
 		}

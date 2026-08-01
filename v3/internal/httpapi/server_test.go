@@ -19,26 +19,34 @@ func TestEveryAdminRouteDeclaresAPermission(t *testing.T) {
 	if !ok {
 		t.Fatal("cannot resolve source path")
 	}
-	file, err := os.Open(filepath.Join(filepath.Dir(filename), "identity_routes.go"))
+	files, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "*_routes.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
 	count := 0
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.Contains(line, `mux.Handle("`) && strings.Contains(line, `/api/v3/admin/`) {
-			count++
-			if !strings.Contains(line, `session(o, "`) || strings.Contains(line, `session(o, "",`) {
-				t.Fatalf("admin route does not declare a permission: %s", strings.TrimSpace(line))
+	for _, name := range files {
+		file, openErr := os.Open(name)
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.Contains(line, `mux.Handle("`) && strings.Contains(line, `/api/v3/admin/`) {
+				count++
+				if !strings.Contains(line, `session(o, "`) || strings.Contains(line, `session(o, "",`) {
+					_ = file.Close()
+					t.Fatalf("admin route does not declare a permission: %s", strings.TrimSpace(line))
+				}
 			}
 		}
+		if scanErr := scanner.Err(); scanErr != nil {
+			_ = file.Close()
+			t.Fatal(scanErr)
+		}
+		_ = file.Close()
 	}
-	if err = scanner.Err(); err != nil {
-		t.Fatal(err)
-	}
-	if count < 10 {
+	if count < 25 {
 		t.Fatalf("expected the admin permission guard to inspect all routes, got %d", count)
 	}
 }

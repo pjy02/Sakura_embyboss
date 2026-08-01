@@ -108,6 +108,9 @@ services:
     environment:
       <<: [*common-environment, *database-environment, *redis-environment]
       SAKURA_V3_HEALTH_ADDR: :8081
+      SAKURA_V3_CREDENTIAL_MASTER_KEY: ${SAKURA_V3_CREDENTIAL_MASTER_KEY:?set SAKURA_V3_CREDENTIAL_MASTER_KEY in .env}
+      SAKURA_V3_WORKER_POLL_INTERVAL: ${SAKURA_V3_WORKER_POLL_INTERVAL:-1s}
+      SAKURA_V3_WORKER_LEASE_DURATION: ${SAKURA_V3_WORKER_LEASE_DURATION:-90s}
     depends_on:
       migrate:
         condition: service_completed_successfully
