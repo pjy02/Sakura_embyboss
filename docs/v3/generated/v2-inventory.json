@@ -1,0 +1,6019 @@
+{
+  "bot_handlers": [
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('checkin') & user_in_group_on_filter)",
+      "handler": "user_in_checkin",
+      "kind": "on_callback_query",
+      "line": 17,
+      "regexes": [
+        "checkin"
+      ],
+      "source": "bot/modules/callback/checkin.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('closeit'))",
+      "handler": "close_it",
+      "kind": "on_callback_query",
+      "line": 11,
+      "regexes": [
+        "closeit"
+      ],
+      "source": "bot/modules/callback/close_it.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_chat_member_updated(filters.chat(group))",
+      "handler": "leave_del_emby",
+      "kind": "on_chat_member_updated",
+      "line": 11,
+      "regexes": [],
+      "source": "bot/modules/callback/leave_delemby.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_message(~filters.chat(group) & filters.group)",
+      "handler": "anti_use_bot",
+      "kind": "on_message",
+      "line": 26,
+      "regexes": [],
+      "source": "bot/modules/callback/leave_unauth_group.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_inline_query(user_in_group_on_filter)",
+      "handler": "find_sth_media",
+      "kind": "on_inline_query",
+      "line": 20,
+      "regexes": [],
+      "source": "bot/modules/callback/on_inline_query.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('favorited'))",
+      "handler": "favorite_item",
+      "kind": "on_callback_query",
+      "line": 99,
+      "regexes": [
+        "favorited"
+      ],
+      "source": "bot/modules/callback/on_inline_query.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^web-login-(approve|reject):'))",
+      "handler": "web_login_decision",
+      "kind": "on_callback_query",
+      "line": 8,
+      "regexes": [
+        "^web-login-(approve|reject):"
+      ],
+      "source": "bot/modules/callback/web_login.py"
+    },
+    {
+      "commands": [
+        "auditip"
+      ],
+      "filter_expression": "bot.on_message(filters.command('auditip') & admins_on_filter)",
+      "handler": "audit_ip_command",
+      "kind": "on_message",
+      "line": 21,
+      "regexes": [],
+      "source": "bot/modules/commands/audit.py"
+    },
+    {
+      "commands": [
+        "auditdevice"
+      ],
+      "filter_expression": "bot.on_message(filters.command('auditdevice') & admins_on_filter)",
+      "handler": "audit_device_name_command",
+      "kind": "on_message",
+      "line": 142,
+      "regexes": [],
+      "source": "bot/modules/commands/audit.py"
+    },
+    {
+      "commands": [
+        "auditclient"
+      ],
+      "filter_expression": "bot.on_message(filters.command('auditclient') & admins_on_filter)",
+      "handler": "audit_client_name_command",
+      "kind": "on_message",
+      "line": 277,
+      "regexes": [],
+      "source": "bot/modules/commands/audit.py"
+    },
+    {
+      "commands": [
+        "embylibs_blockall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('embylibs_blockall', prefixes) & filters.user(owner))",
+      "handler": "embylibs_blockall",
+      "kind": "on_message",
+      "line": 11,
+      "regexes": [],
+      "source": "bot/modules/commands/emby_libs.py"
+    },
+    {
+      "commands": [
+        "embylibs_unblockall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('embylibs_unblockall', prefixes) & filters.user(owner))",
+      "handler": "embylibs_unblockall",
+      "kind": "on_message",
+      "line": 54,
+      "regexes": [],
+      "source": "bot/modules/commands/emby_libs.py"
+    },
+    {
+      "commands": [
+        "extraembylibs_blockall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('extraembylibs_blockall', prefixes) & filters.user(owner))",
+      "handler": "extraembylibs_blockall",
+      "kind": "on_message",
+      "line": 96,
+      "regexes": [],
+      "source": "bot/modules/commands/emby_libs.py"
+    },
+    {
+      "commands": [
+        "extraembylibs_unblockall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('extraembylibs_unblockall', prefixes) & filters.user(owner))",
+      "handler": "extraembylibs_unblockall",
+      "kind": "on_message",
+      "line": 141,
+      "regexes": [],
+      "source": "bot/modules/commands/emby_libs.py"
+    },
+    {
+      "commands": [
+        "proadmin"
+      ],
+      "filter_expression": "bot.on_message(filters.command('proadmin', prefixes=prefixes) & filters.user(owner))",
+      "handler": "pro_admin",
+      "kind": "on_message",
+      "line": 21,
+      "regexes": [],
+      "source": "bot/modules/commands/pro_rev.py"
+    },
+    {
+      "commands": [
+        "prouser"
+      ],
+      "filter_expression": "bot.on_message(filters.command('prouser', prefixes=prefixes) & admins_on_filter)",
+      "handler": "pro_user",
+      "kind": "on_message",
+      "line": 49,
+      "regexes": [],
+      "source": "bot/modules/commands/pro_rev.py"
+    },
+    {
+      "commands": [
+        "revadmin"
+      ],
+      "filter_expression": "bot.on_message(filters.command('revadmin', prefixes=prefixes) & filters.user(owner))",
+      "handler": "del_admin",
+      "kind": "on_message",
+      "line": 119,
+      "regexes": [],
+      "source": "bot/modules/commands/pro_rev.py"
+    },
+    {
+      "commands": [
+        "revuser"
+      ],
+      "filter_expression": "bot.on_message(filters.command('revuser', prefixes=prefixes) & admins_on_filter)",
+      "handler": "rev_user",
+      "kind": "on_message",
+      "line": 144,
+      "regexes": [],
+      "source": "bot/modules/commands/pro_rev.py"
+    },
+    {
+      "commands": [
+        "renew"
+      ],
+      "filter_expression": "bot.on_message(filters.command('renew', prefixes) & admins_on_filter)",
+      "handler": "renew_user",
+      "kind": "on_message",
+      "line": 43,
+      "regexes": [],
+      "source": "bot/modules/commands/renew.py"
+    },
+    {
+      "commands": [
+        "renewall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('renewall', prefixes) & admins_on_filter)",
+      "handler": "renew_all",
+      "kind": "on_message",
+      "line": 17,
+      "regexes": [],
+      "source": "bot/modules/commands/renewall.py"
+    },
+    {
+      "commands": [
+        "coinsall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('coinsall', prefixes) & admins_on_filter)",
+      "handler": "coins_all",
+      "kind": "on_message",
+      "line": 60,
+      "regexes": [],
+      "source": "bot/modules/commands/renewall.py"
+    },
+    {
+      "commands": [
+        "coinsclear"
+      ],
+      "filter_expression": "bot.on_message(filters.command('coinsclear', prefixes) & admins_on_filter)",
+      "handler": "coinsclear",
+      "kind": "on_message",
+      "line": 122,
+      "regexes": [],
+      "source": "bot/modules/commands/renewall.py"
+    },
+    {
+      "commands": [
+        "callall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('callall', prefixes) & admins_on_filter & filters.private)",
+      "handler": "call_all",
+      "kind": "on_message",
+      "line": 177,
+      "regexes": [],
+      "source": "bot/modules/commands/renewall.py"
+    },
+    {
+      "commands": [
+        "rmemby"
+      ],
+      "filter_expression": "bot.on_message(filters.command('rmemby', prefixes) & admins_on_filter)",
+      "handler": "rmemby_user",
+      "kind": "on_message",
+      "line": 13,
+      "regexes": [],
+      "source": "bot/modules/commands/rmemby.py"
+    },
+    {
+      "commands": [
+        "only_rm_record"
+      ],
+      "filter_expression": "bot.on_message(filters.command('only_rm_record', prefixes) & admins_on_filter)",
+      "handler": "only_rm_record",
+      "kind": "on_message",
+      "line": 48,
+      "regexes": [],
+      "source": "bot/modules/commands/rmemby.py"
+    },
+    {
+      "commands": [
+        "only_rm_emby"
+      ],
+      "filter_expression": "bot.on_message(filters.command('only_rm_emby', prefixes) & admins_on_filter)",
+      "handler": "only_rm_emby",
+      "kind": "on_message",
+      "line": 88,
+      "regexes": [],
+      "source": "bot/modules/commands/rmemby.py"
+    },
+    {
+      "commands": [
+        "score"
+      ],
+      "filter_expression": "bot.on_message(filters.command('score', prefixes=prefixes) & admins_on_filter)",
+      "handler": "score_user",
+      "kind": "on_message",
+      "line": 44,
+      "regexes": [],
+      "source": "bot/modules/commands/score_coins.py"
+    },
+    {
+      "commands": [
+        "coins"
+      ],
+      "filter_expression": "bot.on_message(filters.command('coins', prefixes=prefixes) & admins_on_filter)",
+      "handler": "coins_user",
+      "kind": "on_message",
+      "line": 76,
+      "regexes": [],
+      "source": "bot/modules/commands/score_coins.py"
+    },
+    {
+      "commands": [
+        "count",
+        "start"
+      ],
+      "filter_expression": "bot.on_message((filters.command('start', prefixes) | filters.command('count', prefixes)) & filters.chat(group))",
+      "handler": "ui_g_command",
+      "kind": "on_message",
+      "line": 31,
+      "regexes": [],
+      "source": "bot/modules/commands/start.py"
+    },
+    {
+      "commands": [
+        "myinfo"
+      ],
+      "filter_expression": "bot.on_message(filters.command('myinfo', prefixes) & user_in_group_on_filter)",
+      "handler": "my_info",
+      "kind": "on_message",
+      "line": 40,
+      "regexes": [],
+      "source": "bot/modules/commands/start.py"
+    },
+    {
+      "commands": [
+        "count"
+      ],
+      "filter_expression": "bot.on_message(filters.command('count', prefixes) & user_in_group_on_filter & filters.private)",
+      "handler": "count_info",
+      "kind": "on_message",
+      "line": 49,
+      "regexes": [],
+      "source": "bot/modules/commands/start.py"
+    },
+    {
+      "commands": [
+        "start"
+      ],
+      "filter_expression": "bot.on_message(filters.command('start', prefixes) & filters.private)",
+      "handler": "p_start",
+      "kind": "on_message",
+      "line": 57,
+      "regexes": [],
+      "source": "bot/modules/commands/start.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('back_start'))",
+      "handler": "b_start",
+      "kind": "on_callback_query",
+      "line": 125,
+      "regexes": [
+        "back_start"
+      ],
+      "source": "bot/modules/commands/start.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('store_all'))",
+      "handler": "store_alls",
+      "kind": "on_callback_query",
+      "line": 140,
+      "regexes": [
+        "store_all"
+      ],
+      "source": "bot/modules/commands/start.py"
+    },
+    {
+      "commands": [
+        "syncgroupm"
+      ],
+      "filter_expression": "bot.on_message(filters.command('syncgroupm', prefixes) & admins_on_filter)",
+      "handler": "sync_emby_group",
+      "kind": "on_message",
+      "line": 34,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "syncunbound"
+      ],
+      "filter_expression": "bot.on_message(filters.command('syncunbound', prefixes) & admins_on_filter)",
+      "handler": "sync_emby_unbound",
+      "kind": "on_message",
+      "line": 94,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "bindall_id"
+      ],
+      "filter_expression": "bot.on_message(filters.command('bindall_id', prefixes) & filters.user(owner))",
+      "handler": "bindall_id",
+      "kind": "on_message",
+      "line": 151,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "embyadmin"
+      ],
+      "filter_expression": "bot.on_message(filters.command('embyadmin', prefixes) & admins_on_filter)",
+      "handler": "reload_admins",
+      "kind": "on_message",
+      "line": 195,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "deleted"
+      ],
+      "filter_expression": "bot.on_message(filters.command('deleted', prefixes) & admins_on_filter)",
+      "handler": "clear_deleted_account",
+      "kind": "on_message",
+      "line": 208,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "kick_not_emby"
+      ],
+      "filter_expression": "bot.on_message(filters.command('kick_not_emby', prefixes) & admins_on_filter & filters.group)",
+      "handler": "kick_not_emby",
+      "kind": "on_message",
+      "line": 240,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "restore_from_db"
+      ],
+      "filter_expression": "bot.on_message(filters.command('restore_from_db', prefixes) & filters.user(owner))",
+      "handler": "restore_from_db",
+      "kind": "on_message",
+      "line": 267,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "scan_embyname"
+      ],
+      "filter_expression": "bot.on_message(filters.command('scan_embyname', prefixes) & admins_on_filter)",
+      "handler": "scan_embyname",
+      "kind": "on_message",
+      "line": 342,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "unbanall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('unbanall', prefixes) & filters.user(owner))",
+      "handler": "unban_all_users",
+      "kind": "on_message",
+      "line": 384,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "banall"
+      ],
+      "filter_expression": "bot.on_message(filters.command('banall', prefixes) & filters.user(owner))",
+      "handler": "ban_all_users",
+      "kind": "on_message",
+      "line": 477,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [
+        "paolu"
+      ],
+      "filter_expression": "bot.on_message(filters.command('paolu', prefixes) & filters.user(owner))",
+      "handler": "delete_all_users",
+      "kind": "on_message",
+      "line": 568,
+      "regexes": [],
+      "source": "bot/modules/commands/syncs.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^whitelist$') & admins_on_filter)",
+      "handler": "list_whitelist",
+      "kind": "on_callback_query",
+      "line": 11,
+      "regexes": [
+        "^whitelist$"
+      ],
+      "source": "bot/modules/commands/view_user.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^normaluser$') & admins_on_filter)",
+      "handler": "list_normaluser",
+      "kind": "on_callback_query",
+      "line": 23,
+      "regexes": [
+        "^normaluser$"
+      ],
+      "source": "bot/modules/commands/view_user.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^whitelist:') & admins_on_filter)",
+      "handler": "whitelist_page",
+      "kind": "on_callback_query",
+      "line": 36,
+      "regexes": [
+        "^whitelist:"
+      ],
+      "source": "bot/modules/commands/view_user.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^normaluser:') & admins_on_filter)",
+      "handler": "normaluser_page",
+      "kind": "on_callback_query",
+      "line": 49,
+      "regexes": [
+        "^normaluser:"
+      ],
+      "source": "bot/modules/commands/view_user.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^user_devices$|^devices:') & admins_on_filter)",
+      "handler": "user_devices",
+      "kind": "on_callback_query",
+      "line": 80,
+      "regexes": [
+        "^user_devices$|^devices:"
+      ],
+      "source": "bot/modules/commands/view_user.py"
+    },
+    {
+      "commands": [
+        "playing",
+        "watching"
+      ],
+      "filter_expression": "bot.on_message(filters.command(['watching', 'playing'], prefixes) & admins_on_filter)",
+      "handler": "watching_command",
+      "kind": "on_message",
+      "line": 16,
+      "regexes": [],
+      "source": "bot/modules/commands/watching.py"
+    },
+    {
+      "commands": [
+        "unban_channel"
+      ],
+      "filter_expression": "bot.on_message(filters.command('unban_channel', prefixes) & admins_on_filter)",
+      "handler": "un_fukk_pitao",
+      "kind": "on_message",
+      "line": 28,
+      "regexes": [],
+      "source": "bot/modules/extra/antichanel.py"
+    },
+    {
+      "commands": [
+        "white_channel"
+      ],
+      "filter_expression": "bot.on_message(filters.command('white_channel', prefixes) & admins_on_filter)",
+      "handler": "allow_pitao",
+      "kind": "on_message",
+      "line": 37,
+      "regexes": [],
+      "source": "bot/modules/extra/antichanel.py"
+    },
+    {
+      "commands": [
+        "rev_white_channel"
+      ],
+      "filter_expression": "bot.on_message(filters.command('rev_white_channel', prefixes) & admins_on_filter)",
+      "handler": "remove_pitao",
+      "kind": "on_message",
+      "line": 49,
+      "regexes": [],
+      "source": "bot/modules/extra/antichanel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_message(custom_message_filter & custom_chat_filter & filters.group)",
+      "handler": "fuxx_pitao",
+      "kind": "on_message",
+      "line": 68,
+      "regexes": [],
+      "source": "bot/modules/extra/antichanel.py"
+    },
+    {
+      "commands": [
+        "ucr"
+      ],
+      "filter_expression": "bot.on_message(filters.command('ucr', prefixes) & admins_on_filter & filters.private)",
+      "handler": "login_account",
+      "kind": "on_message",
+      "line": 21,
+      "regexes": [],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [
+        "urm"
+      ],
+      "filter_expression": "bot.on_message(filters.command('urm', prefixes) & admins_on_filter)",
+      "handler": "urm_user",
+      "kind": "on_message",
+      "line": 61,
+      "regexes": [],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [
+        "uinfo"
+      ],
+      "filter_expression": "bot.on_message(filters.command('uinfo', prefixes) & admins_on_filter)",
+      "handler": "uun_info",
+      "kind": "on_message",
+      "line": 97,
+      "regexes": [],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^uinfo_disable-') & admins_on_filter)",
+      "handler": "uinfo_disable_cb",
+      "kind": "on_callback_query",
+      "line": 151,
+      "regexes": [
+        "^uinfo_disable-"
+      ],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^uinfo_enable-') & admins_on_filter)",
+      "handler": "uinfo_enable_cb",
+      "kind": "on_callback_query",
+      "line": 175,
+      "regexes": [
+        "^uinfo_enable-"
+      ],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^uinfo_delete-') & admins_on_filter)",
+      "handler": "uinfo_delete_cb",
+      "kind": "on_callback_query",
+      "line": 199,
+      "regexes": [
+        "^uinfo_delete-"
+      ],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^uinfo_delete_confirm-') & admins_on_filter)",
+      "handler": "uinfo_delete_confirm_cb",
+      "kind": "on_callback_query",
+      "line": 211,
+      "regexes": [
+        "^uinfo_delete_confirm-"
+      ],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^uinfo_delete_cancel-') & admins_on_filter)",
+      "handler": "uinfo_delete_cancel_cb",
+      "kind": "on_callback_query",
+      "line": 242,
+      "regexes": [
+        "^uinfo_delete_cancel-"
+      ],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('userip') & admins_on_filter)",
+      "handler": "user_cha_ip",
+      "kind": "on_callback_query",
+      "line": 253,
+      "regexes": [
+        "userip"
+      ],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [
+        "userip"
+      ],
+      "filter_expression": "bot.on_message(filters.command('userip', prefixes) & admins_on_filter)",
+      "handler": "user_cha_ip",
+      "kind": "on_message",
+      "line": 254,
+      "regexes": [],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [
+        "udeviceid"
+      ],
+      "filter_expression": "bot.on_message(filters.command('udeviceid', prefixes) & admins_on_filter)",
+      "handler": "get_user_by_deviceid",
+      "kind": "on_message",
+      "line": 312,
+      "regexes": [],
+      "source": "bot/modules/extra/create.py"
+    },
+    {
+      "commands": [
+        "red"
+      ],
+      "filter_expression": "bot.on_message(filters.command('red', prefixes) & user_in_group_on_filter & filters.group)",
+      "handler": "send_red_envelope",
+      "kind": "on_message",
+      "line": 87,
+      "regexes": [],
+      "source": "bot/modules/extra/red_envelope.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('red_envelope') & user_in_group_on_filter)",
+      "handler": "grab_red_envelope",
+      "kind": "on_callback_query",
+      "line": 226,
+      "regexes": [
+        "red_envelope"
+      ],
+      "source": "bot/modules/extra/red_envelope.py"
+    },
+    {
+      "commands": [
+        "srank"
+      ],
+      "filter_expression": "bot.on_message(filters.command('srank', prefixes) & user_in_group_on_filter & filters.group)",
+      "handler": "s_rank",
+      "kind": "on_message",
+      "line": 406,
+      "regexes": [],
+      "source": "bot/modules/extra/red_envelope.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('users_iv') & user_in_group_on_filter)",
+      "handler": "users_iv_pikb",
+      "kind": "on_callback_query",
+      "line": 490,
+      "regexes": [
+        "users_iv"
+      ],
+      "source": "bot/modules/extra/red_envelope.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('manage') & admins_on_filter)",
+      "handler": "gm_ikb",
+      "kind": "on_callback_query",
+      "line": 42,
+      "regexes": [
+        "manage"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('open-menu') & admins_on_filter)",
+      "handler": "open_menu",
+      "kind": "on_callback_query",
+      "line": 60,
+      "regexes": [
+        "open-menu"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('open_stat') & admins_on_filter)",
+      "handler": "open_stats",
+      "kind": "on_callback_query",
+      "line": 76,
+      "regexes": [
+        "open_stat"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('open_timing') & admins_on_filter)",
+      "handler": "open_timing",
+      "kind": "on_callback_query",
+      "line": 114,
+      "regexes": [
+        "open_timing"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('all_user_limit') & admins_on_filter)",
+      "handler": "open_all_user_l",
+      "kind": "on_callback_query",
+      "line": 201,
+      "regexes": [
+        "all_user_limit"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('open_us') & admins_on_filter)",
+      "handler": "open_us",
+      "kind": "on_callback_query",
+      "line": 227,
+      "regexes": [
+        "open_us"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('cr_link') & admins_on_filter)",
+      "handler": "cr_link",
+      "kind": "on_callback_query",
+      "line": 352,
+      "regexes": [
+        "cr_link"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('ch_link') & admins_on_filter)",
+      "handler": "ch_link",
+      "kind": "on_callback_query",
+      "line": 417,
+      "regexes": [
+        "ch_link"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('delete_codes') & admins_on_filter)",
+      "handler": "delete_unused_codes",
+      "kind": "on_callback_query",
+      "line": 449,
+      "regexes": [
+        "delete_codes"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('ch_admin_link'))",
+      "handler": "ch_admin_link",
+      "kind": "on_callback_query",
+      "line": 494,
+      "regexes": [
+        "ch_admin_link"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('register_mon') | filters.regex('register_sea') | filters.regex('register_half') | filters.regex('register_year') | filters.regex('register_used') | filters.regex('register_unused'))",
+      "handler": "buy_mon",
+      "kind": "on_callback_query",
+      "line": 508,
+      "regexes": [
+        "register_half",
+        "register_mon",
+        "register_sea",
+        "register_unused",
+        "register_used",
+        "register_year"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('pagination_keyboard'))",
+      "handler": "paginate_keyboard",
+      "kind": "on_callback_query",
+      "line": 526,
+      "regexes": [
+        "pagination_keyboard"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_renew') & admins_on_filter)",
+      "handler": "set_renew",
+      "kind": "on_callback_query",
+      "line": 536,
+      "regexes": [
+        "set_renew"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_freeze_days') & admins_on_filter)",
+      "handler": "set_freeze_days",
+      "kind": "on_callback_query",
+      "line": 548,
+      "regexes": [
+        "set_freeze_days"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_invite_lv'))",
+      "handler": "invite_lv_set",
+      "kind": "on_callback_query",
+      "line": 574,
+      "regexes": [
+        "set_invite_lv"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_checkin_lv'))",
+      "handler": "checkin_lv_set",
+      "kind": "on_callback_query",
+      "line": 598,
+      "regexes": [
+        "set_checkin_lv"
+      ],
+      "source": "bot/modules/panel/admin_panel.py"
+    },
+    {
+      "commands": [
+        "config"
+      ],
+      "filter_expression": "bot.on_message(filters.command('config', prefixes=prefixes) & admins_on_filter)",
+      "handler": "config_p_set",
+      "kind": "on_message",
+      "line": 51,
+      "regexes": [],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_panel$') & admins_on_filter)",
+      "handler": "partition_code_panel",
+      "kind": "on_callback_query",
+      "line": 58,
+      "regexes": [
+        "^partition_code_panel$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_create$') & admins_on_filter)",
+      "handler": "partition_code_create",
+      "kind": "on_callback_query",
+      "line": 139,
+      "regexes": [
+        "^partition_code_action_create$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_view$') & admins_on_filter)",
+      "handler": "partition_code_view",
+      "kind": "on_callback_query",
+      "line": 214,
+      "regexes": [
+        "^partition_code_action_view$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_view_page_\\\\d+$') & admins_on_filter)",
+      "handler": "partition_code_view_page",
+      "kind": "on_callback_query",
+      "line": 220,
+      "regexes": [
+        "^partition_code_action_view_page_\\d+$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_delete$') & admins_on_filter)",
+      "handler": "partition_code_delete",
+      "kind": "on_callback_query",
+      "line": 227,
+      "regexes": [
+        "^partition_code_action_delete$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_clear_unused$') & admins_on_filter)",
+      "handler": "partition_code_clear_unused",
+      "kind": "on_callback_query",
+      "line": 254,
+      "regexes": [
+        "^partition_code_action_clear_unused$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_clear_unused_confirm$') & admins_on_filter)",
+      "handler": "partition_code_clear_unused_confirm",
+      "kind": "on_callback_query",
+      "line": 264,
+      "regexes": [
+        "^partition_code_action_clear_unused_confirm$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_clear_used$') & admins_on_filter)",
+      "handler": "partition_code_clear_used",
+      "kind": "on_callback_query",
+      "line": 271,
+      "regexes": [
+        "^partition_code_action_clear_used$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_clear_used_confirm$') & admins_on_filter)",
+      "handler": "partition_code_clear_used_confirm",
+      "kind": "on_callback_query",
+      "line": 281,
+      "regexes": [
+        "^partition_code_action_clear_used_confirm$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_clear_all$') & admins_on_filter)",
+      "handler": "partition_code_clear_all",
+      "kind": "on_callback_query",
+      "line": 288,
+      "regexes": [
+        "^partition_code_action_clear_all$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partition_code_action_clear_all_confirm$') & admins_on_filter)",
+      "handler": "partition_code_clear_all_confirm",
+      "kind": "on_callback_query",
+      "line": 298,
+      "regexes": [
+        "^partition_code_action_clear_all_confirm$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('back_config') & admins_on_filter)",
+      "handler": "config_p_re",
+      "kind": "on_callback_query",
+      "line": 309,
+      "regexes": [
+        "back_config"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('log_out') & admins_on_filter)",
+      "handler": "log_out",
+      "kind": "on_callback_query",
+      "line": 315,
+      "regexes": [
+        "log_out"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_tz$') & admins_on_filter)",
+      "handler": "set_tz",
+      "kind": "on_callback_query",
+      "line": 327,
+      "regexes": [
+        "set_tz$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_tz_version_v0') & admins_on_filter)",
+      "handler": "set_tz_version_v0",
+      "kind": "on_callback_query",
+      "line": 366,
+      "regexes": [
+        "set_tz_version_v0"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_tz_version_v1') & admins_on_filter)",
+      "handler": "set_tz_version_v1",
+      "kind": "on_callback_query",
+      "line": 376,
+      "regexes": [
+        "set_tz_version_v1"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_tz_version_komari') & admins_on_filter)",
+      "handler": "set_tz_version_komari",
+      "kind": "on_callback_query",
+      "line": 386,
+      "regexes": [
+        "set_tz_version_komari"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_tz_params') & admins_on_filter)",
+      "handler": "set_tz_params",
+      "kind": "on_callback_query",
+      "line": 396,
+      "regexes": [
+        "set_tz_params"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^set_line$') & admins_on_filter)",
+      "handler": "set_emby_line",
+      "kind": "on_callback_query",
+      "line": 477,
+      "regexes": [
+        "^set_line$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^set_whitelist_line$') & admins_on_filter)",
+      "handler": "set_whitelist_emby_line",
+      "kind": "on_callback_query",
+      "line": 500,
+      "regexes": [
+        "^set_whitelist_line$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_block') & admins_on_filter)",
+      "handler": "set_block",
+      "kind": "on_callback_query",
+      "line": 524,
+      "regexes": [
+        "set_block"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_update') & admins_on_filter)",
+      "handler": "set_auto_update",
+      "kind": "on_callback_query",
+      "line": 596,
+      "regexes": [
+        "set_update"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^set_mp$') & admins_on_filter)",
+      "handler": "mp_config_panel",
+      "kind": "on_callback_query",
+      "line": 616,
+      "regexes": [
+        "^set_mp$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^set_mp_status$') & admins_on_filter)",
+      "handler": "set_mp_status",
+      "kind": "on_callback_query",
+      "line": 633,
+      "regexes": [
+        "^set_mp_status$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^set_mp_price$') & admins_on_filter)",
+      "handler": "set_mp_price",
+      "kind": "on_callback_query",
+      "line": 656,
+      "regexes": [
+        "^set_mp_price$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_mp_lv') & admins_on_filter)",
+      "handler": "set_mp_lv",
+      "kind": "on_callback_query",
+      "line": 683,
+      "regexes": [
+        "set_mp_lv"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_mp_log_channel') & admins_on_filter)",
+      "handler": "set_mp_log_channel",
+      "kind": "on_callback_query",
+      "line": 692,
+      "regexes": [
+        "set_mp_log_channel"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('leave_ban') & admins_on_filter)",
+      "handler": "open_leave_ban",
+      "kind": "on_callback_query",
+      "line": 717,
+      "regexes": [
+        "leave_ban"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_uplays') & admins_on_filter)",
+      "handler": "set_user_playrank",
+      "kind": "on_callback_query",
+      "line": 735,
+      "regexes": [
+        "set_uplays"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_kk_gift_days') & admins_on_filter)",
+      "handler": "set_kk_gift_days",
+      "kind": "on_callback_query",
+      "line": 751,
+      "regexes": [
+        "set_kk_gift_days"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_fuxx_pitao') & admins_on_filter)",
+      "handler": "set_fuxx_pitao",
+      "kind": "on_callback_query",
+      "line": 781,
+      "regexes": [
+        "set_fuxx_pitao"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_red_envelope_status') & admins_on_filter)",
+      "handler": "set_red_envelope_status",
+      "kind": "on_callback_query",
+      "line": 795,
+      "regexes": [
+        "set_red_envelope_status"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_red_envelope_allow_private') & admins_on_filter)",
+      "handler": "set_red_envelope_allow_private",
+      "kind": "on_callback_query",
+      "line": 809,
+      "regexes": [
+        "set_red_envelope_allow_private"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('set_activity_check_days') & admins_on_filter)",
+      "handler": "set_activity_check_days",
+      "kind": "on_callback_query",
+      "line": 823,
+      "regexes": [
+        "set_activity_check_days"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^set_client_filter$') & admins_on_filter)",
+      "handler": "set_client_filter_panel",
+      "kind": "on_callback_query",
+      "line": 855,
+      "regexes": [
+        "^set_client_filter$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^toggle_client_filter$') & admins_on_filter)",
+      "handler": "toggle_client_filter",
+      "kind": "on_callback_query",
+      "line": 871,
+      "regexes": [
+        "^toggle_client_filter$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^set_client_filter_mode$') & admins_on_filter)",
+      "handler": "set_client_filter_mode",
+      "kind": "on_callback_query",
+      "line": 892,
+      "regexes": [
+        "^set_client_filter_mode$"
+      ],
+      "source": "bot/modules/panel/config_panel.py"
+    },
+    {
+      "commands": [
+        "kk"
+      ],
+      "filter_expression": "bot.on_message(filters.command('kk', prefixes) & admins_on_filter)",
+      "handler": "user_info",
+      "kind": "on_message",
+      "line": 23,
+      "regexes": [],
+      "source": "bot/modules/panel/kk.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('user_ban'))",
+      "handler": "kk_user_ban",
+      "kind": "on_callback_query",
+      "line": 63,
+      "regexes": [
+        "user_ban"
+      ],
+      "source": "bot/modules/panel/kk.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('embyextralib_unblock'))",
+      "handler": "user_embyextralib_unblock",
+      "kind": "on_callback_query",
+      "line": 108,
+      "regexes": [
+        "embyextralib_unblock"
+      ],
+      "source": "bot/modules/panel/kk.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('embyextralib_block'))",
+      "handler": "user_embyextralib_block",
+      "kind": "on_callback_query",
+      "line": 138,
+      "regexes": [
+        "embyextralib_block"
+      ],
+      "source": "bot/modules/panel/kk.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('gift'))",
+      "handler": "gift",
+      "kind": "on_callback_query",
+      "line": 168,
+      "regexes": [
+        "gift"
+      ],
+      "source": "bot/modules/panel/kk.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('closeemby'))",
+      "handler": "close_emby",
+      "kind": "on_callback_query",
+      "line": 192,
+      "regexes": [
+        "closeemby"
+      ],
+      "source": "bot/modules/panel/kk.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('fuckoff'))",
+      "handler": "fuck_off_m",
+      "kind": "on_callback_query",
+      "line": 223,
+      "regexes": [
+        "fuckoff"
+      ],
+      "source": "bot/modules/panel/kk.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('members'))",
+      "handler": "members",
+      "kind": "on_callback_query",
+      "line": 105,
+      "regexes": [
+        "members"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('create') & user_in_group_on_filter)",
+      "handler": "create",
+      "kind": "on_callback_query",
+      "line": 126,
+      "regexes": [
+        "create"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('changetg') & user_in_group_on_filter)",
+      "handler": "change_tg",
+      "kind": "on_callback_query",
+      "line": 170,
+      "regexes": [
+        "changetg"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('bindtg') & user_in_group_on_filter)",
+      "handler": "bind_tg",
+      "kind": "on_callback_query",
+      "line": 319,
+      "regexes": [
+        "bindtg"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('delme'))",
+      "handler": "del_me",
+      "kind": "on_callback_query",
+      "line": 385,
+      "regexes": [
+        "delme"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('delemby'))",
+      "handler": "del_emby",
+      "kind": "on_callback_query",
+      "line": 417,
+      "regexes": [
+        "delemby"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('reset'))",
+      "handler": "reset",
+      "kind": "on_callback_query",
+      "line": 439,
+      "regexes": [
+        "reset"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('embyblock'))",
+      "handler": "embyblocks",
+      "kind": "on_callback_query",
+      "line": 495,
+      "regexes": [
+        "embyblock"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('emby_block'))",
+      "handler": "user_emby_block",
+      "kind": "on_callback_query",
+      "line": 540,
+      "regexes": [
+        "emby_block"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('emby_unblock'))",
+      "handler": "user_emby_unblock",
+      "kind": "on_callback_query",
+      "line": 563,
+      "regexes": [
+        "emby_unblock"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^exchange$') & user_in_group_on_filter)",
+      "handler": "call_exchange",
+      "kind": "on_callback_query",
+      "line": 585,
+      "regexes": [
+        "^exchange$"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^partitioncode$') & user_in_group_on_filter)",
+      "handler": "call_partition_code",
+      "kind": "on_callback_query",
+      "line": 599,
+      "regexes": [
+        "^partitioncode$"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^wl_exchange$') & user_in_group_on_filter)",
+      "handler": "call_wl_exchange",
+      "kind": "on_callback_query",
+      "line": 614,
+      "regexes": [
+        "^wl_exchange$"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('storeall'))",
+      "handler": "do_store",
+      "kind": "on_callback_query",
+      "line": 630,
+      "regexes": [
+        "storeall"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('store-reborn'))",
+      "handler": "do_store_reborn",
+      "kind": "on_callback_query",
+      "line": 638,
+      "regexes": [
+        "store-reborn"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('store-whitelist'))",
+      "handler": "do_store_whitelist",
+      "kind": "on_callback_query",
+      "line": 671,
+      "regexes": [
+        "store-whitelist"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('store-invite'))",
+      "handler": "do_store_invite",
+      "kind": "on_callback_query",
+      "line": 704,
+      "regexes": [
+        "store-invite"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('store-query'))",
+      "handler": "do_store_query",
+      "kind": "on_callback_query",
+      "line": 788,
+      "regexes": [
+        "store-query"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^my_favorites|^page_my_favorites:'))",
+      "handler": "my_favorite",
+      "kind": "on_callback_query",
+      "line": 799,
+      "regexes": [
+        "^my_favorites|^page_my_favorites:"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('my_devices'))",
+      "handler": "my_devices",
+      "kind": "on_callback_query",
+      "line": 838,
+      "regexes": [
+        "my_devices"
+      ],
+      "source": "bot/modules/panel/member_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('download_center') & user_in_group_on_filter)",
+      "handler": "call_download_center",
+      "kind": "on_callback_query",
+      "line": 23,
+      "regexes": [
+        "download_center"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('get_resource') & user_in_group_on_filter)",
+      "handler": "download_media",
+      "kind": "on_callback_query",
+      "line": 31,
+      "regexes": [
+        "get_resource"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('continue_search') & user_in_group_on_filter)",
+      "handler": "continue_search",
+      "kind": "on_callback_query",
+      "line": 74,
+      "regexes": [
+        "continue_search"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('cancel_search') & user_in_group_on_filter)",
+      "handler": "cancel_search",
+      "kind": "on_callback_query",
+      "line": 85,
+      "regexes": [
+        "cancel_search"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('cancel_download') & user_in_group_on_filter)",
+      "handler": "cancel_download",
+      "kind": "on_callback_query",
+      "line": 91,
+      "regexes": [
+        "cancel_download"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('download_rate') & user_in_group_on_filter)",
+      "handler": "call_rate",
+      "kind": "on_callback_query",
+      "line": 269,
+      "regexes": [
+        "download_rate"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('request_record_prev') & user_in_group_on_filter)",
+      "handler": "request_record_prev",
+      "kind": "on_callback_query",
+      "line": 283,
+      "regexes": [
+        "request_record_prev"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('request_record_next') & user_in_group_on_filter)",
+      "handler": "request_record_next",
+      "kind": "on_callback_query",
+      "line": 297,
+      "regexes": [
+        "request_record_next"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^mp_search_prev_page$') & user_in_group_on_filter)",
+      "handler": "handle_prev_page",
+      "kind": "on_callback_query",
+      "line": 361,
+      "regexes": [
+        "^mp_search_prev_page$"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^mp_search_next_page$') & user_in_group_on_filter)",
+      "handler": "handle_next_page",
+      "kind": "on_callback_query",
+      "line": 373,
+      "regexes": [
+        "^mp_search_next_page$"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('^mp_search_select_download$') & user_in_group_on_filter)",
+      "handler": "handle_select_download",
+      "kind": "on_callback_query",
+      "line": 385,
+      "regexes": [
+        "^mp_search_select_download$"
+      ],
+      "source": "bot/modules/panel/request_movie_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('sched') & admins_on_filter)",
+      "handler": "sched_change_policy",
+      "kind": "on_callback_query",
+      "line": 77,
+      "regexes": [
+        "sched"
+      ],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "check_ex"
+      ],
+      "filter_expression": "bot.on_message(filters.command('check_ex', prefixes) & admins_on_filter)",
+      "handler": "check_ex_admin",
+      "kind": "on_message",
+      "line": 95,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "backup_db"
+      ],
+      "filter_expression": "bot.on_message(filters.command('backup_db', prefixes) & filters.user(owner))",
+      "handler": "manual_backup_db",
+      "kind": "on_message",
+      "line": 111,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "days_ranks"
+      ],
+      "filter_expression": "bot.on_message(filters.command('days_ranks', prefixes) & admins_on_filter)",
+      "handler": "day_r_ranks",
+      "kind": "on_message",
+      "line": 116,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "week_ranks"
+      ],
+      "filter_expression": "bot.on_message(filters.command('week_ranks', prefixes) & admins_on_filter)",
+      "handler": "week_r_ranks",
+      "kind": "on_message",
+      "line": 121,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "low_activity"
+      ],
+      "filter_expression": "bot.on_message(filters.command('low_activity', prefixes) & admins_on_filter)",
+      "handler": "run_low_ac",
+      "kind": "on_message",
+      "line": 126,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "uranks"
+      ],
+      "filter_expression": "bot.on_message(filters.command('uranks', prefixes) & admins_on_filter)",
+      "handler": "shou_dong_uplayrank",
+      "kind": "on_message",
+      "line": 140,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "sync_favorites"
+      ],
+      "filter_expression": "bot.on_message(filters.command('sync_favorites', prefixes) & admins_on_filter)",
+      "handler": "sync_favorites_admin",
+      "kind": "on_message",
+      "line": 150,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "restart"
+      ],
+      "filter_expression": "bot.on_message(filters.command('restart', prefixes) & admins_on_filter)",
+      "handler": "restart_bot",
+      "kind": "on_message",
+      "line": 157,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('uranks') & user_in_group_on_filter)",
+      "handler": "page_uplayrank",
+      "kind": "on_callback_query",
+      "line": 172,
+      "regexes": [
+        "uranks"
+      ],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [
+        "update_bot"
+      ],
+      "filter_expression": "bot.on_message(filters.command('update_bot', prefixes) & admins_on_filter)",
+      "handler": "get_update_bot",
+      "kind": "on_message",
+      "line": 254,
+      "regexes": [],
+      "source": "bot/modules/panel/sched_panel.py"
+    },
+    {
+      "commands": [],
+      "filter_expression": "bot.on_callback_query(filters.regex('server') & user_in_group_on_filter)",
+      "handler": "server",
+      "kind": "on_callback_query",
+      "line": 19,
+      "regexes": [
+        "server"
+      ],
+      "source": "bot/modules/panel/server_panel.py"
+    }
+  ],
+  "characterization_tests": [
+    {
+      "line": 65,
+      "name": "test_class_members_do_not_shadow_eager_annotations",
+      "source": "scripts/test_annotation_safety.py"
+    },
+    {
+      "line": 239,
+      "name": "test_ensure_user_is_idempotent_and_audited",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 253,
+      "name": "test_live_playback_builds_history_and_device_profile",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 288,
+      "name": "test_line_lifecycle_and_device_decisions_are_audited",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 341,
+      "name": "test_point_adjustment_has_ledger_and_idempotency",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 366,
+      "name": "test_local_account_identity_membership_tags_and_wallet_ledger",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 443,
+      "name": "test_local_web_auth_session_does_not_require_telegram",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 460,
+      "name": "test_owner_can_be_bootstrapped_for_local_admin_login_once",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 485,
+      "name": "test_admin_generated_invitation_codes_keep_legacy_format",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 509,
+      "name": "test_check_in_cannot_credit_twice",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 534,
+      "name": "test_registration_code_redemption_is_atomic",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 554,
+      "name": "test_shared_registration_queue_is_idempotent_and_completes_account",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 598,
+      "name": "test_registration_code_can_enter_shared_queue_when_closed",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 625,
+      "name": "test_failed_purchase_does_not_create_codes",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 641,
+      "name": "test_recharge_order_is_idempotent_and_credits_once",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 701,
+      "name": "test_user_can_cancel_only_their_pending_recharge_order",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 733,
+      "name": "test_refund_reverses_credited_order_once_and_reconciles",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 781,
+      "name": "test_risk_rules_trigger_alert_tasks_with_cooldown",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 814,
+      "name": "test_diagnostics_record_transitions_without_duplicate_risk_events",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 843,
+      "name": "test_batch_lifecycle_records_each_user_and_queues_notifications",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 872,
+      "name": "test_batch_operations_accept_web_only_account_ids",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 909,
+      "name": "test_ticket_messages_are_scoped_and_internal_notes_are_hidden",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 950,
+      "name": "test_media_requests_are_scoped_and_bot_downloads_sync",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1013,
+      "name": "test_review_moderation_reactions_reports_and_notifications",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1075,
+      "name": "test_notification_scope_preferences_and_broadcast",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1118,
+      "name": "test_custom_role_lifecycle_enforces_member_safety",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1166,
+      "name": "test_configured_admin_uses_editable_database_permissions",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1184,
+      "name": "test_partition_code_is_only_consumed_after_completion",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1219,
+      "name": "test_telegram_login_is_confirmed_before_session_creation",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1257,
+      "name": "test_telegram_login_rejects_a_different_requested_identity",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1270,
+      "name": "test_registration_verification_creates_user_and_is_purpose_scoped",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1309,
+      "name": "test_owner_permissions_and_emby_auth_method_are_distinct",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1322,
+      "name": "test_risk_events_can_be_triaged_and_are_audited",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1373,
+      "name": "test_dynamic_settings_support_conflicts_history_and_rollback",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1430,
+      "name": "test_dynamic_settings_materialize_all_non_secret_defaults_once",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 1439,
+      "name": "test_governance_permissions_are_in_default_roles",
+      "source": "scripts/test_application_services.py"
+    },
+    {
+      "line": 31,
+      "name": "test_bot_and_web_receive_the_same_login_configuration",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 46,
+      "name": "test_task_worker_is_independent_from_bot_and_web",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 58,
+      "name": "test_example_environment_defines_the_shared_login_secret",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 65,
+      "name": "test_preflight_accepts_safe_production_configuration",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 91,
+      "name": "test_preflight_rejects_public_database_style_configuration",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 111,
+      "name": "test_preflight_validates_local_owner_bootstrap_pair",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 140,
+      "name": "test_deploy_script_contains_backup_health_wait_and_rollback",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 146,
+      "name": "test_public_verifier_requires_security_headers_and_expected_body",
+      "source": "scripts/test_deployment_contract.py"
+    },
+    {
+      "line": 88,
+      "name": "test_change_policy_preserves_existing_folder_restrictions_when_enabling_user",
+      "source": "scripts/test_emby_policy.py"
+    },
+    {
+      "line": 12,
+      "name": "test_migration_contains_all_shared_platform_tables",
+      "source": "scripts/test_platform_contract.py"
+    },
+    {
+      "line": 22,
+      "name": "test_vault_encrypts_secrets_and_api_keys_are_hashed",
+      "source": "scripts/test_platform_contract.py"
+    },
+    {
+      "line": 30,
+      "name": "test_multi_emby_routing_honors_runtime_switch_and_legacy_adoption",
+      "source": "scripts/test_platform_contract.py"
+    },
+    {
+      "line": 41,
+      "name": "test_open_api_and_admin_routes_are_registered",
+      "source": "scripts/test_platform_contract.py"
+    },
+    {
+      "line": 49,
+      "name": "test_worker_owns_platform_scheduling",
+      "source": "scripts/test_platform_contract.py"
+    },
+    {
+      "line": 57,
+      "name": "test_backup_avoids_shell_interpolation",
+      "source": "scripts/test_platform_contract.py"
+    },
+    {
+      "line": 64,
+      "name": "test_web_routes_cover_all_new_centers",
+      "source": "scripts/test_platform_contract.py"
+    },
+    {
+      "line": 140,
+      "name": "test_dynamic_queue_limit_is_bounded_by_remaining_slots",
+      "source": "scripts/test_register_queue.py"
+    },
+    {
+      "line": 164,
+      "name": "test_duplicate_user_is_rejected_while_busy",
+      "source": "scripts/test_register_queue.py"
+    },
+    {
+      "line": 185,
+      "name": "test_worker_processes_job_and_clears_queue_state",
+      "source": "scripts/test_register_queue.py"
+    },
+    {
+      "line": 226,
+      "name": "test_worker_rolls_back_remote_account_when_state_changes_after_create",
+      "source": "scripts/test_register_queue.py"
+    },
+    {
+      "line": 347,
+      "name": "test_real_emby_registration",
+      "source": "scripts/test_register_queue.py"
+    },
+    {
+      "line": 76,
+      "name": "test_enqueue_is_idempotent_and_emits_event",
+      "source": "scripts/test_task_reliability.py"
+    },
+    {
+      "line": 85,
+      "name": "test_claim_heartbeat_and_complete",
+      "source": "scripts/test_task_reliability.py"
+    },
+    {
+      "line": 96,
+      "name": "test_failure_retries_then_can_be_manually_retried",
+      "source": "scripts/test_task_reliability.py"
+    },
+    {
+      "line": 114,
+      "name": "test_expired_lease_is_recovered",
+      "source": "scripts/test_task_reliability.py"
+    },
+    {
+      "line": 126,
+      "name": "test_pending_cancel_and_worker_status",
+      "source": "scripts/test_task_reliability.py"
+    },
+    {
+      "line": 145,
+      "name": "test_event_prefix_filter_limits_admin_stream_visibility",
+      "source": "scripts/test_task_reliability.py"
+    },
+    {
+      "line": 205,
+      "name": "test_custom_admin_path_and_common_decoys",
+      "source": "scripts/test_web_auth.py"
+    },
+    {
+      "line": 218,
+      "name": "test_telegram_login_cookie_csrf_and_logout",
+      "source": "scripts/test_web_auth.py"
+    },
+    {
+      "line": 251,
+      "name": "test_unauthenticated_profile_is_rejected",
+      "source": "scripts/test_web_auth.py"
+    },
+    {
+      "line": 255,
+      "name": "test_web_registration_verifies_identity_and_enters_shared_queue",
+      "source": "scripts/test_web_auth.py"
+    },
+    {
+      "line": 299,
+      "name": "test_web_registration_can_create_local_identity_without_telegram",
+      "source": "scripts/test_web_auth.py"
+    },
+    {
+      "line": 333,
+      "name": "test_admin_event_prefixes_follow_module_permissions",
+      "source": "scripts/test_web_auth.py"
+    },
+    {
+      "line": 347,
+      "name": "test_admin_api_requires_telegram_auth_even_for_owner",
+      "source": "scripts/test_web_auth.py"
+    }
+  ],
+  "compose_services": [
+    {
+      "image": "mysql:8.4",
+      "line": 21,
+      "name": "mysql",
+      "source": "docker-compose.yml"
+    },
+    {
+      "image": "${SAKURA_IMAGE:?请在 .env 中设置 SAKURA_IMAGE}",
+      "line": 46,
+      "name": "migrate",
+      "source": "docker-compose.yml"
+    },
+    {
+      "image": "${SAKURA_IMAGE:?请在 .env 中设置 SAKURA_IMAGE}",
+      "line": 60,
+      "name": "bot",
+      "source": "docker-compose.yml"
+    },
+    {
+      "image": "${SAKURA_IMAGE:?请在 .env 中设置 SAKURA_IMAGE}",
+      "line": 86,
+      "name": "worker",
+      "source": "docker-compose.yml"
+    },
+    {
+      "image": "${SAKURA_IMAGE:?请在 .env 中设置 SAKURA_IMAGE}",
+      "line": 110,
+      "name": "web",
+      "source": "docker-compose.yml"
+    }
+  ],
+  "configuration_keys": [
+    {
+      "key": "admins",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "allowed_clients",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "api",
+      "sensitive_candidate": true,
+      "type": "dict"
+    },
+    {
+      "key": "api.admin_path",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "api.allow_origins",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "api.cookie_secure",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "api.docs_enabled",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "api.http_port",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "api.http_url",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "api.legacy_api_enabled",
+      "sensitive_candidate": true,
+      "type": "bool"
+    },
+    {
+      "key": "api.login_ttl_seconds",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "api.public_base_url",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "api.session_ttl_hours",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "api.status",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "api.trusted_hosts",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "api.user_path",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "auto_update",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "auto_update.commit_sha",
+      "sensitive_candidate": false,
+      "type": "NoneType"
+    },
+    {
+      "key": "auto_update.git_repo",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "auto_update.status",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "blocked_clients",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "bot_name",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "bot_photo",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "bot_token",
+      "sensitive_candidate": true,
+      "type": "str"
+    },
+    {
+      "key": "chanel",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "client_filter_block_user",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "client_filter_enabled",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "client_filter_mode",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "client_filter_terminate_session",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "db_backup_dir",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "db_backup_maxcount",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "db_docker_name",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "db_host",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "db_is_docker",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "db_name",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "db_pwd",
+      "sensitive_candidate": true,
+      "type": "str"
+    },
+    {
+      "key": "db_user",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "emby_api",
+      "sensitive_candidate": true,
+      "type": "str"
+    },
+    {
+      "key": "emby_block",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "emby_line",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "emby_url",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "emby_whitelist_line",
+      "sensitive_candidate": false,
+      "type": "NoneType"
+    },
+    {
+      "key": "extra_emby_libs",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "group",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "line_filter_block_user",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "line_filter_terminate_session",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "main_group",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "money",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "moviepilot",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "moviepilot.access_token",
+      "sensitive_candidate": true,
+      "type": "NoneType"
+    },
+    {
+      "key": "moviepilot.password",
+      "sensitive_candidate": true,
+      "type": "NoneType"
+    },
+    {
+      "key": "moviepilot.price",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "moviepilot.status",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "moviepilot.url",
+      "sensitive_candidate": false,
+      "type": "NoneType"
+    },
+    {
+      "key": "moviepilot.username",
+      "sensitive_candidate": false,
+      "type": "NoneType"
+    },
+    {
+      "key": "open",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "open.all_user",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.allow_code",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.checkin",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.exchange",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.exchange_cost",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.invite",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.invite_cost",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.leave_ban",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.register_queue_limit",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.register_worker_count",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.srank_cost",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.stat",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.tem",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.timing",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "open.uplays",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.use_whitelist_code",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.whitelist",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "open.whitelist_cost",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "owner",
+      "sensitive_candidate": false,
+      "type": "int"
+    },
+    {
+      "key": "owner_api",
+      "sensitive_candidate": true,
+      "type": "int"
+    },
+    {
+      "key": "owner_hash",
+      "sensitive_candidate": true,
+      "type": "str"
+    },
+    {
+      "key": "partition_libs",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "proxy",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "proxy.hostname",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "proxy.password",
+      "sensitive_candidate": true,
+      "type": "str"
+    },
+    {
+      "key": "proxy.port",
+      "sensitive_candidate": false,
+      "type": "NoneType"
+    },
+    {
+      "key": "proxy.scheme",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "proxy.username",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "ranks",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "ranks.backdrop",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "ranks.logo",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "red_envelope",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "red_envelope.allow_private",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "red_envelope.status",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall",
+      "sensitive_candidate": false,
+      "type": "dict"
+    },
+    {
+      "key": "schedall.backup_db",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall.check_ex",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall.dayplayrank",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall.dayrank",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall.low_activity",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall.partition_check",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall.weekplayrank",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "schedall.weekrank",
+      "sensitive_candidate": false,
+      "type": "bool"
+    },
+    {
+      "key": "tz_ad",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "tz_api",
+      "sensitive_candidate": true,
+      "type": "str"
+    },
+    {
+      "key": "tz_id",
+      "sensitive_candidate": false,
+      "type": "list"
+    },
+    {
+      "key": "tz_note",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "tz_password",
+      "sensitive_candidate": true,
+      "type": "str"
+    },
+    {
+      "key": "tz_username",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "tz_version",
+      "sensitive_candidate": false,
+      "type": "str"
+    },
+    {
+      "key": "w_anti_chanel_ids",
+      "sensitive_candidate": false,
+      "type": "list"
+    }
+  ],
+  "database_models": [
+    {
+      "columns": [
+        "account_id",
+        "created_at",
+        "emby_user_id",
+        "emby_username",
+        "expires_at",
+        "id",
+        "instance_id",
+        "is_primary",
+        "last_synced_at",
+        "status",
+        "updated_at"
+      ],
+      "line": 92,
+      "model": "AccountEmbyBinding",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "account_emby_bindings"
+    },
+    {
+      "columns": [
+        "account_id",
+        "created_at",
+        "disabled",
+        "id",
+        "last_used_at",
+        "metadata_json",
+        "password_hash",
+        "provider",
+        "subject",
+        "updated_at",
+        "username",
+        "username_normalized",
+        "verified_at"
+      ],
+      "line": 40,
+      "model": "AccountIdentity",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "account_identities"
+    },
+    {
+      "columns": [
+        "account_id",
+        "actor_id",
+        "actor_kind",
+        "amount",
+        "balance_after",
+        "balance_type",
+        "created_at",
+        "id",
+        "idempotency_key",
+        "legacy_tg",
+        "metadata_json",
+        "reason",
+        "scope",
+        "source_transaction_id"
+      ],
+      "line": 144,
+      "model": "AccountLedgerEntry",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "account_ledger_entries"
+    },
+    {
+      "columns": [
+        "account_id",
+        "action",
+        "actor_id",
+        "actor_kind",
+        "batch_id",
+        "created_at",
+        "detail_json",
+        "id",
+        "status",
+        "tg"
+      ],
+      "line": 250,
+      "model": "AccountLifecycleEvent",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "account_lifecycle_events"
+    },
+    {
+      "columns": [
+        "account_id",
+        "created_at",
+        "created_by_id",
+        "created_by_kind",
+        "expires_at",
+        "id",
+        "plan_id",
+        "source",
+        "starts_at",
+        "status",
+        "updated_at"
+      ],
+      "line": 83,
+      "model": "AccountMembership",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "account_memberships"
+    },
+    {
+      "columns": [
+        "account_id",
+        "assigned_by_id",
+        "assigned_by_kind",
+        "created_at",
+        "id",
+        "tag_id"
+      ],
+      "line": 115,
+      "model": "AccountTagAssignment",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "account_tag_assignments"
+    },
+    {
+      "columns": [
+        "color",
+        "created_at",
+        "description",
+        "id",
+        "name",
+        "updated_at"
+      ],
+      "line": 103,
+      "model": "AccountTag",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "account_tags"
+    },
+    {
+      "columns": [
+        "account_id",
+        "balance",
+        "balance_type",
+        "id",
+        "revision",
+        "updated_at"
+      ],
+      "line": 130,
+      "model": "AccountWallet",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "account_wallets"
+    },
+    {
+      "columns": [
+        "created_at",
+        "display_name",
+        "id",
+        "legacy_tg",
+        "status",
+        "updated_at"
+      ],
+      "line": 25,
+      "model": "Account",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "accounts"
+    },
+    {
+      "columns": [
+        "attempt_count",
+        "created_at",
+        "error_message",
+        "id",
+        "recipient_tg",
+        "security_event_id",
+        "sent_at",
+        "status",
+        "updated_at"
+      ],
+      "line": 232,
+      "model": "AlertDelivery",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "alert_deliveries"
+    },
+    {
+      "columns": [
+        "active",
+        "created_at",
+        "created_by",
+        "expires_at",
+        "id",
+        "key_hash",
+        "key_prefix",
+        "last_ip",
+        "last_used_at",
+        "name",
+        "scopes_json",
+        "updated_at"
+      ],
+      "line": 176,
+      "model": "ApiClient",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "api_clients"
+    },
+    {
+      "columns": [
+        "action",
+        "actor_id",
+        "actor_kind",
+        "actor_name",
+        "created_at",
+        "detail_json",
+        "id",
+        "ip_address",
+        "outcome",
+        "request_id",
+        "resource_id",
+        "resource_type",
+        "user_agent"
+      ],
+      "line": 43,
+      "model": "AuditLog",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "audit_logs"
+    },
+    {
+      "columns": [
+        "actions_json",
+        "conditions_json",
+        "cooldown_seconds",
+        "created_at",
+        "description",
+        "enabled",
+        "id",
+        "last_cursor",
+        "last_run_at",
+        "name",
+        "revision",
+        "trigger_type",
+        "trigger_value",
+        "updated_at"
+      ],
+      "line": 138,
+      "model": "AutomationRule",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "automation_rules"
+    },
+    {
+      "columns": [
+        "action_results_json",
+        "created_at",
+        "error_message",
+        "event_id",
+        "finished_at",
+        "id",
+        "rule_id",
+        "started_at",
+        "status"
+      ],
+      "line": 158,
+      "model": "AutomationRun",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "automation_runs"
+    },
+    {
+      "columns": [
+        "actor_id",
+        "actor_kind",
+        "amount_cents",
+        "coins",
+        "created_at",
+        "description",
+        "entry_type",
+        "id",
+        "metadata_json",
+        "order_id",
+        "tg"
+      ],
+      "line": 64,
+      "model": "BillingEntry",
+      "source": "bot/sql_helper/sql_commerce.py",
+      "table": "billing_entries"
+    },
+    {
+      "columns": [
+        "actor_id",
+        "actor_kind",
+        "created_at",
+        "id",
+        "new_value_json",
+        "old_value_json",
+        "revision",
+        "setting_key"
+      ],
+      "line": 284,
+      "model": "ConfigRevision",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "config_revisions"
+    },
+    {
+      "columns": [
+        "action",
+        "built_in",
+        "created_at",
+        "enabled",
+        "hit_count",
+        "id",
+        "match_type",
+        "name",
+        "notes",
+        "pattern",
+        "priority",
+        "revision",
+        "updated_at"
+      ],
+      "line": 23,
+      "model": "DeviceClientRule",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "device_client_rules"
+    },
+    {
+      "columns": [
+        "created_at",
+        "is_secret",
+        "revision",
+        "setting_key",
+        "updated_at",
+        "updated_by_id",
+        "updated_by_kind",
+        "value_json",
+        "value_type"
+      ],
+      "line": 270,
+      "model": "DynamicSetting",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "dynamic_settings"
+    },
+    {
+      "columns": [
+        "ch",
+        "cr",
+        "embyid",
+        "ex",
+        "iv",
+        "lv",
+        "name",
+        "pwd",
+        "pwd2",
+        "tg",
+        "us"
+      ],
+      "line": 12,
+      "model": "Emby",
+      "source": "bot/sql_helper/sql_emby.py",
+      "table": "emby"
+    },
+    {
+      "columns": [
+        "cr",
+        "embyid",
+        "ex",
+        "expired",
+        "lv",
+        "name",
+        "pwd",
+        "pwd2"
+      ],
+      "line": 6,
+      "model": "Emby2",
+      "source": "bot/sql_helper/sql_emby2.py",
+      "table": "emby2"
+    },
+    {
+      "columns": [
+        "created_at",
+        "embyid",
+        "embyname",
+        "id",
+        "item_id",
+        "item_name"
+      ],
+      "line": 6,
+      "model": "EmbyFavorites",
+      "source": "bot/sql_helper/sql_favorites.py",
+      "table": "emby_favorites"
+    },
+    {
+      "columns": [
+        "base_url",
+        "created_at",
+        "credential_id",
+        "enabled",
+        "id",
+        "is_default",
+        "last_checked_at",
+        "last_error",
+        "last_latency_ms",
+        "name",
+        "priority",
+        "revision",
+        "status",
+        "updated_at",
+        "verify_tls"
+      ],
+      "line": 67,
+      "model": "EmbyInstance",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "emby_instances"
+    },
+    {
+      "columns": [
+        "created_at",
+        "expires_at",
+        "id",
+        "idempotency_key",
+        "result_json",
+        "scope"
+      ],
+      "line": 28,
+      "model": "IdempotencyRecord",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "idempotency_records"
+    },
+    {
+      "columns": [
+        "error_message",
+        "finished_at",
+        "id",
+        "job_name",
+        "started_at",
+        "status",
+        "summary_json",
+        "trigger_kind"
+      ],
+      "line": 145,
+      "model": "JobRun",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "job_runs"
+    },
+    {
+      "columns": [
+        "app_version",
+        "banned",
+        "client_name",
+        "device_key",
+        "device_name",
+        "emby_user_id",
+        "emby_user_name",
+        "first_seen_at",
+        "last_ip",
+        "last_seen_at",
+        "notes",
+        "playback_count",
+        "risk_level",
+        "tg",
+        "trusted",
+        "updated_at"
+      ],
+      "line": 95,
+      "model": "KnownDevice",
+      "source": "bot/sql_helper/sql_operations.py",
+      "table": "known_devices"
+    },
+    {
+      "columns": [
+        "audience",
+        "base_url",
+        "carrier",
+        "created_at",
+        "enabled",
+        "id",
+        "last_checked_at",
+        "last_error",
+        "last_latency_ms",
+        "last_status",
+        "maintenance",
+        "name",
+        "region",
+        "revision",
+        "sort_order",
+        "updated_at",
+        "weight"
+      ],
+      "line": 19,
+      "model": "LineEndpoint",
+      "source": "bot/sql_helper/sql_operations.py",
+      "table": "line_endpoints"
+    },
+    {
+      "columns": [
+        "checked_at",
+        "error_message",
+        "id",
+        "latency_ms",
+        "line_id",
+        "status_code",
+        "success"
+      ],
+      "line": 45,
+      "model": "LineHealthSample",
+      "source": "bot/sql_helper/sql_operations.py",
+      "table": "line_health_samples"
+    },
+    {
+      "columns": [
+        "active",
+        "ciphertext",
+        "created_at",
+        "credential_type",
+        "expires_at",
+        "fingerprint",
+        "id",
+        "last_used_at",
+        "metadata_json",
+        "name",
+        "provider",
+        "revision",
+        "updated_at"
+      ],
+      "line": 45,
+      "model": "ManagedCredential",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "managed_credentials"
+    },
+    {
+      "columns": [
+        "backdrop_path",
+        "cached_until",
+        "created_at",
+        "id",
+        "media_type",
+        "original_title",
+        "overview",
+        "payload_json",
+        "poster_path",
+        "provider",
+        "provider_id",
+        "title",
+        "updated_at",
+        "vote_average",
+        "year"
+      ],
+      "line": 113,
+      "model": "MediaCatalogItem",
+      "source": "bot/sql_helper/sql_platform.py",
+      "table": "media_catalog_items"
+    },
+    {
+      "columns": [
+        "admin_note",
+        "canceled_at",
+        "completed_at",
+        "cost_coins",
+        "created_at",
+        "description",
+        "download_id",
+        "external_ref",
+        "id",
+        "media_type",
+        "priority",
+        "progress",
+        "request_no",
+        "reviewed_at",
+        "reviewed_by",
+        "source",
+        "status",
+        "tg",
+        "title",
+        "updated_at",
+        "year"
+      ],
+      "line": 123,
+      "model": "MediaRequest",
+      "source": "bot/sql_helper/sql_commerce.py",
+      "table": "media_requests"
+    },
+    {
+      "columns": [
+        "admin_note",
+        "content",
+        "created_at",
+        "id",
+        "like_count",
+        "media_key",
+        "media_title",
+        "media_year",
+        "moderated_at",
+        "moderated_by",
+        "rating",
+        "report_count",
+        "spoiler",
+        "status",
+        "tg",
+        "updated_at"
+      ],
+      "line": 19,
+      "model": "MediaReview",
+      "source": "bot/sql_helper/sql_community.py",
+      "table": "media_reviews"
+    },
+    {
+      "columns": [
+        "code",
+        "created_at",
+        "description",
+        "duration_days",
+        "enabled",
+        "entitlements_json",
+        "id",
+        "is_default",
+        "legacy_level",
+        "name",
+        "revision",
+        "sort_order",
+        "updated_at"
+      ],
+      "line": 64,
+      "model": "MembershipPlan",
+      "source": "bot/sql_helper/sql_accounts.py",
+      "table": "membership_plans"
+    },
+    {
+      "columns": [
+        "category",
+        "id",
+        "telegram_enabled",
+        "tg",
+        "updated_at",
+        "web_enabled"
+      ],
+      "line": 94,
+      "model": "NotificationPreference",
+      "source": "bot/sql_helper/sql_community.py",
+      "table": "notification_preferences"
+    },
+    {
+      "columns": [
+        "cancel_requested",
+        "created_at",
+        "error_message",
+        "finished_at",
+        "id",
+        "idempotency_key",
+        "input_json",
+        "last_heartbeat_at",
+        "lease_expires_at",
+        "locked_by",
+        "max_retries",
+        "next_run_at",
+        "owner_id",
+        "owner_kind",
+        "progress",
+        "result_json",
+        "retry_count",
+        "started_at",
+        "status",
+        "task_type",
+        "updated_at"
+      ],
+      "line": 87,
+      "model": "OperationTask",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "operation_tasks"
+    },
+    {
+      "columns": [
+        "code",
+        "created_at",
+        "created_by",
+        "duration_days",
+        "partition",
+        "reservation_token",
+        "reserved_at",
+        "reserved_by",
+        "status"
+      ],
+      "line": 9,
+      "model": "PartitionCode",
+      "source": "bot/sql_helper/sql_partition.py",
+      "table": "partition_codes"
+    },
+    {
+      "columns": [
+        "code",
+        "created_at",
+        "embyid",
+        "embyname",
+        "expires_at",
+        "id",
+        "partition",
+        "status",
+        "tg",
+        "updated_at"
+      ],
+      "line": 22,
+      "model": "PartitionGrant",
+      "source": "bot/sql_helper/sql_partition.py",
+      "table": "partition_grants"
+    },
+    {
+      "columns": [
+        "app_version",
+        "client_name",
+        "created_at",
+        "device_key",
+        "device_name",
+        "emby_user_id",
+        "emby_user_name",
+        "ended_at",
+        "id",
+        "is_paused",
+        "is_transcoding",
+        "item_id",
+        "item_name",
+        "item_type",
+        "last_seen_at",
+        "position_ticks",
+        "progress_percent",
+        "remote_address",
+        "runtime_ticks",
+        "series_name",
+        "session_id",
+        "started_at",
+        "tg",
+        "updated_at"
+      ],
+      "line": 60,
+      "model": "PlaybackSession",
+      "source": "bot/sql_helper/sql_operations.py",
+      "table": "playback_sessions"
+    },
+    {
+      "columns": [
+        "account_id",
+        "actor_id",
+        "actor_kind",
+        "amount",
+        "balance_after",
+        "balance_type",
+        "created_at",
+        "id",
+        "idempotency_key",
+        "metadata_json",
+        "reason",
+        "tg"
+      ],
+      "line": 66,
+      "model": "PointTransaction",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "point_transactions"
+    },
+    {
+      "columns": [
+        "code",
+        "expires_at",
+        "issuer_account_id",
+        "reserved_by_account_id",
+        "reserved_until",
+        "status",
+        "tg",
+        "us",
+        "used",
+        "used_by_account_id",
+        "usedtime"
+      ],
+      "line": 17,
+      "model": "Code",
+      "source": "bot/sql_helper/sql_code.py",
+      "table": "Rcode"
+    },
+    {
+      "columns": [
+        "admin_note",
+        "amount_cents",
+        "bonus_coins",
+        "canceled_at",
+        "coins",
+        "created_at",
+        "credited_at",
+        "id",
+        "order_no",
+        "paid_at",
+        "payment_method",
+        "payment_reference",
+        "product_id",
+        "product_name",
+        "status",
+        "tg",
+        "updated_at",
+        "user_note"
+      ],
+      "line": 36,
+      "model": "RechargeOrder",
+      "source": "bot/sql_helper/sql_commerce.py",
+      "table": "recharge_orders"
+    },
+    {
+      "columns": [
+        "amount_cents",
+        "bonus_coins",
+        "coins",
+        "created_at",
+        "description",
+        "enabled",
+        "id",
+        "name",
+        "revision",
+        "sort_order",
+        "updated_at"
+      ],
+      "line": 19,
+      "model": "RechargeProduct",
+      "source": "bot/sql_helper/sql_commerce.py",
+      "table": "recharge_products"
+    },
+    {
+      "columns": [
+        "id",
+        "updated_at"
+      ],
+      "line": 120,
+      "model": "RegistrationState",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "registration_state"
+    },
+    {
+      "columns": [
+        "cost",
+        "create_at",
+        "detail",
+        "download_id",
+        "download_state",
+        "left_time",
+        "progress",
+        "request_name",
+        "tg",
+        "transfer_state",
+        "update_at"
+      ],
+      "line": 9,
+      "model": "RequestRecord",
+      "source": "bot/sql_helper/sql_request_record.py",
+      "table": "request_records"
+    },
+    {
+      "columns": [
+        "created_at",
+        "id",
+        "review_id",
+        "tg"
+      ],
+      "line": 46,
+      "model": "ReviewReaction",
+      "source": "bot/sql_helper/sql_community.py",
+      "table": "review_reactions"
+    },
+    {
+      "columns": [
+        "created_at",
+        "detail",
+        "id",
+        "reason",
+        "review_id",
+        "tg"
+      ],
+      "line": 59,
+      "model": "ReviewReport",
+      "source": "bot/sql_helper/sql_community.py",
+      "table": "review_reports"
+    },
+    {
+      "columns": [
+        "cooldown_minutes",
+        "created_at",
+        "enabled",
+        "event_pattern",
+        "id",
+        "name",
+        "revision",
+        "severity",
+        "telegram_alert",
+        "threshold_count",
+        "updated_at",
+        "window_minutes"
+      ],
+      "line": 200,
+      "model": "RiskRule",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "risk_rules"
+    },
+    {
+      "columns": [
+        "assigned_to",
+        "created_at",
+        "detail_json",
+        "event_type",
+        "id",
+        "ip_address",
+        "resolution_note",
+        "resolved_at",
+        "resolved_by",
+        "severity",
+        "status",
+        "subject_id",
+        "subject_kind",
+        "updated_at"
+      ],
+      "line": 176,
+      "model": "SecurityEvent",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "security_events"
+    },
+    {
+      "columns": [
+        "checked_at",
+        "detail_json",
+        "id",
+        "latency_ms",
+        "message",
+        "service_kind",
+        "service_name",
+        "status",
+        "status_code"
+      ],
+      "line": 217,
+      "model": "ServiceProbe",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "service_probes"
+    },
+    {
+      "columns": [
+        "assignee_tg",
+        "category",
+        "closed_at",
+        "created_at",
+        "id",
+        "last_reply_at",
+        "last_reply_kind",
+        "priority",
+        "resolved_at",
+        "status",
+        "subject",
+        "tg",
+        "ticket_no",
+        "updated_at"
+      ],
+      "line": 85,
+      "model": "SupportTicket",
+      "source": "bot/sql_helper/sql_commerce.py",
+      "table": "support_tickets"
+    },
+    {
+      "columns": [
+        "aggregate_id",
+        "aggregate_type",
+        "created_at",
+        "event_type",
+        "id",
+        "payload_json",
+        "published_at"
+      ],
+      "line": 129,
+      "model": "SystemEvent",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "system_events"
+    },
+    {
+      "columns": [
+        "body",
+        "created_at",
+        "id",
+        "internal",
+        "sender_kind",
+        "sender_tg",
+        "ticket_id"
+      ],
+      "line": 110,
+      "model": "TicketMessage",
+      "source": "bot/sql_helper/sql_commerce.py",
+      "table": "ticket_messages"
+    },
+    {
+      "columns": [
+        "action_url",
+        "body",
+        "category",
+        "created_at",
+        "id",
+        "metadata_json",
+        "read_at",
+        "severity",
+        "tg",
+        "title"
+      ],
+      "line": 74,
+      "model": "UserNotification",
+      "source": "bot/sql_helper/sql_community.py",
+      "table": "user_notifications"
+    },
+    {
+      "columns": [
+        "approved_at",
+        "approved_tg",
+        "claimed_at",
+        "consumed_at",
+        "created_at",
+        "expires_at",
+        "id",
+        "ip_address",
+        "purpose",
+        "request_token_hash",
+        "requested_tg",
+        "status"
+      ],
+      "line": 320,
+      "model": "WebLoginRequest",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "web_login_requests"
+    },
+    {
+      "columns": [
+        "created_at",
+        "created_by",
+        "id",
+        "role_id",
+        "tg"
+      ],
+      "line": 352,
+      "model": "WebRoleMember",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "web_role_members"
+    },
+    {
+      "columns": [
+        "created_at",
+        "id",
+        "is_system",
+        "name",
+        "permissions_json",
+        "updated_at"
+      ],
+      "line": 341,
+      "model": "WebRole",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "web_roles"
+    },
+    {
+      "columns": [
+        "account_id",
+        "auth_method",
+        "created_at",
+        "csrf_hash",
+        "expires_at",
+        "id",
+        "ip_address",
+        "last_seen_at",
+        "purpose",
+        "revoked_at",
+        "tg",
+        "token_hash",
+        "user_agent"
+      ],
+      "line": 298,
+      "model": "WebSession",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "web_sessions"
+    },
+    {
+      "columns": [
+        "current_task_id",
+        "hostname",
+        "last_seen_at",
+        "metadata_json",
+        "process_id",
+        "started_at",
+        "status",
+        "worker_id",
+        "worker_kind"
+      ],
+      "line": 159,
+      "model": "WorkerHeartbeat",
+      "source": "bot/sql_helper/sql_application.py",
+      "table": "worker_heartbeats"
+    }
+  ],
+  "environment_variables": [
+    "DOCKER_MODE",
+    "MYSQL_DATABASE",
+    "MYSQL_PASSWORD",
+    "MYSQL_ROOT_PASSWORD",
+    "MYSQL_USER",
+    "SAKURA_ALERT_TELEGRAM_IDS",
+    "SAKURA_BOOTSTRAP_ADMIN_PASSWORD",
+    "SAKURA_BOOTSTRAP_ADMIN_USERNAME",
+    "SAKURA_CONFIG_SAVE_ON_START",
+    "SAKURA_COOKIE_SECURE",
+    "SAKURA_CORS_ORIGINS",
+    "SAKURA_CREDENTIAL_MASTER_KEY",
+    "SAKURA_CSRF_COOKIE",
+    "SAKURA_DB_CONTAINER",
+    "SAKURA_DB_HOST",
+    "SAKURA_DB_IS_DOCKER",
+    "SAKURA_DB_NAME",
+    "SAKURA_DB_PASSWORD",
+    "SAKURA_DB_PORT",
+    "SAKURA_DB_USER",
+    "SAKURA_DIAGNOSTIC_INTERVAL_SECONDS",
+    "SAKURA_DOCS_ENABLED",
+    "SAKURA_EMBEDDED_WEB_ENABLED",
+    "SAKURA_EVENT_POLL_SECONDS",
+    "SAKURA_FORWARDED_ALLOW_IPS",
+    "SAKURA_IMAGE",
+    "SAKURA_LEGACY_API_ENABLED",
+    "SAKURA_LEGACY_API_TOKEN",
+    "SAKURA_LOGIN_TTL_SECONDS",
+    "SAKURA_OPERATIONS_SYNC_SECONDS",
+    "SAKURA_PROBE_RETENTION_DAYS",
+    "SAKURA_PUBLIC_BASE_URL",
+    "SAKURA_SESSION_COOKIE",
+    "SAKURA_SESSION_TTL_HOURS",
+    "SAKURA_TASK_HEARTBEAT_SECONDS",
+    "SAKURA_TASK_LEASE_SECONDS",
+    "SAKURA_TASK_POLL_SECONDS",
+    "SAKURA_TASK_WORKER_ENABLED",
+    "SAKURA_TRUSTED_HOSTS",
+    "SAKURA_WEB_BIND_IP",
+    "SAKURA_WEB_BIND_PORT",
+    "SAKURA_WEB_HOST",
+    "SAKURA_WEB_SESSION_SECRET",
+    "TZ",
+    "WEB_ADMIN_PATH",
+    "WEB_USER_PATH"
+  ],
+  "frontend_routes": [
+    {
+      "line": 13,
+      "path": "",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 19,
+      "path": "users",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 25,
+      "path": "memberships",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 31,
+      "path": "invitation-codes",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 37,
+      "path": "operations",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 43,
+      "path": "playback/live",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 49,
+      "path": "playback/history",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 55,
+      "path": "devices",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 61,
+      "path": "lines",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 67,
+      "path": "tasks",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 73,
+      "path": "automation",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 79,
+      "path": "system/infrastructure",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 85,
+      "path": "system/recovery",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 91,
+      "path": "system/status",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 97,
+      "path": "system/diagnostics",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 103,
+      "path": "billing/recharge",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 109,
+      "path": "billing/ledger",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 115,
+      "path": "tickets",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 121,
+      "path": "requests",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 127,
+      "path": "media",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 133,
+      "path": "reviews",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 139,
+      "path": "notifications",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 145,
+      "path": "roles",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 151,
+      "path": "audit",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 157,
+      "path": "risk",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 163,
+      "path": "settings",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 171,
+      "path": "",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 177,
+      "path": "points",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 183,
+      "path": "account",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 189,
+      "path": "billing",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 195,
+      "path": "tickets",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 201,
+      "path": "requests",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 207,
+      "path": "media",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 213,
+      "path": "reviews",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 219,
+      "path": "notifications",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 229,
+      "path": "/login",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 233,
+      "path": "/register",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 241,
+      "path": "/",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 245,
+      "path": "/:pathMatch(.*)*",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 254,
+      "path": "/",
+      "source": "web/src/router.ts"
+    },
+    {
+      "line": 272,
+      "path": "/",
+      "source": "web/src/router.ts"
+    }
+  ],
+  "frontend_views": [
+    "web/src/views/admin/AdminHome.vue",
+    "web/src/views/admin/AuditView.vue",
+    "web/src/views/admin/AutomationCenterView.vue",
+    "web/src/views/admin/BillingLedgerView.vue",
+    "web/src/views/admin/DevicesView.vue",
+    "web/src/views/admin/DiagnosticsView.vue",
+    "web/src/views/admin/InfrastructureView.vue",
+    "web/src/views/admin/InvitationCodesView.vue",
+    "web/src/views/admin/LinesView.vue",
+    "web/src/views/admin/MembershipsView.vue",
+    "web/src/views/admin/NotificationsView.vue",
+    "web/src/views/admin/OperationsCenterView.vue",
+    "web/src/views/admin/PlaybackHistoryView.vue",
+    "web/src/views/admin/PlaybackLiveView.vue",
+    "web/src/views/admin/RechargeView.vue",
+    "web/src/views/admin/RecoveryView.vue",
+    "web/src/views/admin/RequestsView.vue",
+    "web/src/views/admin/ReviewsView.vue",
+    "web/src/views/admin/RiskEventsView.vue",
+    "web/src/views/admin/RolesView.vue",
+    "web/src/views/admin/SystemSettingsView.vue",
+    "web/src/views/admin/SystemStatusView.vue",
+    "web/src/views/admin/TasksView.vue",
+    "web/src/views/admin/TicketsView.vue",
+    "web/src/views/admin/UsersView.vue",
+    "web/src/views/LoginView.vue",
+    "web/src/views/MediaCenterView.vue",
+    "web/src/views/portal/AccountView.vue",
+    "web/src/views/portal/BillingView.vue",
+    "web/src/views/portal/NotificationsView.vue",
+    "web/src/views/portal/PointsView.vue",
+    "web/src/views/portal/PortalHome.vue",
+    "web/src/views/portal/RequestsView.vue",
+    "web/src/views/portal/ReviewsView.vue",
+    "web/src/views/portal/TicketsView.vue",
+    "web/src/views/RegisterView.vue"
+  ],
+  "http_routes": [
+    {
+      "declared_path": "/account",
+      "handler": "my_canonical_account",
+      "line": 69,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/account/ledger",
+      "handler": "my_account_ledger",
+      "line": 77,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/accounts",
+      "handler": "list_accounts",
+      "line": 94,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/accounts/{account_id}",
+      "handler": "account_detail",
+      "line": 106,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/accounts/{account_id}/ledger",
+      "handler": "account_ledger",
+      "line": 114,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/membership-plans",
+      "handler": "list_membership_plans",
+      "line": 132,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/membership-plans",
+      "handler": "create_membership_plan",
+      "line": 137,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/membership-plans/{plan_id}",
+      "handler": "update_membership_plan",
+      "line": 145,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/accounts/{account_id}/membership",
+      "handler": "assign_membership",
+      "line": 157,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/account-tags",
+      "handler": "list_account_tags",
+      "line": 165,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/account-tags",
+      "handler": "create_account_tag",
+      "line": 170,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/account-tags/{tag_id}",
+      "handler": "delete_account_tag",
+      "line": 178,
+      "method": "DELETE",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/accounts/tags/batch",
+      "handler": "batch_assign_tags",
+      "line": 185,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/invitation-codes",
+      "handler": "list_invitation_codes",
+      "line": 190,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/invitation-codes",
+      "handler": "generate_invitation_codes",
+      "line": 199,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/invitation-codes/{code_value}/revoke",
+      "handler": "revoke_invitation_code",
+      "line": 222,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/accounts.py"
+    },
+    {
+      "declared_path": "/overview",
+      "handler": "overview",
+      "line": 48,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/users",
+      "handler": "list_users",
+      "line": 57,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/users/{tg}",
+      "handler": "get_user",
+      "line": 80,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/users/{tg}/points",
+      "handler": "adjust_points",
+      "line": 94,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/audit",
+      "handler": "audit_logs",
+      "line": 132,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/audit/export",
+      "handler": "export_audit_logs",
+      "line": 163,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/roles",
+      "handler": "list_roles",
+      "line": 246,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/roles/catalog",
+      "handler": "role_permission_catalog",
+      "line": 255,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/roles",
+      "handler": "create_role",
+      "line": 264,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/roles/{role_id}",
+      "handler": "update_role",
+      "line": 284,
+      "method": "PATCH",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/roles/{role_id}",
+      "handler": "delete_role",
+      "line": 305,
+      "method": "DELETE",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/users/{tg}/role",
+      "handler": "assign_role",
+      "line": 326,
+      "method": "PUT",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/admin.py"
+    },
+    {
+      "declared_path": "/telegram/start",
+      "handler": "telegram_start",
+      "line": 76,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/telegram/status",
+      "handler": "telegram_status",
+      "line": 99,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/telegram/exchange",
+      "handler": "telegram_exchange",
+      "line": 110,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/emby",
+      "handler": "emby_login",
+      "line": 149,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/local",
+      "handler": "local_login",
+      "line": 202,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/local/identity",
+      "handler": "set_local_identity",
+      "line": 233,
+      "method": "PUT",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/session",
+      "handler": "session_info",
+      "line": 252,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/logout",
+      "handler": "logout",
+      "line": 264,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/logout-all",
+      "handler": "logout_all",
+      "line": 281,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/auth",
+      "source": "backend/api/auth.py"
+    },
+    {
+      "declared_path": "/recharge/products",
+      "handler": "my_recharge_products",
+      "line": 92,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/orders",
+      "handler": "my_recharge_orders",
+      "line": 97,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/orders",
+      "handler": "create_my_recharge_order",
+      "line": 106,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/orders/{order_id}/cancel",
+      "handler": "cancel_my_order",
+      "line": 125,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/billing/ledger",
+      "handler": "my_billing_ledger",
+      "line": 139,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/products",
+      "handler": "admin_products",
+      "line": 148,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/products",
+      "handler": "create_product",
+      "line": 153,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/products/{product_id}",
+      "handler": "update_product",
+      "line": 161,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/orders",
+      "handler": "admin_orders",
+      "line": 181,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/orders/{order_id}/decision",
+      "handler": "decide_order",
+      "line": 192,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/recharge/orders/{order_id}/refund",
+      "handler": "refund_order",
+      "line": 214,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/billing/reconciliation",
+      "handler": "billing_reconciliation",
+      "line": 234,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/billing/ledger",
+      "handler": "admin_ledger",
+      "line": 241,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets",
+      "handler": "my_tickets",
+      "line": 252,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets",
+      "handler": "create_my_ticket",
+      "line": 262,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets/{ticket_id}",
+      "handler": "my_ticket_detail",
+      "line": 278,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets/{ticket_id}/messages",
+      "handler": "reply_my_ticket",
+      "line": 289,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets",
+      "handler": "admin_tickets",
+      "line": 311,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets/{ticket_id}",
+      "handler": "admin_ticket_detail",
+      "line": 330,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets/{ticket_id}/messages",
+      "handler": "admin_ticket_reply",
+      "line": 341,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/tickets/{ticket_id}",
+      "handler": "update_ticket",
+      "line": 363,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/requests",
+      "handler": "my_media_requests",
+      "line": 385,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/requests",
+      "handler": "create_my_media_request",
+      "line": 395,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/requests/{request_id}/cancel",
+      "handler": "cancel_my_media_request",
+      "line": 412,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/requests",
+      "handler": "admin_media_requests",
+      "line": 426,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/requests/{request_id}",
+      "handler": "update_media_request",
+      "line": 437,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/commerce.py"
+    },
+    {
+      "declared_path": "/reviews",
+      "handler": "published_reviews",
+      "line": 62,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews/mine",
+      "handler": "my_reviews",
+      "line": 80,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews",
+      "handler": "create_review",
+      "line": 89,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews/{review_id}",
+      "handler": "update_review",
+      "line": 105,
+      "method": "PATCH",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews/{review_id}",
+      "handler": "delete_review",
+      "line": 128,
+      "method": "DELETE",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews/{review_id}/reaction",
+      "handler": "react_to_review",
+      "line": 143,
+      "method": "PUT",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews/{review_id}/report",
+      "handler": "report_review",
+      "line": 155,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews",
+      "handler": "admin_reviews",
+      "line": 177,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews/{review_id}",
+      "handler": "admin_review_detail",
+      "line": 196,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/reviews/{review_id}",
+      "handler": "moderate_review",
+      "line": 207,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notifications",
+      "handler": "my_notifications",
+      "line": 225,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notifications/unread-count",
+      "handler": "unread_count",
+      "line": 243,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notifications/read-all",
+      "handler": "read_all_notifications",
+      "line": 248,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notifications/{notification_id}/read",
+      "handler": "read_notification",
+      "line": 253,
+      "method": "POST",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notification-preferences",
+      "handler": "notification_preferences",
+      "line": 264,
+      "method": "GET",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notification-preferences",
+      "handler": "update_notification_preference",
+      "line": 269,
+      "method": "PUT",
+      "router": "me_router",
+      "router_prefix": "/me",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notifications",
+      "handler": "admin_notifications",
+      "line": 281,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/notifications/broadcast",
+      "handler": "broadcast_notification",
+      "line": 296,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/community.py"
+    },
+    {
+      "declared_path": "/risk/summary",
+      "handler": "risk_summary",
+      "line": 39,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "/risk/events",
+      "handler": "list_risk_events",
+      "line": 48,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "/risk/events/{event_id}",
+      "handler": "get_risk_event",
+      "line": 73,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "/risk/events/{event_id}",
+      "handler": "update_risk_event",
+      "line": 86,
+      "method": "PATCH",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "/settings",
+      "handler": "list_settings",
+      "line": 107,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "/settings/{setting_key:path}/history",
+      "handler": "setting_history",
+      "line": 116,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "/settings/{setting_key:path}",
+      "handler": "update_setting",
+      "line": 134,
+      "method": "PATCH",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "/settings/{setting_key:path}/rollback",
+      "handler": "rollback_setting",
+      "line": 158,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/governance.py"
+    },
+    {
+      "declared_path": "",
+      "handler": "my_profile",
+      "line": 13,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/me",
+      "source": "backend/api/me.py"
+    },
+    {
+      "declared_path": "/point-transactions",
+      "handler": "my_point_transactions",
+      "line": 26,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/me",
+      "source": "backend/api/me.py"
+    },
+    {
+      "declared_path": "/dashboard/core",
+      "handler": "core_dashboard",
+      "line": 52,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/playback/live",
+      "handler": "live_playback",
+      "line": 67,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/playback/history",
+      "handler": "playback_history",
+      "line": 76,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/playback/{session_id}/stop",
+      "handler": "stop_playback",
+      "line": 95,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/devices",
+      "handler": "list_devices",
+      "line": 113,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/devices/{device_key:path}",
+      "handler": "update_device",
+      "line": 132,
+      "method": "PATCH",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/lines",
+      "handler": "list_lines",
+      "line": 155,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/lines",
+      "handler": "create_line",
+      "line": 164,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/lines/{line_id}",
+      "handler": "update_line",
+      "line": 181,
+      "method": "PATCH",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/lines/{line_id}/probe",
+      "handler": "probe_line",
+      "line": 207,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/lines/{line_id}/health",
+      "handler": "line_health",
+      "line": 220,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations.py"
+    },
+    {
+      "declared_path": "/risk/rules",
+      "handler": "list_risk_rules",
+      "line": 58,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/risk/rules",
+      "handler": "create_risk_rule",
+      "line": 65,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/risk/rules/{rule_id}",
+      "handler": "update_risk_rule",
+      "line": 76,
+      "method": "PATCH",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/diagnostics",
+      "handler": "diagnostic_summary",
+      "line": 100,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/diagnostics/run",
+      "handler": "run_diagnostics",
+      "line": 108,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/alerts/deliveries",
+      "handler": "alert_deliveries",
+      "line": 125,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/operations/batches",
+      "handler": "enqueue_batch_operation",
+      "line": 134,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/operations/lifecycle",
+      "handler": "lifecycle_history",
+      "line": 160,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/admin",
+      "source": "backend/api/operations_center.py"
+    },
+    {
+      "declared_path": "/device-rules",
+      "handler": "list_device_rules",
+      "line": 115,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/device-rules",
+      "handler": "create_device_rule",
+      "line": 120,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/device-rules/{rule_id}",
+      "handler": "update_device_rule",
+      "line": 128,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/device-rules/{rule_id}",
+      "handler": "delete_device_rule",
+      "line": 136,
+      "method": "DELETE",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/device-rules/evaluate",
+      "handler": "evaluate_device_rule",
+      "line": 147,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/credentials",
+      "handler": "list_credentials",
+      "line": 152,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/credentials",
+      "handler": "create_credential",
+      "line": 157,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/credentials/{credential_id}",
+      "handler": "update_credential",
+      "line": 165,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/credentials/{credential_id}",
+      "handler": "delete_credential",
+      "line": 173,
+      "method": "DELETE",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/emby-instances",
+      "handler": "list_emby_instances",
+      "line": 184,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/emby-instances",
+      "handler": "create_emby_instance",
+      "line": 189,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/emby-instances/{instance_id}",
+      "handler": "update_emby_instance",
+      "line": 197,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/emby-instances/{instance_id}",
+      "handler": "delete_emby_instance",
+      "line": 205,
+      "method": "DELETE",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/emby-instances/{instance_id}/probe",
+      "handler": "probe_emby_instance",
+      "line": 216,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/emby-instances/{instance_id}/adopt-legacy",
+      "handler": "adopt_legacy_emby_bindings",
+      "line": 224,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/search",
+      "handler": "search_media",
+      "line": 232,
+      "method": "GET",
+      "router": "media_router",
+      "router_prefix": "/media",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/trending",
+      "handler": "trending_media",
+      "line": 237,
+      "method": "GET",
+      "router": "media_router",
+      "router_prefix": "/media",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/moviepilot/search",
+      "handler": "search_moviepilot",
+      "line": 242,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/moviepilot/requests/{request_id}/submit",
+      "handler": "submit_moviepilot",
+      "line": 250,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/automations",
+      "handler": "list_automations",
+      "line": 263,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/automations",
+      "handler": "create_automation",
+      "line": 268,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/automations/{rule_id}",
+      "handler": "update_automation",
+      "line": 276,
+      "method": "PATCH",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/automations/{rule_id}",
+      "handler": "delete_automation",
+      "line": 284,
+      "method": "DELETE",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/automations/evaluate",
+      "handler": "evaluate_automations",
+      "line": 290,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/api-clients",
+      "handler": "list_api_clients",
+      "line": 295,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/api-clients",
+      "handler": "create_api_client",
+      "line": 300,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/api-clients/{client_id}/revoke",
+      "handler": "revoke_api_client",
+      "line": 308,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/backups",
+      "handler": "list_backups",
+      "line": 315,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/backups",
+      "handler": "create_backup",
+      "line": 320,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/backups/{name}/download",
+      "handler": "download_backup",
+      "line": 328,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/health",
+      "handler": "open_health",
+      "line": 351,
+      "method": "GET",
+      "router": "open_router",
+      "router_prefix": "/api/open/v1",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/media/search",
+      "handler": "open_media_search",
+      "line": 356,
+      "method": "GET",
+      "router": "open_router",
+      "router_prefix": "/api/open/v1",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/requests",
+      "handler": "open_create_request",
+      "line": 370,
+      "method": "POST",
+      "router": "open_router",
+      "router_prefix": "/api/open/v1",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/requests",
+      "handler": "open_list_requests",
+      "line": 375,
+      "method": "GET",
+      "router": "open_router",
+      "router_prefix": "/api/open/v1",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/events",
+      "handler": "open_create_event",
+      "line": 387,
+      "method": "POST",
+      "router": "open_router",
+      "router_prefix": "/api/open/v1",
+      "source": "backend/api/platform.py"
+    },
+    {
+      "declared_path": "/status",
+      "handler": "public_registration_status",
+      "line": 68,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/local/start",
+      "handler": "local_registration_start",
+      "line": 73,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/telegram/start",
+      "handler": "telegram_registration_start",
+      "line": 129,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/telegram/status",
+      "handler": "telegram_registration_status",
+      "line": 153,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/telegram/exchange",
+      "handler": "telegram_registration_exchange",
+      "line": 164,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/me",
+      "handler": "my_registration_status",
+      "line": 204,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/submit",
+      "handler": "submit_registration",
+      "line": 209,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/tasks/{task_id}",
+      "handler": "registration_task",
+      "line": 248,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/tasks/{task_id}/cancel",
+      "handler": "cancel_registration_task",
+      "line": 259,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "/registration",
+      "source": "backend/api/registration.py"
+    },
+    {
+      "declared_path": "/task-definitions",
+      "handler": "task_definitions",
+      "line": 53,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/tasks",
+      "handler": "list_tasks",
+      "line": 62,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/tasks/{task_id}",
+      "handler": "get_task",
+      "line": 85,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/tasks",
+      "handler": "enqueue_task",
+      "line": 98,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/tasks/{task_id}/cancel",
+      "handler": "cancel_task",
+      "line": 133,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/tasks/{task_id}/retry",
+      "handler": "retry_task",
+      "line": 148,
+      "method": "POST",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/jobs",
+      "handler": "job_runs",
+      "line": 163,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/system/status",
+      "handler": "system_status",
+      "line": 174,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/stream",
+      "handler": "user_event_stream",
+      "line": 239,
+      "method": "GET",
+      "router": "events_router",
+      "router_prefix": "/events",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/events/stream",
+      "handler": "admin_event_stream",
+      "line": 264,
+      "method": "GET",
+      "router": "admin_router",
+      "router_prefix": "/admin",
+      "source": "backend/api/tasks.py"
+    },
+    {
+      "declared_path": "/healthz",
+      "handler": "health",
+      "line": 161,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/readyz",
+      "handler": "readiness",
+      "line": 165,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.admin_path}/runtime-config.js",
+      "handler": "admin_runtime_config",
+      "line": 201,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.user_path}/runtime-config.js",
+      "handler": "user_runtime_config",
+      "line": 208,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.user_path}",
+      "handler": "user_portal",
+      "line": 215,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.user_path}/",
+      "handler": "user_portal",
+      "line": 216,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.admin_path}",
+      "handler": "admin_portal",
+      "line": 220,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.admin_path}/",
+      "handler": "admin_portal",
+      "line": 221,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.user_path}/{asset_path:path}",
+      "handler": "user_portal_assets",
+      "line": 225,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/{settings.admin_path}/{asset_path:path}",
+      "handler": "admin_portal_assets",
+      "line": 229,
+      "method": "GET",
+      "router": "app",
+      "router_prefix": "",
+      "source": "backend/app.py"
+    },
+    {
+      "declared_path": "/ban_playlist",
+      "handler": "ban_playlist",
+      "line": 17,
+      "method": "GET",
+      "router": "route",
+      "router_prefix": "",
+      "source": "bot/web/api/ban_playlist.py"
+    },
+    {
+      "declared_path": "/login",
+      "handler": "login",
+      "line": 34,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "",
+      "source": "bot/web/api/login.py"
+    },
+    {
+      "declared_path": "/user_info",
+      "handler": "user_info",
+      "line": 18,
+      "method": "GET",
+      "router": "route",
+      "router_prefix": "",
+      "source": "bot/web/api/user_info.py"
+    },
+    {
+      "declared_path": "/update_credit",
+      "handler": "update_credit",
+      "line": 28,
+      "method": "POST",
+      "router": "route",
+      "router_prefix": "",
+      "source": "bot/web/api/user_info.py"
+    },
+    {
+      "declared_path": "/ban",
+      "handler": "ban_user",
+      "line": 74,
+      "method": "POST",
+      "router": "route",
+      "router_prefix": "",
+      "source": "bot/web/api/user_info.py"
+    },
+    {
+      "declared_path": "/webhook/client-filter",
+      "handler": "handle_client_filter_webhook",
+      "line": 172,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "",
+      "source": "bot/web/api/webhook/client_filter.py"
+    },
+    {
+      "declared_path": "/webhook/favorites",
+      "handler": "handle_favorite_webhook",
+      "line": 24,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "",
+      "source": "bot/web/api/webhook/favorites.py"
+    },
+    {
+      "declared_path": "/line_report",
+      "handler": "line_report",
+      "line": 471,
+      "method": "GET",
+      "router": "router",
+      "router_prefix": "",
+      "source": "bot/web/api/webhook/line_report.py"
+    },
+    {
+      "declared_path": "/webhook/medias",
+      "handler": "handle_media_webhook",
+      "line": 135,
+      "method": "POST",
+      "router": "router",
+      "router_prefix": "",
+      "source": "bot/web/api/webhook/media.py"
+    }
+  ],
+  "migrations": [
+    "bot/sql_helper/alembic/versions/20260315_01_init_schema.py",
+    "bot/sql_helper/alembic/versions/20260315_02_add_embyname_to_partition_grants.py",
+    "bot/sql_helper/alembic/versions/20260730_01_shared_business_foundation.py",
+    "bot/sql_helper/alembic/versions/20260730_02_web_auth_rbac.py",
+    "bot/sql_helper/alembic/versions/20260730_03_task_reliability.py",
+    "bot/sql_helper/alembic/versions/20260731_04_core_operations.py",
+    "bot/sql_helper/alembic/versions/20260731_05_commerce_support_requests.py",
+    "bot/sql_helper/alembic/versions/20260731_06_reviews_notifications_permissions.py",
+    "bot/sql_helper/alembic/versions/20260731_07_governance_center.py",
+    "bot/sql_helper/alembic/versions/20260731_08_web_registration.py",
+    "bot/sql_helper/alembic/versions/20260731_09_operations_automation.py",
+    "bot/sql_helper/alembic/versions/20260731_10_unified_accounts.py",
+    "bot/sql_helper/alembic/versions/20260731_11_platform_center.py"
+  ],
+  "scheduler_jobs": [
+    {
+      "expression": "self.SCHEDULER.add_job(func, trigger, **kwargs)",
+      "id": null,
+      "line": 34,
+      "source": "bot/func_helper/scheduler.py",
+      "target": "func",
+      "trigger": "trigger"
+    },
+    {
+      "expression": "scheduler.add_job(sync_download_tasks, 'interval', seconds=60, id='sync_download_tasks')",
+      "id": "sync_download_tasks",
+      "line": 645,
+      "source": "bot/modules/panel/config_panel.py",
+      "target": "sync_download_tasks",
+      "trigger": "interval"
+    },
+    {
+      "expression": "scheduler.add_job(action, 'cron', **args)",
+      "id": null,
+      "line": 64,
+      "source": "bot/modules/panel/sched_panel.py",
+      "target": "action",
+      "trigger": "cron"
+    },
+    {
+      "expression": "scheduler.add_job(action, 'cron', **args)",
+      "id": null,
+      "line": 87,
+      "source": "bot/modules/panel/sched_panel.py",
+      "target": "action",
+      "trigger": "cron"
+    },
+    {
+      "expression": "scheduler.add_job(monitor_diagnostics, 'interval', seconds=interval, id='monitor_diagnostics')",
+      "id": "monitor_diagnostics",
+      "line": 24,
+      "source": "bot/scheduler/monitor_diagnostics.py",
+      "target": "monitor_diagnostics",
+      "trigger": "interval"
+    },
+    {
+      "expression": "scheduler.add_job(sync_core_operations, 'interval', seconds=sync_seconds, id='sync_core_operations')",
+      "id": "sync_core_operations",
+      "line": 28,
+      "source": "bot/scheduler/sync_core_operations.py",
+      "target": "sync_core_operations",
+      "trigger": "interval"
+    },
+    {
+      "expression": "scheduler.add_job(sync_dynamic_settings, 'interval', seconds=15, id='sync_dynamic_settings')",
+      "id": "sync_dynamic_settings",
+      "line": 16,
+      "source": "bot/scheduler/sync_dynamic_settings.py",
+      "target": "sync_dynamic_settings",
+      "trigger": "interval"
+    },
+    {
+      "expression": "scheduler.add_job(sync_download_tasks, 'interval', seconds=60, id='sync_download_tasks')",
+      "id": "sync_download_tasks",
+      "line": 148,
+      "source": "bot/scheduler/sync_mp_download.py",
+      "target": "sync_download_tasks",
+      "trigger": "interval"
+    }
+  ],
+  "schema_version": 1,
+  "source_revision": "working-tree",
+  "summary": {
+    "bot_commands": 58,
+    "bot_handlers": 174,
+    "characterization_tests": 70,
+    "compose_services": 5,
+    "configuration_keys": 107,
+    "database_models": 57,
+    "environment_variables": 46,
+    "frontend_routes": 41,
+    "frontend_views": 36,
+    "http_routes": 183,
+    "migrations": 13,
+    "scheduler_jobs": 8,
+    "task_definitions": 13
+  },
+  "task_definitions": [
+    {
+      "line": 95,
+      "source": "bot/application/task_service.py",
+      "task_type": "alert.telegram"
+    },
+    {
+      "line": 122,
+      "source": "bot/application/task_service.py",
+      "task_type": "automation.evaluate"
+    },
+    {
+      "line": 70,
+      "source": "bot/application/task_service.py",
+      "task_type": "maintenance.backup_database"
+    },
+    {
+      "line": 62,
+      "source": "bot/application/task_service.py",
+      "task_type": "maintenance.expired_accounts"
+    },
+    {
+      "line": 54,
+      "source": "bot/application/task_service.py",
+      "task_type": "maintenance.partition_access"
+    },
+    {
+      "line": 87,
+      "source": "bot/application/task_service.py",
+      "task_type": "monitor.diagnostics"
+    },
+    {
+      "line": 131,
+      "source": "bot/application/task_service.py",
+      "task_type": "monitor.emby_instances"
+    },
+    {
+      "line": 104,
+      "source": "bot/application/task_service.py",
+      "task_type": "notification.telegram"
+    },
+    {
+      "line": 78,
+      "source": "bot/application/task_service.py",
+      "task_type": "registration.account"
+    },
+    {
+      "line": 45,
+      "source": "bot/application/task_service.py",
+      "task_type": "sync.core_operations"
+    },
+    {
+      "line": 29,
+      "source": "bot/application/task_service.py",
+      "task_type": "sync.favorites"
+    },
+    {
+      "line": 37,
+      "source": "bot/application/task_service.py",
+      "task_type": "sync.moviepilot"
+    },
+    {
+      "line": 113,
+      "source": "bot/application/task_service.py",
+      "task_type": "users.batch"
+    }
+  ]
+}

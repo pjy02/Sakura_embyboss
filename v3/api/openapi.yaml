@@ -1,0 +1,86 @@
+openapi: 3.1.0
+info:
+  title: Sakura v3 API
+  version: 3.0.0-alpha.1
+  description: Unified API used equally by the Web portal, Telegram Bot and API clients.
+servers:
+  - url: /
+paths:
+  /health/live:
+    get:
+      operationId: getLiveness
+      tags: [System]
+      responses:
+        "200":
+          description: The API process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /health/ready:
+    get:
+      operationId: getReadiness
+      tags: [System]
+      responses:
+        "200":
+          description: Required API dependencies are ready.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: At least one required dependency is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v3/system/info:
+    get:
+      operationId: getSystemInfo
+      tags: [System]
+      responses:
+        "200":
+          description: Public API process information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
+  /openapi.yaml:
+    get:
+      operationId: getOpenAPISpec
+      tags: [System]
+      responses:
+        "200":
+          description: This OpenAPI contract.
+          content:
+            application/yaml:
+              schema:
+                type: string
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        components:
+          type: object
+          additionalProperties:
+            type: string
+    SystemInfo:
+      type: object
+      required: [name, version, service, environment]
+      properties:
+        name:
+          type: string
+          const: Sakura
+        version:
+          type: string
+        service:
+          type: string
+          const: api
+        environment:
+          type: string

@@ -1,0 +1,142 @@
+name: sakura-v3
+
+x-common-environment: &common-environment
+  SAKURA_V3_ENVIRONMENT: ${SAKURA_V3_ENVIRONMENT:-production}
+  SAKURA_V3_LOG_LEVEL: ${SAKURA_V3_LOG_LEVEL:-info}
+  SAKURA_V3_SHUTDOWN_TIMEOUT: ${SAKURA_V3_SHUTDOWN_TIMEOUT:-15s}
+  SAKURA_V3_DEPENDENCY_TIMEOUT: ${SAKURA_V3_DEPENDENCY_TIMEOUT:-3s}
+
+x-database-environment: &database-environment
+  SAKURA_V3_DATABASE_URL: postgres://${POSTGRES_USER:-sakura}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-sakura}?sslmode=disable
+
+x-redis-environment: &redis-environment
+  SAKURA_V3_REDIS_ADDRESS: redis:6379
+  SAKURA_V3_REDIS_PASSWORD: ${SAKURA_V3_REDIS_PASSWORD:?set SAKURA_V3_REDIS_PASSWORD in .env}
+  SAKURA_V3_REDIS_DATABASE: ${SAKURA_V3_REDIS_DATABASE:-0}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-sakura}
+      POSTGRES_USER: ${POSTGRES_USER:-sakura}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks: [sakura]
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${SAKURA_V3_REDIS_PASSWORD:?set SAKURA_V3_REDIS_PASSWORD in .env}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${SAKURA_V3_REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    environment:
+      SAKURA_V3_REDIS_PASSWORD: ${SAKURA_V3_REDIS_PASSWORD:?set SAKURA_V3_REDIS_PASSWORD in .env}
+    networks: [sakura]
+
+  migrate:
+    image: ${SAKURA_V3_IMAGE:-sakura-v3:local}
+    build:
+      context: .
+    restart: "no"
+    command: ["/app/sakura-migrate"]
+    environment:
+      <<: [*common-environment, *database-environment]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [sakura]
+
+  api:
+    image: ${SAKURA_V3_IMAGE:-sakura-v3:local}
+    build:
+      context: .
+    restart: unless-stopped
+    command: ["/app/sakura-api"]
+    environment:
+      <<: [*common-environment, *database-environment, *redis-environment]
+      SAKURA_V3_HTTP_ADDR: :8080
+    ports:
+      - ${SAKURA_V3_API_BIND_IP:-127.0.0.1}:${SAKURA_V3_API_BIND_PORT:-8080}:8080
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [sakura]
+
+  worker:
+    image: ${SAKURA_V3_IMAGE:-sakura-v3:local}
+    build:
+      context: .
+    restart: unless-stopped
+    command: ["/app/sakura-worker"]
+    environment:
+      <<: [*common-environment, *database-environment, *redis-environment]
+      SAKURA_V3_HEALTH_ADDR: :8081
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8081/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [sakura]
+
+  bot:
+    image: ${SAKURA_V3_IMAGE:-sakura-v3:local}
+    build:
+      context: .
+    restart: unless-stopped
+    command: ["/app/sakura-bot"]
+    environment:
+      <<: *common-environment
+      SAKURA_V3_HEALTH_ADDR: :8082
+      SAKURA_V3_INTERNAL_API_URL: http://api:8080
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8082/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [sakura]
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sakura:
+    driver: bridge

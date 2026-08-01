@@ -1,0 +1,115 @@
+name: Sakura v3 CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "v3/**"
+      - "go.work"
+      - ".github/workflows/v3-ci.yml"
+  push:
+    paths:
+      - "v3/**"
+      - "go.work"
+      - ".github/workflows/v3-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go architecture and integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: v3
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: sakura_test
+          POSTGRES_USER: sakura
+          POSTGRES_PASSWORD: sakura-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sakura -d sakura_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      SAKURA_V3_TEST_DATABASE_URL: postgres://sakura:sakura-test-password@127.0.0.1:5432/sakura_test?sslmode=disable
+      SAKURA_V3_TEST_REDIS_ADDRESS: 127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: v3/go.mod
+          cache-dependency-path: v3/go.sum
+
+      - name: Verify formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Verify module files
+        run: go mod tidy && git diff --exit-code -- go.mod go.sum
+
+      - name: Unit and migration idempotency tests
+        run: go test -race ./...
+
+      - name: Static analysis
+        run: go vet ./...
+
+      - name: Build independent entrypoints
+        run: |
+          go build -o "${RUNNER_TEMP}/sakura-api" ./cmd/api
+          go build -o "${RUNNER_TEMP}/sakura-worker" ./cmd/worker
+          go build -o "${RUNNER_TEMP}/sakura-bot" ./cmd/bot
+          go build -o "${RUNNER_TEMP}/sakura-migrate" ./cmd/migrate
+
+  container:
+    name: Compose and container build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate Compose
+        working-directory: v3
+        run: docker compose --env-file .env.example config --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build v3 image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./v3
+          file: ./v3/Dockerfile
+          platforms: linux/amd64
+          push: false
+          tags: sakura-v3:ci
+          build-args: |
+            VERSION=ci-${{ github.sha }}
+            VCS_REF=${{ github.sha }}
+          cache-from: type=gha,scope=v3-ci
+          cache-to: type=gha,mode=max,scope=v3-ci
+          provenance: false
+          sbom: false
