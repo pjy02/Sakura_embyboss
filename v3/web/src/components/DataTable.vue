@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import { Database, MoreHorizontal } from 'lucide-vue-next'
 import { readable } from '../lib/api'
 
-const props = defineProps<{ items: Record<string, unknown>[]; loading?: boolean }>()
+const props = defineProps<{ items: Record<string, unknown>[]; loading?: boolean; selectedId?: string }>()
+const emit = defineEmits<{ select: [item: Record<string, unknown>] }>()
 const hidden = new Set(['metadata', 'payload', 'before_state', 'after_state', 'content', 'description'])
 const preferred = ['display_name', 'username', 'name', 'title', 'subject', 'code', 'type', 'status', 'state', 'amount', 'balance', 'created_at', 'updated_at']
 const keys = computed(() => {
@@ -16,6 +17,6 @@ const labels: Record<string, string> = { display_name: '名称', username: '用�
   <div class="table-card">
     <div v-if="loading" class="table-loading"><span v-for="i in 5" :key="i" /></div>
     <div v-else-if="!items.length" class="empty-state"><Database /><strong>暂无数据</strong><span>这里会展示服务端返回的最新记录</span></div>
-    <div v-else class="table-scroll"><table><thead><tr><th v-for="key in keys" :key="key">{{ labels[key] || key }}</th><th /></tr></thead><tbody><tr v-for="(item, index) in items" :key="String(item.id || index)"><td v-for="key in keys" :key="key"><span v-if="key === 'status' || key === 'state'" class="status-pill" :data-status="String(item[key])">{{ readable(item[key]) }}</span><span v-else :title="readable(item[key])">{{ readable(item[key]) }}</span></td><td><button class="row-menu"><MoreHorizontal :size="17" /></button></td></tr></tbody></table></div>
+    <div v-else class="table-scroll"><table><thead><tr><th v-for="key in keys" :key="key">{{ labels[key] || key }}</th><th /></tr></thead><tbody><tr v-for="(item, index) in items" :key="String(item.id || index)" :class="{ selected: selectedId && String(item.id) === selectedId }" tabindex="0" @click="emit('select', item)" @keydown.enter="emit('select', item)"><td v-for="key in keys" :key="key"><span v-if="key === 'status' || key === 'state'" class="status-pill" :data-status="String(item[key])">{{ readable(item[key]) }}</span><span v-else :title="readable(item[key])">{{ readable(item[key]) }}</span></td><td><button class="row-menu" type="button" title="查看详情并操作" @click.stop="emit('select', item)"><MoreHorizontal :size="17" /></button></td></tr></tbody></table></div>
   </div>
 </template>

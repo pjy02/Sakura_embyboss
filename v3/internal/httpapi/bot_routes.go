@@ -84,6 +84,32 @@ func executeBotAction(r *http.Request, o Options, p identity.Principal, request 
 		return o.Platform.CreateTicket(ctx, accountID, arg("subject"), stringOrDefault(arg("category"), "general"), stringOrDefault(arg("priority"), "normal"), arg("body"), p.Actor)
 	case "notifications":
 		return o.Platform.ListNotifications(ctx, accountID, "unread", 20)
+	case "entitlements":
+		return o.Platform.ListAccountEntitlements(ctx, &accountID, "", 20)
+	case "lines":
+		return o.Platform.ListAvailableLines(ctx, accountID)
+	case "entitlement_redeem":
+		return o.Platform.RedeemEntitlementCode(ctx, accountID, arg("code"), p.Actor)
+	case "favorites":
+		return o.Platform.ListFavorites(ctx, &accountID, 20)
+	case "favorite_sync":
+		bindingID, err := uuid.Parse(arg("binding_id"))
+		if err != nil {
+			return nil, identity.ErrInvalid
+		}
+		return o.Platform.EnqueueFavoriteSync(ctx, accountID, bindingID, p.Actor)
+	case "review_like":
+		reviewID, err := uuid.Parse(arg("review_id"))
+		if err != nil {
+			return nil, identity.ErrInvalid
+		}
+		return o.Platform.SetReviewLike(ctx, reviewID, accountID, arg("liked") != "false", p.Actor)
+	case "review_report":
+		reviewID, err := uuid.Parse(arg("review_id"))
+		if err != nil {
+			return nil, identity.ErrInvalid
+		}
+		return o.Platform.ReportReview(ctx, reviewID, accountID, arg("reason"), arg("detail"), p.Actor)
 	case "admin_dashboard":
 		if !p.HasPermission("dashboard.read") {
 			return nil, identity.ErrForbidden

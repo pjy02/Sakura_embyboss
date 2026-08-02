@@ -134,6 +134,88 @@ func TestStage7MigrationContainsWebBotExperienceState(t *testing.T) {
 	}
 }
 
+func TestStage8MigrationContainsLegacyDomainCompletionState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage8 string
+	for _, migration := range migrations {
+		if migration.Version == 8 {
+			stage8 = migration.SQL
+		}
+	}
+	for _, table := range []string{"entitlement_codes", "account_entitlements", "line_endpoints", "review_reactions", "review_reports", "migration_archive_records"} {
+		if !strings.Contains(stage8, "CREATE TABLE "+table) {
+			t.Fatalf("stage 8 migration is missing %s", table)
+		}
+	}
+	for _, invariant := range []string{"UNIQUE(source_table,source_key)", "payload_sha256", "reviews.interact"} {
+		if !strings.Contains(stage8, invariant) {
+			t.Fatalf("stage 8 migration is missing invariant %s", invariant)
+		}
+	}
+}
+
+func TestStage9MigrationContainsMandatoryHistoryReconciliationState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage9 string
+	for _, migration := range migrations {
+		if migration.Version == 9 {
+			stage9 = migration.SQL
+		}
+	}
+	for _, invariant := range []string{"account_lifecycle_events_legacy_source_uidx", "audit_logs_legacy_import_request_uidx"} {
+		if !strings.Contains(stage9, invariant) {
+			t.Fatalf("stage 9 migration is missing mandatory-history invariant %s", invariant)
+		}
+	}
+}
+
+func TestStage10MigrationContainsRuntimeDomainCompletionState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage10 string
+	for _, migration := range migrations {
+		if migration.Version == 10 {
+			stage10 = migration.SQL
+		}
+	}
+	for _, table := range []string{"line_probe_samples", "emby_favorites", "integration_probe_results"} {
+		if !strings.Contains(stage10, "CREATE TABLE "+table) {
+			t.Fatalf("stage 10 migration is missing %s", table)
+		}
+	}
+	for _, invariant := range []string{"entitlement.sync", "emby.favorite_sync", "integrations.probe"} {
+		if !strings.Contains(stage10, invariant) {
+			t.Fatalf("stage 10 migration is missing invariant %s", invariant)
+		}
+	}
+}
+
+func TestStage11MigrationPreservesUnmanagedEmbyPolicyAndSchedulesLines(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage11 string
+	for _, migration := range migrations {
+		if migration.Version == 11 {
+			stage11 = migration.SQL
+		}
+	}
+	for _, invariant := range []string{"CREATE TABLE emby_policy_management", "baseline_folders", "last_managed_folders", "line.probe", "lines.probe_interval_seconds"} {
+		if !strings.Contains(stage11, invariant) {
+			t.Fatalf("stage 11 migration is missing runtime hardening invariant %s", invariant)
+		}
+	}
+}
+
 func TestRunIsIdempotent(t *testing.T) {
 	databaseURL := os.Getenv("SAKURA_V3_TEST_DATABASE_URL")
 	if databaseURL == "" {

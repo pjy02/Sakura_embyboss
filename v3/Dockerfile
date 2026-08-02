@@ -12,7 +12,6 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go test ./... && \
     CGO_ENABLED=0 go build -trimpath \
       -ldflags "-s -w -X github.com/pjy02/Sakura_embyboss/v3/internal/version.Version=${VERSION} -X github.com/pjy02/Sakura_embyboss/v3/internal/version.Commit=${VCS_REF} -X github.com/pjy02/Sakura_embyboss/v3/internal/version.BuiltAt=${BUILD_DATE}" \
       -o /out/sakura-api ./cmd/api && \

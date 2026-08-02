@@ -40,6 +40,10 @@ func TestOpenAPIIsValidYAMLWithRequiredPaths(t *testing.T) {
 		"/api/v3/admin/media-requests/{id}/moviepilot", "/api/v3/admin/moviepilot-jobs",
 		"/api/v3/me/tickets", "/api/v3/me/tickets/{id}/messages", "/api/v3/admin/tickets", "/api/v3/admin/tickets/{id}/messages",
 		"/api/v3/reviews", "/api/v3/me/reviews", "/api/v3/admin/reviews", "/api/v3/admin/reviews/{id}/moderation",
+		"/api/v3/me/entitlements", "/api/v3/me/entitlements/redeem", "/api/v3/lines", "/api/v3/me/favorites", "/api/v3/me/favorites/sync",
+		"/api/v3/reviews/{id}/like", "/api/v3/reviews/{id}/reports", "/api/v3/admin/entitlement-codes", "/api/v3/admin/entitlements",
+		"/api/v3/admin/lines", "/api/v3/admin/lines/{id}/probe", "/api/v3/admin/review-reports", "/api/v3/admin/favorites",
+		"/api/v3/admin/integration-probes", "/api/v3/admin/integrations/{integration}/probe",
 		"/api/v3/me/notification-preferences", "/api/v3/admin/broadcasts", "/api/v3/admin/automation-rules", "/api/v3/admin/automation-executions",
 		"/api/v3/me/realtime", "/api/v3/admin/realtime", "/api/v3/internal/bot/actions",
 	} {

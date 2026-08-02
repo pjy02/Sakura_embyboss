@@ -1,61 +1,69 @@
-# 🌸 Sakura_embyboss 初学练习版（重构中）
+# Sakura EmbyBoss v3
 
-> Vue 用户中心与管理后台的功能、构建和安全说明见 [docs/web-ui.md](docs/web-ui.md)。
->
-> Web 注册中心、Telegram 身份确认和共享注册队列说明见 [docs/web-registration.md](docs/web-registration.md)。
-> 后台任务、实时同步和可靠性说明见 [docs/task-reliability.md](docs/task-reliability.md)。
-> Docker、GitHub Actions、Docker Hub 发布与生产上线说明见 [docs/deployment.md](docs/deployment.md)。
-> 仪表盘、播放、设备与线路管理说明见 [docs/core-operations.md](docs/core-operations.md)。
-> 充值交易、服务工单和 Bot/Web 求片同步说明见 [docs/commerce-support.md](docs/commerce-support.md)。
-> 影评社区、站内通知、角色权限和增强审计说明见 [docs/community-security.md](docs/community-security.md)。
->
-> 实时同步、自动测试和安全上线说明见 [docs/release-runbook.md](docs/release-runbook.md)。
-> 风险自动化、外部服务探测、Telegram 告警、批量账号运营与交易对账说明见 [docs/operations-center.md](docs/operations-center.md)。
+Sakura EmbyBoss v3 是面向 Emby 站点的统一运营平台。Web、Telegram Bot、Worker 和开放 API 是彼此独立、地位平等的入口，全部调用同一套 Go 业务服务并共享 PostgreSQL 数据，不再由 Web 依附 Bot，也不再由 Bot 承载后台业务。
 
-当前 Web 已支持不依赖 Telegram 的本地账号注册和登录。Web、Bot 与独立 Worker 通过统一账号、会员方案、邀请码、钱包账本和动态设置共享业务状态；生产 Compose 中 Worker 为独立容器，Bot 离线不会中断 Web 注册队列。
+## 技术栈
 
-<p align="center">
-<img src="image/bot2.png" alt="bot"><br>
-<a href="https://github.com/berry8838/Sakura_embyboss/stargazers"><img src="https://img.shields.io/github/stars/berry8838/Sakura_embyboss" alt="stars"></a> 
-<a href="https://github.com/berry8838/Sakura_embyboss/forks"><img src="https://img.shields.io/github/forks/berry8838/Sakura_embyboss" alt="forks"></a> 
-<a href="https://github.com/berry8838/Sakura_embyboss/issues"><img src="https://img.shields.io/github/issues/berry8838/Sakura_embyboss" alt="issue"></a>  
-<a href="https://github.com/berry8838/Sakura_embyboss/blob/master/LICENSE"><img src="https://img.shields.io/github/license/berry8838/Sakura_embyboss" alt="license"></a> 
-<a href="https://hub.docker.com/r/jingwei520/sakura_embyboss" ><img src="https://img.shields.io/docker/v/jingwei520/sakura_embyboss/latest?logo=docker" alt="docker"></a>
-<a href="https://hub.docker.com/r/jingwei520/sakura_embyboss/tags" ><img src="https://img.shields.io/badge/platform-amd64%20arm64-pink" alt="plat"></a>
-<a href="https://github.com/berry8838/Sakura_embyboss/actions/workflows/publish-docker_on_master.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/berry8838/Sakura_embyboss/publish-docker_on_master.yml?branch=master" alt="Build status" />
-</a>
-</p>
-<br>
+- 后端与任务：Go 1.25
+- Web：Vue 3、TypeScript、Vite
+- 数据：PostgreSQL 17、Redis 7
+- 部署：Docker Compose、独立 API / Worker / Bot / Migrate 进程
+- 发布：GitHub Actions 多架构镜像、SBOM、digest 固定部署文件
 
-## 📜 项目说明（重构中，暂停更新）
+## 功能范围
 
-- **用Telegram管理Emby用户**（开服） 安装使用 👉 [项目文档](https://berry8838.github.io/Sakura_embyboss)
-- **推荐使用 Debian 11操作系统，AMD处理器架构。目前ARM也支持（如有问题请反馈issue）**
-- 解决不了大的技术问题（因为菜菜），如需要，请自行fork修改，~~如果能提点有意思的pr更好啦~~
-- 反馈请尽量 issue，看到会处理
+统一账号与本地登录、Telegram 身份绑定、Session、RBAC、API Scope、动态设置、凭据中心、审计；会员、邀请码、多 Emby、钱包与不可变账本；批量运营、设备黑白名单、播放同步、风险处置；TMDB、MoviePilot、求片、工单、影评、通知、自动化；旧 v2 数据幂等导入、对账、备份恢复与蓝绿切换。
 
-> **声明：本项目仅供学习交流使用，仅作为辅助工具借助tg平台方便用户管理自己的媒体库成员，对用户的其他行为及内容毫不知情**
-<br>
+## Docker 部署
 
-## 💐 Our Contributors
+```bash
+cd v3
+cp .env.example .env
+# 编辑 .env 中的密码、主密钥、内部令牌和管理员初始账号
+docker compose --env-file .env pull
+docker compose --env-file .env up -d
+```
 
-<a href="https://github.com/berry8838/Sakura_embyboss/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=berry8838/Sakura_embyboss" />
-</a>  
+默认仅在宿主机回环地址监听：
 
-## 特别感谢（排序不分先后）<img src="image/bixin.jpg" alt="比心" height=30>
+- Web：`127.0.0.1:8088`
+- API：`127.0.0.1:8080`
 
-- [Pyrogram • 一个现代、优雅和异步的MTProto API框架](https://github.com/pyrogram/pyrogram)
-- [Nezha探针 • 自托管、轻量级、服务器和网站监控运维工具](https://github.com/naiba/nezha)
-- [小宝 • 按钮风格](https://t.me/EmbyClubBot)
-- [MisakaF_Emby • 启发](https://github.com/MisakaFxxk/MisakaF_Emby)
-  以及  [EMBY API官方文档](https://swagger.emby.media/?staticview=true#/UserService)
-- [Nolovenodie • 播放榜单海报推送借鉴](https://github.com/Nolovenodie/EmbyTools)
-- [罗宝 • 提供的代码援助](https://github.com/dddddluo)
-- [折花 • 日榜周榜推送设计图](https://github.com/U41ovo)<br>
+生产环境应由 Caddy、Nginx 或 1Panel OpenResty 将域名反向代理到 Web 端口。Web 容器会把 `/api/v3`、`/open/v1` 和实时事件转发给 API。
 
+完整变量说明见 [v3/.env.example](v3/.env.example)，迁移和蓝绿切换见 [docs/v3/phase-8-cutover-runbook.md](docs/v3/phase-8-cutover-runbook.md)。
 
-## Star History
+## 镜像发布
 
-[![Star History Chart](https://api.star-history.com/svg?repos=berry8838/Sakura_embyboss&type=Date)](https://star-history.com/#berry8838/Sakura_embyboss)
+仓库只保留 v3 CI。推送到 `master` 后，`Publish Sakura v3 Docker images` 会在质量门通过后发布：
+
+- `233bit/sakura_embyboss:latest`：API、Worker、Bot、Migrate 与迁移工具
+- `233bit/sakura_embyboss:web-latest`：Vue Web
+- `sha-*` / `web-sha-*`：提交固定标签
+- 手动输入版本时额外发布 `v3.0.0`、`web-v3.0.0` 等版本标签
+
+服务器正式切换应优先下载 Actions 生成的 `v3-images.env`，使用镜像 digest 而不是可变标签。
+
+## 开发验证
+
+```bash
+cd v3
+go test ./...
+go vet ./...
+
+cd web
+npm ci
+npm run typecheck
+npm run test
+npm run build
+```
+
+CI 会额外启动 PostgreSQL、Redis 和 Chromium，验证迁移幂等、业务集成、前端端到端流程与容器构建。
+
+## 旧版归档
+
+旧 Python/MySQL v2 只作为迁移审计材料保存在 `legacy/v2`，不会参与构建、CI、镜像或生产启动。v3 的 `import-v2` 与 `reconcile-v2` 工具仍可读取只读 v2 MySQL 完成最终迁移。
+
+## License
+
+[MIT](LICENSE)

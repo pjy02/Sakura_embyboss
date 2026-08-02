@@ -345,7 +345,7 @@ func (s *Service) batchTransition(ctx context.Context, id uuid.UUID, next string
 		return BatchOperation{}, err
 	}
 	defer tx.Rollback(ctx)
-	tag, err := tx.Exec(ctx, `UPDATE batch_operations SET status=$2,lease_owner=NULL,lease_expires_at=NULL,finished_at=CASE WHEN $2='canceled' THEN NOW() ELSE finished_at END,updated_at=NOW() WHERE id=$1 AND status=ANY($3::text[])`, id, next, allowed)
+	tag, err := tx.Exec(ctx, `UPDATE batch_operations SET status=$2::varchar,lease_owner=NULL,lease_expires_at=NULL,finished_at=CASE WHEN $2::varchar='canceled' THEN NOW() ELSE finished_at END,updated_at=NOW() WHERE id=$1 AND status=ANY($3::text[])`, id, next, allowed)
 	if err != nil {
 		return BatchOperation{}, err
 	}

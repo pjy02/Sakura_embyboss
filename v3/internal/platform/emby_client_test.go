@@ -39,6 +39,22 @@ func TestEmbyClientUsesTokenAndSupportsUsers(t *testing.T) {
 	mux.HandleFunc("POST /prefix/emby/Sessions/s1/Playing/Stop", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("POST /prefix/emby/Users/u1/Policy", func(w http.ResponseWriter, r *http.Request) {
+		var policy map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&policy)
+		if policy["EnableAllFolders"] != false {
+			t.Fatalf("unexpected policy: %#v", policy)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("GET /prefix/emby/Users/u1/Items", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("Filters") != "IsFavorite" {
+			t.Fatalf("unexpected favorite query: %s", r.URL.RawQuery)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"Items": []any{map[string]any{"Id": "m1", "Name": "Favorite"}}})
+	})
+	mux.HandleFunc("POST /prefix/emby/Users/u1/FavoriteItems/m1", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.HandleFunc("DELETE /prefix/emby/Users/u1/FavoriteItems/m1", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	client, err := newEmbyClient(EmbyInstance{ID: uuid.New(), BaseURL: server.URL + "/prefix", VerifyTLS: true}, "secret")
@@ -63,6 +79,19 @@ func TestEmbyClientUsesTokenAndSupportsUsers(t *testing.T) {
 	}
 	if err = client.stopSession(context.Background(), "s1"); err != nil {
 		t.Fatalf("stop session failed: %v", err)
+	}
+	if err = client.setUserPolicy(context.Background(), "u1", map[string]any{"EnableAllFolders": false, "EnabledFolders": []string{"library-1"}}); err != nil {
+		t.Fatalf("set policy failed: %v", err)
+	}
+	favorites, err := client.favoriteItems(context.Background(), "u1")
+	if err != nil || len(favorites) != 1 || favorites[0]["Id"] != "m1" {
+		t.Fatalf("favorite import failed: %#v %v", favorites, err)
+	}
+	if err = client.setFavorite(context.Background(), "u1", "m1", true); err != nil {
+		t.Fatalf("set favorite failed: %v", err)
+	}
+	if err = client.setFavorite(context.Background(), "u1", "m1", false); err != nil {
+		t.Fatalf("clear favorite failed: %v", err)
 	}
 	items, err := client.mediaByTMDB(context.Background(), 123, "movie")
 	if err != nil || len(items) != 1 || items[0]["Id"] != "m123" {

@@ -120,6 +120,8 @@ type Review struct {
 	Revision         int64      `json:"revision"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
+	LikeCount        int        `json:"like_count"`
+	ReportCount      int        `json:"report_count,omitempty"`
 }
 
 type NotificationPreference struct {

@@ -4,7 +4,7 @@ import { CheckCircle2, Clipboard, X } from 'lucide-vue-next'
 import type { PageAction } from '../resource-config'
 import { api, idempotencyKey } from '../lib/api'
 
-const props = defineProps<{ action: PageAction | null }>()
+const props = defineProps<{ action: PageAction | null; seed?: Record<string, unknown> }>()
 const emit = defineEmits<{ close: []; completed: [] }>()
 // Widgets are presentation metadata for API operations; validation and all
 // business decisions remain in the shared service called by the API.
@@ -15,16 +15,20 @@ const done = ref(false)
 const result = ref<unknown>(null)
 const resultText = computed(() => result.value == null ? '' : JSON.stringify(result.value, null, 2))
 
-watch(() => props.action, (action) => {
+watch(() => [props.action, props.seed] as const, ([action, seed]) => {
   Object.keys(values).forEach((key) => delete values[key])
   for (const field of action?.fields || []) {
-    const initial = action?.defaults?.[field.key]
-    values[field.key] = typeof initial === 'string' || typeof initial === 'number' || typeof initial === 'boolean' ? initial : field.type === 'checkbox' ? false : ''
+    const initial = seed?.[field.key] ?? action?.defaults?.[field.key]
+    values[field.key] = typeof initial === 'string' || typeof initial === 'number' || typeof initial === 'boolean'
+      ? initial
+      : field.type === 'json' && initial !== undefined
+        ? JSON.stringify(initial, null, 2)
+        : field.type === 'checkbox' ? false : ''
   }
   error.value = ''
   done.value = false
   result.value = null
-}, { immediate: true })
+}, { immediate: true, deep: true })
 
 async function submit() {
   if (!props.action) return
@@ -34,6 +38,10 @@ async function submit() {
     const body: Record<string, unknown> = { ...props.action.defaults }
     const path: Record<string, string | number> = {}
     for (const field of props.action.fields) {
+      if (!field.required && field.type !== 'checkbox' && String(values[field.key] ?? '').trim() === '') {
+        if (!field.path) delete body[field.key]
+        continue
+      }
       let value: unknown = field.type === 'number' ? Number(values[field.key] || 0) : values[field.key]
       if (field.type === 'json') value = JSON.parse(String(value || 'null'))
       if (field.path) path[field.key] = String(value || '')

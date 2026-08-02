@@ -213,6 +213,35 @@ func (c *embyClient) setDisabled(ctx context.Context, user embyUser, disabled bo
 	return c.request(ctx, http.MethodPost, "Users/"+url.PathEscape(user.ID)+"/Policy", policy, nil)
 }
 
+func (c *embyClient) setUserPolicy(ctx context.Context, userID string, policy map[string]any) error {
+	if strings.TrimSpace(userID) == "" {
+		return errors.New("Emby user id is empty")
+	}
+	return c.request(ctx, http.MethodPost, "Users/"+url.PathEscape(userID)+"/Policy", policy, nil)
+}
+
+func (c *embyClient) favoriteItems(ctx context.Context, userID string) ([]map[string]any, error) {
+	var body struct {
+		Items []map[string]any `json:"Items"`
+	}
+	fragment := "Users/" + url.PathEscape(userID) + "/Items?Recursive=true&Filters=IsFavorite&Fields=ProviderIds,ImageTags"
+	if err := c.request(ctx, http.MethodGet, fragment, nil, &body); err != nil {
+		return nil, err
+	}
+	return body.Items, nil
+}
+
+func (c *embyClient) setFavorite(ctx context.Context, userID, itemID string, favorite bool) error {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(itemID) == "" {
+		return errors.New("Emby favorite target is empty")
+	}
+	method := http.MethodPost
+	if !favorite {
+		method = http.MethodDelete
+	}
+	return c.request(ctx, method, "Users/"+url.PathEscape(userID)+"/FavoriteItems/"+url.PathEscape(itemID), nil, nil)
+}
+
 func (c *embyClient) stopSession(ctx context.Context, sessionID string) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return errors.New("Emby session id is empty")

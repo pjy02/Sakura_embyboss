@@ -2,10 +2,12 @@ package platform
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -169,6 +171,17 @@ func (w *Worker) process(ctx context.Context, task claimedTask) (map[string]any,
 	if task.Type == "moviepilot.submit" {
 		return w.submitMoviePilot(ctx, task)
 	}
+	if task.Type == "line.probe" {
+		lineID, err := uuid.Parse(fmt.Sprint(task.Payload["line_id"]))
+		if err != nil {
+			return nil, PermanentError{Err: errors.New("line probe task has invalid line id")}
+		}
+		sample, err := w.service.ProbeLine(ctx, lineID, identity.Actor{Kind: "system", ID: w.id})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"line_id": lineID, "status": sample.Status, "latency_ms": sample.LatencyMS}, nil
+	}
 	instanceID, err := uuid.Parse(fmt.Sprint(task.Payload["instance_id"]))
 	if err != nil {
 		return nil, PermanentError{Err: errors.New("task has invalid instance id")}
@@ -192,9 +205,198 @@ func (w *Worker) process(ctx context.Context, task claimedTask) (map[string]any,
 		return w.executeRiskAction(ctx, task, instance, client, true)
 	case "media.match":
 		return w.matchMedia(ctx, task, instance, client)
+	case "entitlement.sync":
+		return w.syncEntitlement(ctx, task, instance, client)
+	case "emby.favorite":
+		return w.applyFavorite(ctx, task, instance, client)
+	case "emby.favorite_sync":
+		return w.syncFavorites(ctx, task, instance, client)
 	default:
 		return nil, PermanentError{Err: fmt.Errorf("unsupported task type %q", task.Type)}
 	}
+}
+
+func (w *Worker) syncEntitlement(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient) (map[string]any, error) {
+	bindingID, err := uuid.Parse(fmt.Sprint(task.Payload["binding_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("entitlement task has invalid binding id")}
+	}
+	var remoteID string
+	if err = w.db.QueryRow(ctx, `SELECT remote_user_id FROM emby_account_bindings WHERE id=$1 AND instance_id=$2 AND status<>'deleted'`, bindingID, instance.ID).Scan(&remoteID); err != nil {
+		return nil, PermanentError{Err: notFound(err)}
+	}
+	users, err := client.users(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var remote embyUser
+	for _, candidate := range users {
+		if candidate.ID == remoteID {
+			remote = candidate
+			break
+		}
+	}
+	if remote.ID == "" {
+		return nil, PermanentError{Err: identity.ErrNotFound}
+	}
+	rows, err := w.db.Query(ctx, `SELECT resource_key FROM account_entitlements WHERE binding_id=$1 AND resource_kind='emby_library' AND status='active' AND expires_at>NOW() ORDER BY resource_key`, bindingID)
+	if err != nil {
+		return nil, err
+	}
+	var managedFolders []string
+	for rows.Next() {
+		var value string
+		if err = rows.Scan(&value); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		managedFolders = append(managedFolders, value)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	policy := remote.Policy
+	if policy == nil {
+		policy = map[string]any{}
+	}
+	currentFolders := policyFolders(policy["EnabledFolders"])
+	baselineFolders := append([]string(nil), currentFolders...)
+	lastManagedFolders := []string{}
+	var baselineRaw, managedRaw []byte
+	managementErr := w.db.QueryRow(ctx, `SELECT baseline_folders,last_managed_folders FROM emby_policy_management WHERE binding_id=$1`, bindingID).Scan(&baselineRaw, &managedRaw)
+	if managementErr == nil {
+		baselineFolders = decodeStringList(baselineRaw)
+		lastManagedFolders = decodeStringList(managedRaw)
+	} else if !errors.Is(managementErr, pgx.ErrNoRows) {
+		return nil, managementErr
+	}
+	desiredFolders := mergeFolderSets(baselineFolders, subtractFolderSet(currentFolders, lastManagedFolders), managedFolders)
+	policy["EnableAllFolders"] = false
+	policy["EnabledFolders"] = desiredFolders
+	if err = client.setUserPolicy(ctx, remoteID, policy); err != nil {
+		return nil, err
+	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `INSERT INTO emby_policy_management(binding_id,baseline_folders,last_managed_folders) VALUES($1,$2,$3) ON CONFLICT(binding_id) DO UPDATE SET last_managed_folders=EXCLUDED.last_managed_folders,updated_at=NOW()`, bindingID, jsonBytes(baselineFolders), jsonBytes(managedFolders)); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE account_entitlements SET status=CASE WHEN expires_at<=NOW() THEN 'expired' ELSE status END,updated_at=NOW() WHERE binding_id=$1`, bindingID); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return map[string]any{"binding_id": bindingID, "enabled_folders": desiredFolders, "managed_folders": managedFolders}, nil
+}
+
+func policyFolders(value any) []string {
+	result := []string{}
+	switch values := value.(type) {
+	case []string:
+		result = append(result, values...)
+	case []any:
+		for _, item := range values {
+			if text := strings.TrimSpace(fmt.Sprint(item)); text != "" {
+				result = append(result, text)
+			}
+		}
+	}
+	return mergeFolderSets(result)
+}
+
+func decodeStringList(raw []byte) []string {
+	var values []string
+	if len(raw) == 0 || json.Unmarshal(raw, &values) != nil {
+		return []string{}
+	}
+	return mergeFolderSets(values)
+}
+
+func subtractFolderSet(values, removed []string) []string {
+	remove := make(map[string]struct{}, len(removed))
+	for _, item := range removed {
+		remove[item] = struct{}{}
+	}
+	result := make([]string, 0, len(values))
+	for _, item := range values {
+		if _, exists := remove[item]; !exists {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+func mergeFolderSets(groups ...[]string) []string {
+	seen := map[string]struct{}{}
+	for _, group := range groups {
+		for _, item := range group {
+			item = strings.TrimSpace(item)
+			if item != "" {
+				seen[item] = struct{}{}
+			}
+		}
+	}
+	result := make([]string, 0, len(seen))
+	for item := range seen {
+		result = append(result, item)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func (w *Worker) applyFavorite(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient) (map[string]any, error) {
+	favoriteID, err := uuid.Parse(fmt.Sprint(task.Payload["favorite_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("favorite task has invalid favorite id")}
+	}
+	var remoteUserID, itemID string
+	var desired bool
+	err = w.db.QueryRow(ctx, `SELECT b.remote_user_id,f.remote_item_id,f.desired_favorite FROM emby_favorites f JOIN emby_account_bindings b ON b.id=f.binding_id WHERE f.id=$1 AND f.instance_id=$2`, favoriteID, instance.ID).Scan(&remoteUserID, &itemID, &desired)
+	if err != nil {
+		return nil, PermanentError{Err: notFound(err)}
+	}
+	if err = client.setFavorite(ctx, remoteUserID, itemID, desired); err != nil {
+		_, _ = w.db.Exec(ctx, `UPDATE emby_favorites SET sync_status='failed',last_error=$2,updated_at=NOW() WHERE id=$1`, favoriteID, truncateError(err))
+		return nil, err
+	}
+	_, err = w.db.Exec(ctx, `UPDATE emby_favorites SET remote_favorite=desired_favorite,sync_status='synced',last_error=NULL,last_synced_at=NOW(),updated_at=NOW() WHERE id=$1`, favoriteID)
+	return map[string]any{"favorite_id": favoriteID, "favorite": desired}, err
+}
+
+func (w *Worker) syncFavorites(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient) (map[string]any, error) {
+	bindingID, err := uuid.Parse(fmt.Sprint(task.Payload["binding_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("favorite sync task has invalid binding id")}
+	}
+	var accountID uuid.UUID
+	var remoteUserID string
+	if err = w.db.QueryRow(ctx, `SELECT account_id,remote_user_id FROM emby_account_bindings WHERE id=$1 AND instance_id=$2`, bindingID, instance.ID).Scan(&accountID, &remoteUserID); err != nil {
+		return nil, PermanentError{Err: notFound(err)}
+	}
+	items, err := client.favoriteItems(ctx, remoteUserID)
+	if err != nil {
+		return nil, err
+	}
+	seen := make([]string, 0, len(items))
+	for _, raw := range items {
+		id := fmt.Sprint(raw["Id"])
+		title := fmt.Sprint(raw["Name"])
+		if id == "" || title == "" {
+			continue
+		}
+		seen = append(seen, id)
+		_, err = w.db.Exec(ctx, `INSERT INTO emby_favorites(id,account_id,instance_id,binding_id,remote_item_id,title,media_type,image_tag,remote_snapshot,desired_favorite,remote_favorite,sync_status,last_synced_at) VALUES($1,$2,$3,$4,$5,$6,NULLIF($7,''),NULLIF($8,''),$9,TRUE,TRUE,'synced',NOW()) ON CONFLICT(binding_id,remote_item_id) DO UPDATE SET title=EXCLUDED.title,media_type=EXCLUDED.media_type,image_tag=EXCLUDED.image_tag,remote_snapshot=EXCLUDED.remote_snapshot,desired_favorite=CASE WHEN emby_favorites.sync_status='pending' THEN emby_favorites.desired_favorite ELSE TRUE END,remote_favorite=TRUE,sync_status=CASE WHEN emby_favorites.sync_status='pending' THEN 'pending' ELSE 'synced' END,last_error=CASE WHEN emby_favorites.sync_status='pending' THEN emby_favorites.last_error ELSE NULL END,last_synced_at=NOW(),updated_at=NOW()`, uuid.New(), accountID, instance.ID, bindingID, id, title, fmt.Sprint(raw["Type"]), favoriteImageTag(raw), jsonBytes(raw))
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err = w.db.Exec(ctx, `UPDATE emby_favorites SET remote_favorite=FALSE,desired_favorite=CASE WHEN sync_status='pending' THEN desired_favorite ELSE FALSE END,sync_status=CASE WHEN sync_status='pending' THEN 'pending' ELSE 'synced' END,last_synced_at=NOW(),updated_at=NOW() WHERE binding_id=$1 AND NOT (remote_item_id=ANY($2::text[]))`, bindingID, seen)
+	return map[string]any{"binding_id": bindingID, "favorites": len(seen)}, err
 }
 
 func (w *Worker) client(ctx context.Context, instanceID uuid.UUID) (EmbyInstance, *embyClient, error) {
@@ -577,7 +779,7 @@ func (w *Worker) executeRiskAction(ctx context.Context, task claimedTask, instan
 	completedStatus, timelineType := "succeeded", "action_succeeded"
 	if revert {
 		completedStatus, timelineType = "reverted", "action_reverted"
-		_, err = tx.Exec(ctx, `UPDATE risk_actions SET status=$2,before_state=CASE WHEN $2='succeeded' THEN $3 ELSE before_state END,after_state=$4,result=result||$5::jsonb,last_error=NULL,reverted_at=NOW(),updated_at=NOW() WHERE id=$1`, actionID, completedStatus, jsonBytes(before), jsonBytes(map[string]any{"restored": true}), jsonBytes(map[string]any{"task_id": task.ID}))
+		_, err = tx.Exec(ctx, `UPDATE risk_actions SET status=$2::varchar,before_state=CASE WHEN $2::varchar='succeeded' THEN $3 ELSE before_state END,after_state=$4,result=result||$5::jsonb,last_error=NULL,reverted_at=NOW(),updated_at=NOW() WHERE id=$1`, actionID, completedStatus, jsonBytes(before), jsonBytes(map[string]any{"restored": true}), jsonBytes(map[string]any{"task_id": task.ID}))
 	} else {
 		_, err = tx.Exec(ctx, `UPDATE risk_actions SET status=$2,before_state=$3,after_state=$4,result=result||$5::jsonb,last_error=NULL,executed_at=NOW(),updated_at=NOW() WHERE id=$1`, actionID, completedStatus, jsonBytes(before), jsonBytes(map[string]any{"disabled": actionType == "disable_user", "session_stopped": actionType == "stop_session"}), jsonBytes(map[string]any{"task_id": task.ID}))
 	}
@@ -644,7 +846,7 @@ func (w *Worker) matchMedia(ctx context.Context, task claimedTask, instance Emby
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `INSERT INTO media_matches(id,media_id,instance_id,status,remote_item_id,remote_title,remote_item_type,remote_snapshot,matched_at,last_checked_at) VALUES($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,CASE WHEN $4='matched' THEN NOW() END,NOW()) ON CONFLICT(media_id,instance_id) DO UPDATE SET status=$4,remote_item_id=NULLIF($5,''),remote_title=NULLIF($6,''),remote_item_type=NULLIF($7,''),remote_snapshot=$8,last_error=NULL,matched_at=CASE WHEN $4='matched' THEN NOW() ELSE NULL END,last_checked_at=NOW(),updated_at=NOW()`, uuid.New(), mediaID, instance.ID, status, remoteID, remoteTitle, remoteType, jsonBytes(remote))
+	_, err = tx.Exec(ctx, `INSERT INTO media_matches(id,media_id,instance_id,status,remote_item_id,remote_title,remote_item_type,remote_snapshot,matched_at,last_checked_at) VALUES($1,$2,$3,$4::varchar,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,CASE WHEN $4::varchar='matched' THEN NOW() END,NOW()) ON CONFLICT(media_id,instance_id) DO UPDATE SET status=$4::varchar,remote_item_id=NULLIF($5,''),remote_title=NULLIF($6,''),remote_item_type=NULLIF($7,''),remote_snapshot=$8,last_error=NULL,matched_at=CASE WHEN $4::varchar='matched' THEN NOW() ELSE NULL END,last_checked_at=NOW(),updated_at=NOW()`, uuid.New(), mediaID, instance.ID, status, remoteID, remoteTitle, remoteType, jsonBytes(remote))
 	if err != nil {
 		return nil, err
 	}
@@ -822,9 +1024,9 @@ func (w *Worker) fail(ctx context.Context, task claimedTask, failure error) erro
 		return err
 	}
 	defer tx.Rollback(ctx)
-	_, err = tx.Exec(ctx, `UPDATE platform_tasks SET status=$2,last_error=$3,available_at=NOW()+($4::double precision*INTERVAL '1 second'),lease_owner=NULL,lease_expires_at=NULL,finished_at=CASE WHEN $2 IN ('failed','dead') THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$1 AND lease_owner=$5`, task.ID, status, message, delay, w.id)
+	_, err = tx.Exec(ctx, `UPDATE platform_tasks SET status=$2::varchar,last_error=$3,available_at=NOW()+($4::double precision*INTERVAL '1 second'),lease_owner=NULL,lease_expires_at=NULL,finished_at=CASE WHEN $2::varchar IN ('failed','dead') THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$1 AND lease_owner=$5`, task.ID, status, message, delay, w.id)
 	if err == nil && task.Type == "emby.provision" {
-		_, err = tx.Exec(ctx, `UPDATE emby_provision_requests SET status=CASE WHEN $2 IN ('failed','dead') THEN 'failed' ELSE 'pending' END,last_error=$3,updated_at=NOW() WHERE task_id=$1`, task.ID, status, message)
+		_, err = tx.Exec(ctx, `UPDATE emby_provision_requests SET status=CASE WHEN $2::varchar IN ('failed','dead') THEN 'failed' ELSE 'pending' END,last_error=$3,updated_at=NOW() WHERE task_id=$1`, task.ID, status, message)
 	}
 	if err == nil && (task.Type == "risk.action" || task.Type == "risk.revert") {
 		if actionID, parseErr := uuid.Parse(fmt.Sprint(task.Payload["action_id"])); parseErr == nil {

@@ -17,33 +17,34 @@ import (
 )
 
 type Report struct {
-	Mode              string    `json:"mode"`
-	CanonicalAccounts int       `json:"canonical_accounts"`
-	LegacyAccounts    int       `json:"legacy_accounts"`
-	Identities        int       `json:"identities"`
-	MembershipPlans   int       `json:"membership_plans"`
-	Memberships       int       `json:"memberships"`
-	Tags              int       `json:"tags"`
-	TagAssignments    int       `json:"tag_assignments"`
-	Wallets           int       `json:"wallets"`
-	WalletTotal       int64     `json:"wallet_total"`
-	Credentials       int       `json:"credentials"`
-	EmbyInstances     int       `json:"emby_instances"`
-	EmbyBindings      int       `json:"emby_bindings"`
-	Settings          int       `json:"settings"`
-	AuditLogs         int       `json:"audit_logs"`
-	SupportTickets    int       `json:"support_tickets"`
-	TicketMessages    int       `json:"ticket_messages"`
-	Notifications     int       `json:"notifications"`
-	NotificationPrefs int       `json:"notification_preferences"`
-	LedgerEntries     int       `json:"ledger_entries"`
-	InvitationCodes   int       `json:"invitation_codes"`
-	RechargeProducts  int       `json:"recharge_products"`
-	RechargeOrders    int       `json:"recharge_orders"`
-	RoleMembers       int       `json:"role_members"`
-	Conflicts         []string  `json:"conflicts"`
-	StartedAt         time.Time `json:"started_at"`
-	FinishedAt        time.Time `json:"finished_at"`
+	Mode              string              `json:"mode"`
+	CanonicalAccounts int                 `json:"canonical_accounts"`
+	LegacyAccounts    int                 `json:"legacy_accounts"`
+	Identities        int                 `json:"identities"`
+	MembershipPlans   int                 `json:"membership_plans"`
+	Memberships       int                 `json:"memberships"`
+	Tags              int                 `json:"tags"`
+	TagAssignments    int                 `json:"tag_assignments"`
+	Wallets           int                 `json:"wallets"`
+	WalletTotal       int64               `json:"wallet_total"`
+	Credentials       int                 `json:"credentials"`
+	EmbyInstances     int                 `json:"emby_instances"`
+	EmbyBindings      int                 `json:"emby_bindings"`
+	Settings          int                 `json:"settings"`
+	AuditLogs         int                 `json:"audit_logs"`
+	SupportTickets    int                 `json:"support_tickets"`
+	TicketMessages    int                 `json:"ticket_messages"`
+	Notifications     int                 `json:"notifications"`
+	NotificationPrefs int                 `json:"notification_preferences"`
+	LedgerEntries     int                 `json:"ledger_entries"`
+	InvitationCodes   int                 `json:"invitation_codes"`
+	RechargeProducts  int                 `json:"recharge_products"`
+	RechargeOrders    int                 `json:"recharge_orders"`
+	RoleMembers       int                 `json:"role_members"`
+	TableImports      []TableImportReport `json:"table_imports"`
+	Conflicts         []string            `json:"conflicts"`
+	StartedAt         time.Time           `json:"started_at"`
+	FinishedAt        time.Time           `json:"finished_at"`
 }
 type Importer struct {
 	source             *sql.DB
@@ -114,6 +115,7 @@ type legacyWallet struct {
 }
 type legacyLedger struct {
 	ID                                                 int64
+	SourceTransactionID                                sql.NullInt64
 	AccountID, BalanceType, Reason, ActorKind, ActorID string
 	Amount                                             int64
 	Created                                            time.Time
@@ -302,6 +304,10 @@ func (i *Importer) Run(ctx context.Context) (Report, error) {
 	if err != nil {
 		return report, fmt.Errorf("read notification preferences: %w", err)
 	}
+	adapterRows, err := i.readAdapterTables(ctx)
+	if err != nil {
+		return report, fmt.Errorf("read legacy domain tables: %w", err)
+	}
 	report.CanonicalAccounts = len(accounts)
 	report.LegacyAccounts = len(legacy)
 	report.Identities = len(identities)
@@ -318,6 +324,7 @@ func (i *Importer) Run(ctx context.Context) (Report, error) {
 	report.InvitationCodes = len(invites)
 	report.RechargeProducts, report.RechargeOrders = len(rechargeProducts), len(rechargeOrders)
 	report.RoleMembers = len(roleMembers)
+	report.TableImports = summarizeAdapterRows(adapterRows)
 	report.Conflicts = analyze(accounts, identities)
 	if !i.apply {
 		report.FinishedAt = time.Now()
@@ -802,6 +809,10 @@ func (i *Importer) Run(ctx context.Context) (Report, error) {
 			return report, err
 		}
 	}
+	report.TableImports, err = i.importAdapterTables(ctx, tx, runID, adapterRows, tgMap, idMap, instanceMap)
+	if err != nil {
+		return report, err
+	}
 	report.FinishedAt = time.Now()
 	summary, _ := json.Marshal(report)
 	_, err = tx.Exec(ctx, `UPDATE legacy_import_runs SET status='completed',summary=$2,finished_at=NOW() WHERE id=$1`, runID, summary)
@@ -906,6 +917,9 @@ func importLegacyLedger(ctx context.Context, tx pgTx, accountID uuid.UUID, curre
 		systemSide, walletSide = "credit", "debit"
 	}
 	metadata := map[string]any{"source": "v2", "legacy_entry_id": entry.ID, "legacy_actor": entry.ActorKind + ":" + entry.ActorID}
+	if entry.SourceTransactionID.Valid {
+		metadata["legacy_source_transaction_id"] = entry.SourceTransactionID.Int64
+	}
 	if _, err = tx.Exec(ctx, `INSERT INTO ledger_transactions(id,transaction_no,idempotency_key,kind,currency,status,reference_type,reference_id,description,metadata,actor,created_at) VALUES($1,$2,$3,'admin_adjustment',$4,'draft','legacy_wallet',$5,$6,$7,$8,$9)`, txnID, number, key, currency, accountID.String(), entry.Reason, metadata, "legacy:"+entry.ActorKind+":"+entry.ActorID, entry.Created); err != nil {
 		return err
 	}
@@ -1100,7 +1114,7 @@ func (i *Importer) readLedgerEntries(ctx context.Context) ([]legacyLedger, error
 	if err != nil || !exists {
 		return nil, err
 	}
-	rows, err := i.source.QueryContext(ctx, `SELECT id,account_id,balance_type,amount,reason,actor_kind,actor_id,created_at FROM account_ledger_entries ORDER BY id`)
+	rows, err := i.source.QueryContext(ctx, `SELECT id,source_transaction_id,account_id,balance_type,amount,reason,actor_kind,actor_id,created_at FROM account_ledger_entries ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -1108,7 +1122,7 @@ func (i *Importer) readLedgerEntries(ctx context.Context) ([]legacyLedger, error
 	var out []legacyLedger
 	for rows.Next() {
 		var x legacyLedger
-		if err = rows.Scan(&x.ID, &x.AccountID, &x.BalanceType, &x.Amount, &x.Reason, &x.ActorKind, &x.ActorID, &x.Created); err != nil {
+		if err = rows.Scan(&x.ID, &x.SourceTransactionID, &x.AccountID, &x.BalanceType, &x.Amount, &x.Reason, &x.ActorKind, &x.ActorID, &x.Created); err != nil {
 			return nil, err
 		}
 		out = append(out, x)

@@ -183,7 +183,7 @@ func (s *Service) UpdateTicket(ctx context.Context, id uuid.UUID, status, priori
 	if revision != expected {
 		return Ticket{}, identity.ErrConflict
 	}
-	_, err = tx.Exec(ctx, `UPDATE support_tickets SET status=$2,priority=$3,assigned_to=$4,resolved_at=CASE WHEN $2='resolved' THEN NOW() ELSE resolved_at END,closed_at=CASE WHEN $2='closed' THEN NOW() ELSE closed_at END,revision=revision+1,updated_at=NOW() WHERE id=$1`, id, status, priority, assignedTo)
+	_, err = tx.Exec(ctx, `UPDATE support_tickets SET status=$2::varchar,priority=$3,assigned_to=$4,resolved_at=CASE WHEN $2::varchar='resolved' THEN NOW() ELSE resolved_at END,closed_at=CASE WHEN $2::varchar='closed' THEN NOW() ELSE closed_at END,revision=revision+1,updated_at=NOW() WHERE id=$1`, id, status, priority, assignedTo)
 	if err != nil {
 		return Ticket{}, err
 	}
@@ -232,7 +232,7 @@ func (s *Service) SubmitReview(ctx context.Context, accountID, mediaID uuid.UUID
 func (s *Service) GetReview(ctx context.Context, id uuid.UUID, includeUnapproved bool) (Review, error) {
 	var item Review
 	var mediaID uuid.UUID
-	err := s.db.QueryRow(ctx, `SELECT id,media_id,account_id,rating,COALESCE(title,''),body,contains_spoilers,status,COALESCE(moderation_reason,''),COALESCE(moderated_by,''),moderated_at,revision,created_at,updated_at FROM media_reviews WHERE id=$1 AND ($2 OR status='approved')`, id, includeUnapproved).Scan(&item.ID, &mediaID, &item.AccountID, &item.Rating, &item.Title, &item.Body, &item.ContainsSpoilers, &item.Status, &item.ModerationReason, &item.ModeratedBy, &item.ModeratedAt, &item.Revision, &item.CreatedAt, &item.UpdatedAt)
+	err := s.db.QueryRow(ctx, `SELECT r.id,r.media_id,r.account_id,r.rating,COALESCE(r.title,''),r.body,r.contains_spoilers,r.status,COALESCE(r.moderation_reason,''),COALESCE(r.moderated_by,''),r.moderated_at,r.revision,r.created_at,r.updated_at,(SELECT COUNT(*) FROM review_reactions x WHERE x.review_id=r.id),(SELECT COUNT(*) FROM review_reports p WHERE p.review_id=r.id) FROM media_reviews r WHERE r.id=$1 AND ($2 OR r.status='approved')`, id, includeUnapproved).Scan(&item.ID, &mediaID, &item.AccountID, &item.Rating, &item.Title, &item.Body, &item.ContainsSpoilers, &item.Status, &item.ModerationReason, &item.ModeratedBy, &item.ModeratedAt, &item.Revision, &item.CreatedAt, &item.UpdatedAt, &item.LikeCount, &item.ReportCount)
 	if err != nil {
 		return Review{}, notFound(err)
 	}
@@ -741,7 +741,7 @@ func executeAutomationActionTx(ctx context.Context, tx pgx.Tx, eventID uuid.UUID
 			return PermanentError{Err: identity.ErrConflict}
 		}
 		reason := stringOr(action["reason"], "Automation rule: "+rule.Name)
-		_, err = tx.Exec(ctx, `UPDATE media_requests SET status=$2,resolution_reason=$3,resolved_by=$4,resolved_at=CASE WHEN $2 IN ('completed','rejected','canceled') THEN NOW() ELSE NULL END,revision=revision+1,updated_at=NOW() WHERE id=$1`, requestID, status, reason, "system:"+workerID)
+		_, err = tx.Exec(ctx, `UPDATE media_requests SET status=$2::varchar,resolution_reason=$3,resolved_by=$4,resolved_at=CASE WHEN $2::varchar IN ('completed','rejected','canceled') THEN NOW() ELSE NULL END,revision=revision+1,updated_at=NOW() WHERE id=$1`, requestID, status, reason, "system:"+workerID)
 		if err == nil {
 			_, err = tx.Exec(ctx, `INSERT INTO media_request_events(request_id,event_type,from_status,to_status,actor,reason,details) VALUES($1,'automation_status_changed',$2,$3,$4,$5,$6)`, requestID, current, status, "system:"+workerID, reason, jsonBytes(map[string]any{"rule_id": rule.ID, "event_id": eventID}))
 		}

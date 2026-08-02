@@ -261,6 +261,66 @@ func (b *Bot) handleUpdate(ctx context.Context, token string, item update) {
 	case "/notifications":
 		reply = b.collectionReply(ctx, item.Message.From.ID, "notifications", "未读通知", formatNotificationLine)
 		keyboard = mainKeyboard(false)
+	case "/entitlements":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "entitlements", "我的权益", formatEntitlementLine)
+		keyboard = mainKeyboard(false)
+	case "/lines":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "lines", "可用线路", formatLineEntry)
+		keyboard = mainKeyboard(false)
+	case "/redeem":
+		if len(fields) != 2 {
+			reply = "用法：/redeem <权益码>"
+			break
+		}
+		var result map[string]any
+		if err := b.botAction(ctx, item.Message.From.ID, "entitlement_redeem", map[string]string{"code": fields[1]}, fmt.Sprintf("tg-entitlement-%d", item.ID), &result); err != nil {
+			reply = "权益码兑换失败：请确认权益码有效且未被使用。"
+		} else {
+			reply = "权益兑换成功，Emby 媒体库权限正在同步。"
+		}
+		keyboard = mainKeyboard(false)
+	case "/favorites":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "favorites", "Emby 收藏", formatFavoriteLine)
+		keyboard = mainKeyboard(false)
+	case "/favorite-sync":
+		if len(fields) != 2 {
+			reply = "用法：/favorite-sync <Emby绑定ID>"
+			break
+		}
+		var result map[string]any
+		if err := b.botAction(ctx, item.Message.From.ID, "favorite_sync", map[string]string{"binding_id": fields[1]}, fmt.Sprintf("tg-favorite-sync-%d", item.ID), &result); err != nil {
+			reply = "收藏同步任务创建失败。"
+		} else {
+			reply = "收藏同步任务已创建。"
+		}
+		keyboard = mainKeyboard(false)
+	case "/like", "/unlike":
+		if len(fields) != 2 {
+			reply = "用法：/like <影评ID> 或 /unlike <影评ID>"
+			break
+		}
+		liked := command == "/like"
+		var result map[string]any
+		if err := b.botAction(ctx, item.Message.From.ID, "review_like", map[string]string{"review_id": fields[1], "liked": fmt.Sprint(liked)}, fmt.Sprintf("tg-review-like-%d", item.ID), &result); err != nil {
+			reply = "影评点赞操作失败。"
+		} else if liked {
+			reply = "已点赞这条影评。"
+		} else {
+			reply = "已取消点赞。"
+		}
+		keyboard = mainKeyboard(false)
+	case "/report-review":
+		if len(fields) < 3 {
+			reply = "用法：/report-review <影评ID> <spam|abuse|spoiler|copyright|other> [说明]"
+			break
+		}
+		var result map[string]any
+		if err := b.botAction(ctx, item.Message.From.ID, "review_report", map[string]string{"review_id": fields[1], "reason": fields[2], "detail": strings.Join(fields[3:], " ")}, fmt.Sprintf("tg-review-report-%d", item.ID), &result); err != nil {
+			reply = "影评举报提交失败。"
+		} else {
+			reply = "举报已提交，管理员处理结果会保留审计记录。"
+		}
+		keyboard = mainKeyboard(false)
 	case "/admin":
 		reply = b.adminDashboardReply(ctx, item.Message.From.ID)
 		keyboard = adminKeyboard()
@@ -356,6 +416,12 @@ func (b *Bot) handleCallback(ctx context.Context, token string, item update) {
 		keyboard = mainKeyboard(false)
 	case query.Data == "nav:notifications":
 		reply = b.collectionReply(ctx, query.From.ID, "notifications", "未读通知", formatNotificationLine)
+		keyboard = mainKeyboard(false)
+	case query.Data == "nav:access":
+		reply = b.collectionReply(ctx, query.From.ID, "entitlements", "我的权益", formatEntitlementLine)
+		keyboard = mainKeyboard(false)
+	case query.Data == "nav:favorites":
+		reply = b.collectionReply(ctx, query.From.ID, "favorites", "Emby 收藏", formatFavoriteLine)
 		keyboard = mainKeyboard(false)
 	case query.Data == "nav:admin":
 		reply = b.adminDashboardReply(ctx, query.From.ID)
@@ -499,10 +565,21 @@ func formatRiskLine(item map[string]any) string {
 	return fmt.Sprintf("• %s｜%s｜%s", stringField(item, "severity"), stringField(item, "status"), truncateRunes(stringField(item, "title"), 35))
 }
 
+func formatEntitlementLine(item map[string]any) string {
+	return fmt.Sprintf("• %s｜%s｜到期 %s", stringField(item, "resource_key"), stringField(item, "status"), stringField(item, "expires_at"))
+}
+func formatLineEntry(item map[string]any) string {
+	return fmt.Sprintf("• %s｜%s｜%s", stringField(item, "name"), stringField(item, "last_status"), stringField(item, "base_url"))
+}
+func formatFavoriteLine(item map[string]any) string {
+	return fmt.Sprintf("• %s｜%s｜%s", stringField(item, "title"), stringField(item, "instance_name"), stringField(item, "sync_status"))
+}
+
 func mainKeyboard(admin bool) *inlineKeyboard {
 	rows := [][]inlineButton{
 		{{Text: "我的首页", CallbackData: "nav:home"}, {Text: "我的求片", CallbackData: "nav:requests"}},
 		{{Text: "我的工单", CallbackData: "nav:tickets"}, {Text: "通知", CallbackData: "nav:notifications"}},
+		{{Text: "权益", CallbackData: "nav:access"}, {Text: "收藏", CallbackData: "nav:favorites"}},
 	}
 	if admin {
 		rows = append(rows, []inlineButton{{Text: "管理中心", CallbackData: "nav:admin"}})
@@ -518,7 +595,7 @@ func adminKeyboard() *inlineKeyboard {
 }
 
 func botHelpText() string {
-	return "Sakura Bot 命令\n\n/start - 打开功能菜单\n/bind <绑定码> - 绑定 Web 账号\n/media <片名> - 搜索影片\n/request <影片ID> - 提交求片\n/requests - 我的求片\n/tickets - 我的工单\n/ticket 主题 | 描述 - 创建工单\n/notifications - 未读通知\n/register - 创建 Emby 账号\n/register-status - 查询建号任务\n\n管理员：/admin /users /tasks /risks /broadcast"
+	return "Sakura Bot 命令\n\n/start - 打开功能菜单\n/bind <绑定码> - 绑定 Web 账号\n/media <片名> - 搜索影片\n/request <影片ID> - 提交求片\n/requests - 我的求片\n/tickets - 我的工单\n/ticket 主题 | 描述 - 创建工单\n/notifications - 未读通知\n/entitlements - 我的权益\n/lines - 可用线路\n/redeem <权益码> - 兑换权益\n/favorites - Emby 收藏\n/favorite-sync <绑定ID> - 同步收藏\n/like /unlike <影评ID> - 点赞操作\n/report-review - 举报影评\n/register - 创建 Emby 账号\n/register-status - 查询建号任务\n\n管理员：/admin /users /tasks /risks /broadcast"
 }
 
 func stringField(item map[string]any, key string) string {
@@ -743,6 +820,9 @@ func (b *Bot) setCommands(ctx context.Context, token string) error {
 		{"command": "requests", "description": "查看我的求片"},
 		{"command": "tickets", "description": "查看我的工单"},
 		{"command": "notifications", "description": "查看未读通知"},
+		{"command": "entitlements", "description": "查看媒体库权益"},
+		{"command": "lines", "description": "查看可用线路"},
+		{"command": "favorites", "description": "查看 Emby 收藏"},
 		{"command": "register", "description": "创建 Emby 账号"},
 		{"command": "admin", "description": "打开管理中心"},
 		{"command": "help", "description": "查看完整命令帮助"},

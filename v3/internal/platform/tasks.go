@@ -182,5 +182,79 @@ func (s *Service) ScheduleDue(ctx context.Context, now time.Time) error {
 			return enqueueErr
 		}
 	}
+	var entitlementSeconds, favoriteSeconds int
+	if err = s.db.QueryRow(ctx, `SELECT (value #>> '{}')::integer FROM dynamic_settings WHERE key='entitlements.sync_interval_seconds'`).Scan(&entitlementSeconds); err != nil || entitlementSeconds < 60 {
+		entitlementSeconds = 300
+	}
+	if err = s.db.QueryRow(ctx, `SELECT (value #>> '{}')::integer FROM dynamic_settings WHERE key='favorites.sync_interval_seconds'`).Scan(&favoriteSeconds); err != nil || favoriteSeconds < 300 {
+		favoriteSeconds = 3600
+	}
+	bindingRows, queryErr := s.db.Query(ctx, `SELECT b.id,b.instance_id,EXISTS(SELECT 1 FROM account_entitlements e WHERE e.binding_id=b.id) FROM emby_account_bindings b WHERE b.status<>'deleted'`)
+	if queryErr != nil {
+		return queryErr
+	}
+	type bindingTarget struct {
+		id, instanceID  uuid.UUID
+		hasEntitlements bool
+	}
+	var bindings []bindingTarget
+	for bindingRows.Next() {
+		var item bindingTarget
+		if err = bindingRows.Scan(&item.id, &item.instanceID, &item.hasEntitlements); err != nil {
+			bindingRows.Close()
+			return err
+		}
+		bindings = append(bindings, item)
+	}
+	bindingRows.Close()
+	if err = bindingRows.Err(); err != nil {
+		return err
+	}
+	for _, binding := range bindings {
+		if binding.hasEntitlements {
+			entitlementBucket := now.Unix() / int64(entitlementSeconds)
+			if err = s.enqueueBindingTask(ctx, "entitlement.sync", binding.id, binding.instanceID, fmt.Sprintf("auto-%d", entitlementBucket), actor); err != nil && !errors.Is(err, identity.ErrConflict) {
+				return err
+			}
+		}
+		favoriteBucket := now.Unix() / int64(favoriteSeconds)
+		if err = s.enqueueBindingTask(ctx, "emby.favorite_sync", binding.id, binding.instanceID, fmt.Sprintf("auto-%d", favoriteBucket), actor); err != nil && !errors.Is(err, identity.ErrConflict) {
+			return err
+		}
+	}
+	lineProbeSeconds := s.dynamicInt(ctx, "lines.probe_interval_seconds", 300)
+	if lineProbeSeconds < 30 {
+		lineProbeSeconds = 300
+	}
+	lineRows, lineErr := s.db.Query(ctx, `SELECT id FROM line_endpoints WHERE enabled AND NOT maintenance ORDER BY id`)
+	if lineErr != nil {
+		return lineErr
+	}
+	var lineIDs []uuid.UUID
+	for lineRows.Next() {
+		var lineID uuid.UUID
+		if err = lineRows.Scan(&lineID); err != nil {
+			lineRows.Close()
+			return err
+		}
+		lineIDs = append(lineIDs, lineID)
+	}
+	lineRows.Close()
+	if err = lineRows.Err(); err != nil {
+		return err
+	}
+	lineBucket := now.Unix() / int64(lineProbeSeconds)
+	for _, lineID := range lineIDs {
+		key := fmt.Sprintf("line.probe:%s:auto-%d", lineID, lineBucket)
+		if _, err = s.db.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,created_by) VALUES($1,'line.probe',$2,$3,$4) ON CONFLICT(idempotency_key) DO NOTHING`, uuid.New(), key, jsonBytes(map[string]any{"line_id": lineID.String()}), actor.Label()); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func (s *Service) enqueueBindingTask(ctx context.Context, taskType string, bindingID, instanceID uuid.UUID, bucket string, actor identity.Actor) error {
+	key := taskType + ":" + bindingID.String() + ":" + bucket
+	_, err := s.db.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,created_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(idempotency_key) DO NOTHING`, uuid.New(), taskType, key, jsonBytes(map[string]any{"instance_id": instanceID.String(), "binding_id": bindingID.String()}), actor.Label())
+	return err
 }

@@ -38,6 +38,7 @@ func New(options Options) http.Handler {
 		registerCommunityRoutes(mux, options)
 		registerRealtimeRoutes(mux, options)
 		registerBotRoutes(mux, options)
+		registerCompletionRoutes(mux, options)
 	}
 	mux.HandleFunc("GET /api/v3/system/info", func(writer http.ResponseWriter, _ *http.Request) {
 		writeJSON(writer, http.StatusOK, map[string]string{

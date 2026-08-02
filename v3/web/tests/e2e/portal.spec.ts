@@ -5,7 +5,7 @@ async function respond(route: Route, body: unknown, status = 200) { await route.
 async function authenticated(page: Page, admin = false) {
   await page.route('**/api/v3/**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/api/v3/auth/context') return respond(route, { account, permissions: admin ? ['dashboard.read','accounts.read','memberships.read','emby_instances.read','commerce.orders.read','batch_operations.read','playback.read','risk.read','media_requests.read','tickets.read','broadcasts.read','settings.read'] : [] })
+    if (url.pathname === '/api/v3/auth/context') return respond(route, { account, permissions: admin ? ['dashboard.read','accounts.read','memberships.read','emby_instances.read','commerce.orders.read','batch_operations.read','playback.read','risk.read','media_requests.read','tickets.read','broadcasts.read','settings.read','entitlements.read','entitlements.write','lines.read','lines.write','integrations.read','integrations.probe'] : [] })
     if (url.pathname === '/api/v3/me/membership') return respond(route, { status: 'active', expires_at: '2027-01-01T00:00:00Z' })
     if (url.pathname === '/api/v3/me/wallet') return respond(route, { balance: 1280, currency: 'POINTS' })
     if (route.request().method() === 'GET') return respond(route, { items: [] })
@@ -46,4 +46,26 @@ test('RBAC exposes management modules and responsive navigation', async ({ page,
   await expect(page.getByText('风险中心')).toBeVisible()
   await page.getByText('系统与审计').click()
   await expect(page.getByRole('heading', { name: '系统与审计' })).toBeVisible()
+})
+
+test('runtime completion pages are available without Bot', async ({ page }) => {
+  await authenticated(page)
+  await page.goto('/access')
+  await expect(page.getByRole('heading', { name: '权益与线路' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '兑换权益码' })).toBeVisible()
+  await page.goto('/favorites')
+  await expect(page.getByRole('heading', { name: 'Emby 收藏' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '同步收藏' })).toBeVisible()
+})
+
+test('admin can reach access lines and live integration diagnostics', async ({ page }) => {
+  await authenticated(page, true)
+  await page.goto('/admin/access')
+  await expect(page.getByRole('heading', { name: '权益中心' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '生成权益码' })).toBeVisible()
+  await page.goto('/admin/lines')
+  await expect(page.getByRole('heading', { name: '线路管理' })).toBeVisible()
+  await page.goto('/admin/integrations')
+  await expect(page.getByRole('heading', { name: '外部联调' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '探测 Telegram' })).toBeVisible()
 })

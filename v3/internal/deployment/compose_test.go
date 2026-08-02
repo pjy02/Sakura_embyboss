@@ -176,6 +176,7 @@ func TestPhase8YAMLDocumentsParse(t *testing.T) {
 		filepath.Join(root, "deploy", "compose.color.yaml"),
 		filepath.Join(root, "deploy", "compose.maintenance.yaml"),
 		filepath.Join(root, "deploy", "compose.restore-drill.yaml"),
+		filepath.Join(root, "..", ".github", "workflows", "ci.yml"),
 		filepath.Join(root, "..", ".github", "workflows", "publish-v3-docker.yml"),
 	}
 	for _, path := range paths {
@@ -187,6 +188,30 @@ func TestPhase8YAMLDocumentsParse(t *testing.T) {
 		if err = yaml.Unmarshal(content, &document); err != nil {
 			t.Fatalf("parse %s: %v", path, err)
 		}
+	}
+}
+
+func TestOnlyV3BuildEntrypointsAreActive(t *testing.T) {
+	root := filepath.Clean(filepath.Join(repositoryRoot(t), ".."))
+	for _, retired := range []string{"main.py", "Dockerfile", "docker-compose.yml", "requirements.txt", "web", "bot", "backend"} {
+		if _, err := os.Stat(filepath.Join(root, retired)); !os.IsNotExist(err) {
+			t.Fatalf("legacy entrypoint %s must not remain active at repository root", retired)
+		}
+	}
+	workflowDir := filepath.Join(root, ".github", "workflows")
+	entries, err := os.ReadDir(workflowDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"ci.yml": true, "publish-v3-docker.yml": true}
+	for _, entry := range entries {
+		if entry.IsDir() || !want[entry.Name()] {
+			t.Fatalf("unexpected active workflow %s", entry.Name())
+		}
+		delete(want, entry.Name())
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing active v3 workflows: %v", want)
 	}
 }
 

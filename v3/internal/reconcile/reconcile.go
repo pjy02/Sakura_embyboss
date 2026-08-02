@@ -27,10 +27,16 @@ type MoneyCheck struct {
 }
 
 type TableCheck struct {
-	Name        string `json:"name"`
-	Rows        int64  `json:"rows"`
-	Disposition string `json:"disposition"`
-	Implemented bool   `json:"implemented"`
+	Name            string `json:"name"`
+	Rows            int64  `json:"rows"`
+	Disposition     string `json:"disposition"`
+	ArchivedRows    int64  `json:"preserved_rows"`
+	TransformedRows int64  `json:"transformed_rows"`
+	TargetRows      int64  `json:"target_rows"`
+	ArchiveOnlyRows int64  `json:"archive_only_rows"`
+	DeferredRows    int64  `json:"deferred_rows"`
+	MissingRows     int64  `json:"missing_rows"`
+	Implemented     bool   `json:"implemented"`
 }
 
 type Report struct {
@@ -341,6 +347,18 @@ func (r *Report) Evaluate() {
 		if table.Rows == 0 {
 			continue
 		}
+		if _, adapted := legacyDomainAdapters[table.Name]; adapted {
+			if table.MissingRows > 0 {
+				r.Blockers = append(r.Blockers, fmt.Sprintf("v2 table %s is missing %d archived migration rows", table.Name, table.MissingRows))
+			}
+			if table.DeferredRows > 0 {
+				r.Blockers = append(r.Blockers, fmt.Sprintf("v2 table %s has %d deferred rows requiring operator resolution", table.Name, table.DeferredRows))
+			}
+			if requiredTransformTables[table.Name] && (table.TransformedRows != table.Rows || table.TargetRows != table.Rows) {
+				r.Blockers = append(r.Blockers, fmt.Sprintf("v2 table %s requires %d transformed target rows but archive=%d target=%d", table.Name, table.Rows, table.TransformedRows, table.TargetRows))
+			}
+			continue
+		}
 		switch table.Disposition {
 		case "pending_adapter", "unknown":
 			r.Blockers = append(r.Blockers, fmt.Sprintf("v2 table %s has %d rows but no active-domain migration adapter", table.Name, table.Rows))
@@ -444,15 +462,30 @@ var tableDisposition = map[string]string{
 	"line_health_samples": "archive", "service_probes": "archive", "alert_deliveries": "archive",
 	"web_sessions": "invalidate", "web_login_requests": "invalidate", "worker_heartbeats": "invalidate", "registration_state": "invalidate",
 	"emby_favorites": "rebuild", "media_catalog_items": "rebuild",
-	"account_lifecycle_events": "archive", "emby2": "pending_adapter",
-	"partition_codes": "pending_adapter", "partition_grants": "pending_adapter", "point_transactions": "archive",
-	"billing_entries": "archive",
-	"line_endpoints":  "pending_adapter", "playback_sessions": "pending_adapter", "known_devices": "pending_adapter",
-	"device_client_rules": "pending_adapter", "security_events": "pending_adapter", "risk_rules": "pending_adapter",
-	"media_requests": "pending_adapter", "request_records": "pending_adapter", "media_reviews": "pending_adapter",
-	"review_reactions": "pending_adapter", "review_reports": "pending_adapter",
-	"automation_rules": "pending_adapter", "operation_tasks": "pending_adapter",
-	"config_revisions": "pending_adapter", "api_clients": "pending_adapter",
+	"account_lifecycle_events": "transform", "emby2": "transform",
+	"partition_codes": "transform", "partition_grants": "transform", "point_transactions": "transform",
+	"billing_entries": "transform",
+	"line_endpoints":  "transform", "playback_sessions": "transform", "known_devices": "transform",
+	"device_client_rules": "transform", "security_events": "transform", "risk_rules": "transform",
+	"media_requests": "transform", "request_records": "transform", "media_reviews": "transform",
+	"review_reactions": "transform", "review_reports": "transform",
+	"automation_rules": "transform", "operation_tasks": "archive",
+	"config_revisions": "transform", "api_clients": "transform",
+}
+
+var legacyDomainAdapters = map[string]bool{
+	"point_transactions": true, "billing_entries": true, "account_lifecycle_events": true,
+	"emby2": true, "partition_codes": true, "partition_grants": true, "line_endpoints": true,
+	"playback_sessions": true, "known_devices": true, "device_client_rules": true,
+	"security_events": true, "risk_rules": true, "media_requests": true, "request_records": true,
+	"media_reviews": true, "review_reactions": true, "review_reports": true,
+	"automation_rules": true, "operation_tasks": true, "config_revisions": true, "api_clients": true,
+	"idempotency_records": true, "job_runs": true, "system_events": true, "automation_runs": true,
+	"line_health_samples": true, "service_probes": true, "alert_deliveries": true,
+}
+
+var requiredTransformTables = map[string]bool{
+	"point_transactions": true, "billing_entries": true, "account_lifecycle_events": true,
 }
 
 func (c *Checker) sourceTableCoverage(ctx context.Context) ([]TableCheck, error) {
@@ -483,9 +516,41 @@ func (c *Checker) sourceTableCoverage(ctx context.Context) ([]TableCheck, error)
 		if disposition == "" {
 			disposition = "unknown"
 		}
-		out = append(out, TableCheck{Name: name, Rows: count, Disposition: disposition, Implemented: disposition == "transform"})
+		check := TableCheck{Name: name, Rows: count, Disposition: disposition, Implemented: disposition == "transform"}
+		if legacyDomainAdapters[name] {
+			if err = c.target.QueryRow(ctx, `SELECT COUNT(*),COUNT(*) FILTER(WHERE disposition='transformed'),COUNT(*) FILTER(WHERE disposition='archived'),COUNT(*) FILTER(WHERE disposition='deferred') FROM migration_archive_records WHERE source_table=$1`, name).Scan(&check.ArchivedRows, &check.TransformedRows, &check.ArchiveOnlyRows, &check.DeferredRows); err != nil {
+				return nil, fmt.Errorf("count migrated source table %s: %w", name, err)
+			}
+			check.MissingRows = positive(count - check.ArchivedRows)
+			if requiredTransformTables[name] {
+				if check.TargetRows, err = c.requiredTargetCount(ctx, name); err != nil {
+					return nil, err
+				}
+			}
+			check.Implemented = check.MissingRows == 0 && check.DeferredRows == 0 && (!requiredTransformTables[name] || check.TargetRows == count)
+		}
+		out = append(out, check)
 	}
 	return out, nil
+}
+
+func (c *Checker) requiredTargetCount(ctx context.Context, table string) (int64, error) {
+	var count int64
+	var query string
+	switch table {
+	case "point_transactions":
+		query = `SELECT (SELECT COUNT(*) FROM ledger_transactions WHERE metadata ? 'legacy_source_transaction_id') + (SELECT COUNT(*) FROM audit_logs WHERE request_id LIKE 'legacy-v2-point-zero-%')`
+	case "billing_entries":
+		query = `SELECT COUNT(*) FROM audit_logs WHERE request_id LIKE 'legacy-v2-billing-%'`
+	case "account_lifecycle_events":
+		query = `SELECT COUNT(*) FROM account_lifecycle_events WHERE legacy_source_key IS NOT NULL`
+	default:
+		return 0, fmt.Errorf("required target counter is not implemented for %s", table)
+	}
+	if err := c.target.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count transformed target table %s: %w", table, err)
+	}
+	return count, nil
 }
 func queryTotals(ctx context.Context, db *pgxpool.Pool, query string) (map[string]int64, error) {
 	out := map[string]int64{}

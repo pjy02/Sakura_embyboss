@@ -122,7 +122,7 @@ func TestStage5PlaybackDeviceRiskAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	bindingID := uuid.New()
-	if _, err = pool.Exec(ctx, `INSERT INTO emby_account_bindings(id,account_id,instance_id,remote_user_id,remote_username,status,origin,is_primary,remote_disabled,remote_snapshot,claimed_at,last_synced_at) VALUES($1,$2,$3,'remote-1','viewer','active','test',TRUE,FALSE,'{}',NOW(),NOW())`, bindingID, account.ID, good.ID); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO emby_account_bindings(id,account_id,instance_id,remote_user_id,remote_username,status,origin,is_primary,remote_disabled,remote_snapshot,claimed_at,last_synced_at) VALUES($1,$2,$3,'remote-1','viewer','active','remote_import',TRUE,FALSE,'{}',NOW(),NOW())`, bindingID, account.ID, good.ID); err != nil {
 		t.Fatal(err)
 	}
 	deny, err := service.SaveDeviceRule(ctx, nil, DeviceRule{Name: "Block BadPlayer", Decision: "deny", MatchField: "client_name", MatchOperator: "exact", MatchValue: "BadPlayer", Action: "disable_user", Enabled: true, Priority: 20}, 0, actor)

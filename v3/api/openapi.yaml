@@ -548,6 +548,13 @@ paths:
       tags: [Administration, Commerce]
       security: [{cookieAuth: [], csrfHeader: []}]
       responses: {"201": {description: Recharge product created}}
+  /api/v3/admin/recharge-products/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateRechargeProduct
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Recharge product updated with optimistic revision}}
   /api/v3/admin/membership-products:
     get:
       operationId: listAllMembershipProducts
@@ -559,6 +566,13 @@ paths:
       tags: [Administration, Commerce]
       security: [{cookieAuth: [], csrfHeader: []}]
       responses: {"201": {description: Membership product created}}
+  /api/v3/admin/membership-products/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateMembershipProduct
+      tags: [Administration, Commerce]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Membership product updated with optimistic revision}}
   /api/v3/admin/recharge-orders:
     get:
       operationId: listRechargeOrders
@@ -605,6 +619,13 @@ paths:
       tags: [Administration, Batch Operations]
       security: [{cookieAuth: [], csrfHeader: []}]
       responses: {"201": {description: Account tag created}}
+  /api/v3/admin/account-tags/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateAccountTag
+      tags: [Administration, Batch Operations]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Account tag updated}}
   /api/v3/admin/batch-operations:
     get:
       operationId: listBatchOperations
@@ -1050,6 +1071,145 @@ paths:
       responses:
         "200": {description: Information protected by system:read scope}
         "403": {$ref: "#/components/responses/Forbidden"}
+  /api/v3/me/entitlements:
+    get:
+      operationId: listMyEntitlements
+      tags: [Entitlements]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Current account entitlements}}
+  /api/v3/me/entitlements/redeem:
+    post:
+      operationId: redeemEntitlementCode
+      tags: [Entitlements]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Redeemed entitlement}}
+  /api/v3/lines:
+    get:
+      operationId: listAvailableLines
+      tags: [Lines]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Enabled non-maintenance lines}}
+  /api/v3/me/favorites:
+    get:
+      operationId: listMyFavorites
+      tags: [Favorites]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Current account Emby favorites}}
+    post:
+      operationId: setMyFavorite
+      tags: [Favorites]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"202": {description: Favorite synchronization queued}}
+  /api/v3/me/favorites/sync:
+    post:
+      operationId: syncMyFavorites
+      tags: [Favorites]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"202": {description: Remote favorite import queued}}
+  /api/v3/reviews/{id}/like:
+    put:
+      operationId: setReviewLike
+      tags: [Reviews]
+      parameters: [{$ref: "#/components/parameters/ID"}]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Review with updated like count}}
+  /api/v3/reviews/{id}/reports:
+    post:
+      operationId: reportReview
+      tags: [Reviews]
+      parameters: [{$ref: "#/components/parameters/ID"}]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Review report}}
+  /api/v3/admin/entitlement-codes:
+    get:
+      operationId: listEntitlementCodes
+      tags: [Entitlements]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Entitlement codes without reusable plaintext}}
+    post:
+      operationId: generateEntitlementCodes
+      tags: [Entitlements]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Generated codes; plaintext is returned once}}
+  /api/v3/admin/entitlements:
+    get:
+      operationId: listAccountEntitlements
+      tags: [Entitlements]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Account entitlements}}
+    post:
+      operationId: grantAccountEntitlement
+      tags: [Entitlements]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Granted entitlement}}
+  /api/v3/admin/entitlements/{id}/revoke:
+    post:
+      operationId: revokeAccountEntitlement
+      tags: [Entitlements]
+      parameters: [{$ref: "#/components/parameters/ID"}]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Revoked entitlement}}
+  /api/v3/admin/lines:
+    get:
+      operationId: listLines
+      tags: [Lines]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: All line endpoints and health}}
+    post:
+      operationId: createLine
+      tags: [Lines]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Created line endpoint}}
+  /api/v3/admin/lines/{id}:
+    put:
+      operationId: updateLine
+      tags: [Lines]
+      parameters: [{$ref: "#/components/parameters/ID"}]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Updated line endpoint}}
+  /api/v3/admin/lines/{id}/probe:
+    post:
+      operationId: probeLine
+      tags: [Lines]
+      parameters: [{$ref: "#/components/parameters/ID"}]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Persisted line probe result}}
+  /api/v3/admin/review-reports:
+    get:
+      operationId: listReviewReports
+      tags: [Reviews]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Review reports}}
+  /api/v3/admin/review-reports/{id}:
+    put:
+      operationId: resolveReviewReport
+      tags: [Reviews]
+      parameters: [{$ref: "#/components/parameters/ID"}]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Resolved or dismissed report}}
+  /api/v3/admin/favorites:
+    get:
+      operationId: listFavorites
+      tags: [Favorites]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Cross-account Emby favorites}}
+  /api/v3/admin/integration-probes:
+    get:
+      operationId: listIntegrationProbes
+      tags: [Integrations]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Historical external integration probes}}
+  /api/v3/admin/integrations/{integration}/probe:
+    post:
+      operationId: probeIntegration
+      tags: [Integrations]
+      parameters:
+        - name: integration
+          in: path
+          required: true
+          schema: {type: string, enum: [emby, tmdb, moviepilot, telegram]}
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Live external integration result}}
   /openapi.yaml:
     get:
       operationId: getOpenAPISpec

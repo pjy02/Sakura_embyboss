@@ -1,6 +1,8 @@
 # Sakura v3
 
-Sakura v3 是与 v2 并行开发的 Go 重构版本。API、Worker、Bot、迁移器和旧数据导入器是相互独立的进程；Web 与 Telegram Bot 只作为不同入口，共用同一套账号、会员、邀请码和 Emby 业务服务。
+权益、线路、影评互动、Emby 收藏和四类外部服务联调说明见 [`../docs/v3/runtime-domain-completion.md`](../docs/v3/runtime-domain-completion.md)。
+
+Sakura v3 是当前唯一构建和发布版本。API、Worker、Bot、迁移器和旧数据导入器是相互独立的进程；Web 与 Telegram Bot 只作为不同入口，共用同一套账号、会员、邀请码和 Emby 业务服务。旧 Python v2 仅作为迁移材料归档在 `legacy/v2`。
 
 ## 进程边界
 

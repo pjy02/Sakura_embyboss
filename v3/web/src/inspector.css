@@ -1,0 +1,80 @@
+.table-scroll tbody tr {
+  cursor: pointer;
+  outline: 0;
+}
+
+.table-scroll tbody tr:hover,
+.table-scroll tbody tr:focus,
+.table-scroll tbody tr.selected {
+  background: rgba(118, 228, 196, 0.055);
+}
+
+.table-scroll tbody tr.selected {
+  box-shadow: inset 2px 0 var(--mint);
+}
+
+.record-inspector {
+  margin-top: 14px;
+  padding: 20px;
+  border: 1px solid rgba(118, 228, 196, 0.16);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(14, 31, 39, 0.96), rgba(9, 22, 29, 0.96));
+}
+
+.record-inspector header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.record-inspector h2 {
+  margin: 2px 0 0;
+  font-size: 19px;
+}
+
+.record-inspector dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.record-inspector dl div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.record-inspector dt {
+  margin-bottom: 5px;
+  color: #637680;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.record-inspector dd {
+  margin: 0;
+  color: #b9c8cc;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-inspector footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.record-inspector footer > span {
+  margin-right: auto;
+  color: #667983;
+  font-size: 10px;
+}

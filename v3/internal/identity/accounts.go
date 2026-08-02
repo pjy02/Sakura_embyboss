@@ -342,7 +342,7 @@ func (s *Service) ChangeLifecycle(ctx context.Context, id uuid.UUID, to, reason 
 			}
 		}
 	}
-	_, err = tx.Exec(ctx, `UPDATE accounts SET status=$2,revision=revision+1,updated_at=NOW(),deleted_at=CASE WHEN $2='deleted' THEN NOW() ELSE deleted_at END WHERE id=$1`, id, to)
+	_, err = tx.Exec(ctx, `UPDATE accounts SET status=$2::varchar,revision=revision+1,updated_at=NOW(),deleted_at=CASE WHEN $2::varchar='deleted' THEN NOW() ELSE deleted_at END WHERE id=$1`, id, to)
 	if err != nil {
 		return Account{}, err
 	}

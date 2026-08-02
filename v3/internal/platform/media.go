@@ -408,7 +408,7 @@ func (s *Service) UpdateMediaRequestStatus(ctx context.Context, id uuid.UUID, st
 	if revision != expected || !validRequestTransition(current, status) {
 		return MediaRequest{}, identity.ErrConflict
 	}
-	_, err = tx.Exec(ctx, `UPDATE media_requests SET status=$2,resolution_reason=$3,resolved_by=$4,resolved_at=CASE WHEN $2 IN ('completed','rejected','canceled') THEN NOW() ELSE NULL END,revision=revision+1,updated_at=NOW() WHERE id=$1`, id, status, reason, actor.Label())
+	_, err = tx.Exec(ctx, `UPDATE media_requests SET status=$2::varchar,resolution_reason=$3,resolved_by=$4,resolved_at=CASE WHEN $2::varchar IN ('completed','rejected','canceled') THEN NOW() ELSE NULL END,revision=revision+1,updated_at=NOW() WHERE id=$1`, id, status, reason, actor.Label())
 	if err != nil {
 		return MediaRequest{}, err
 	}
