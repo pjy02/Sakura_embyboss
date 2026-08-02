@@ -93,6 +93,29 @@ func TestStage5MigrationContainsPlaybackDeviceAndTraceableRiskState(t *testing.T
 	}
 }
 
+func TestStage6MigrationContainsMediaCommunityAndAutomationState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage6 string
+	for _, migration := range migrations {
+		if migration.Version == 6 {
+			stage6 = migration.SQL
+		}
+	}
+	for _, table := range []string{"media_catalog", "media_matches", "media_requests", "media_request_subscriptions", "moviepilot_jobs", "support_tickets", "ticket_messages", "media_reviews", "notification_preferences", "broadcasts", "automation_rules", "automation_events", "automation_executions"} {
+		if !strings.Contains(stage6, "CREATE TABLE "+table) {
+			t.Fatalf("stage 6 migration is missing %s", table)
+		}
+	}
+	for _, invariant := range []string{"media_requests_active_media_uidx", "moviepilot_jobs_active_media_uidx", "is_internal BOOLEAN", "event_key VARCHAR(255) NOT NULL UNIQUE"} {
+		if !strings.Contains(stage6, invariant) {
+			t.Fatalf("stage 6 migration is missing invariant %s", invariant)
+		}
+	}
+}
+
 func TestRunIsIdempotent(t *testing.T) {
 	databaseURL := os.Getenv("SAKURA_V3_TEST_DATABASE_URL")
 	if databaseURL == "" {

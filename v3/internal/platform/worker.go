@@ -57,6 +57,11 @@ func (w *Worker) Run(ctx context.Context) error {
 			w.logger.Warn("batch operation cycle failed", "error", batchErr)
 		}
 		worked = worked || batchWorked
+		automationWorked, automationErr := w.service.ProcessNextAutomation(ctx, w.id, w.lease)
+		if automationErr != nil {
+			w.logger.Warn("automation event cycle failed", "error", automationErr)
+		}
+		worked = worked || automationWorked
 		if time.Since(w.lastPlan) >= 30*time.Second {
 			if err = w.service.ScheduleDue(ctx, time.Now()); err != nil {
 				w.logger.Warn("task scheduling failed", "error", err)
@@ -161,6 +166,9 @@ func (w *Worker) keepLease(ctx context.Context, taskID uuid.UUID) {
 }
 
 func (w *Worker) process(ctx context.Context, task claimedTask) (map[string]any, error) {
+	if task.Type == "moviepilot.submit" {
+		return w.submitMoviePilot(ctx, task)
+	}
 	instanceID, err := uuid.Parse(fmt.Sprint(task.Payload["instance_id"]))
 	if err != nil {
 		return nil, PermanentError{Err: errors.New("task has invalid instance id")}
@@ -182,6 +190,8 @@ func (w *Worker) process(ctx context.Context, task claimedTask) (map[string]any,
 		return w.executeRiskAction(ctx, task, instance, client, false)
 	case "risk.revert":
 		return w.executeRiskAction(ctx, task, instance, client, true)
+	case "media.match":
+		return w.matchMedia(ctx, task, instance, client)
 	default:
 		return nil, PermanentError{Err: fmt.Errorf("unsupported task type %q", task.Type)}
 	}
@@ -605,6 +615,189 @@ func (w *Worker) executeRiskAction(ctx context.Context, task claimedTask, instan
 	return map[string]any{"action_id": actionID, "status": completedStatus}, nil
 }
 
+func (w *Worker) matchMedia(ctx context.Context, task claimedTask, instance EmbyInstance, client *embyClient) (map[string]any, error) {
+	mediaID, err := uuid.Parse(fmt.Sprint(task.Payload["media_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("media match task has invalid media id")}
+	}
+	media, err := w.service.GetMedia(ctx, mediaID)
+	if err != nil {
+		return nil, PermanentError{Err: err}
+	}
+	items, err := client.mediaByTMDB(ctx, media.ExternalID, media.MediaType)
+	if err != nil {
+		w.markInstanceFailure(ctx, instance.ID, err)
+		return nil, err
+	}
+	status := "not_found"
+	var remoteID, remoteTitle, remoteType string
+	remote := map[string]any{}
+	if len(items) > 0 {
+		remote = items[0]
+		remoteID, remoteTitle, remoteType = stringValue(remote["Id"]), stringValue(remote["Name"]), stringValue(remote["Type"])
+		if remoteID != "" {
+			status = "matched"
+		}
+	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	_, err = tx.Exec(ctx, `INSERT INTO media_matches(id,media_id,instance_id,status,remote_item_id,remote_title,remote_item_type,remote_snapshot,matched_at,last_checked_at) VALUES($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,CASE WHEN $4='matched' THEN NOW() END,NOW()) ON CONFLICT(media_id,instance_id) DO UPDATE SET status=$4,remote_item_id=NULLIF($5,''),remote_title=NULLIF($6,''),remote_item_type=NULLIF($7,''),remote_snapshot=$8,last_error=NULL,matched_at=CASE WHEN $4='matched' THEN NOW() ELSE NULL END,last_checked_at=NOW(),updated_at=NOW()`, uuid.New(), mediaID, instance.ID, status, remoteID, remoteTitle, remoteType, jsonBytes(remote))
+	if err != nil {
+		return nil, err
+	}
+	if status == "matched" {
+		rows, queryErr := tx.Query(ctx, `SELECT id,status FROM media_requests WHERE media_id=$1 AND status IN ('requested','approved','queued','downloading') FOR UPDATE`, mediaID)
+		if queryErr != nil {
+			return nil, queryErr
+		}
+		type requestState struct {
+			id     uuid.UUID
+			status string
+		}
+		var requests []requestState
+		for rows.Next() {
+			var request requestState
+			if queryErr = rows.Scan(&request.id, &request.status); queryErr != nil {
+				rows.Close()
+				return nil, queryErr
+			}
+			requests = append(requests, request)
+		}
+		rows.Close()
+		if queryErr = rows.Err(); queryErr != nil {
+			return nil, queryErr
+		}
+		for _, request := range requests {
+			_, err = tx.Exec(ctx, `UPDATE media_requests SET status='completed',resolution_reason=$2,resolved_by=$3,resolved_at=NOW(),revision=revision+1,updated_at=NOW() WHERE id=$1`, request.id, "已在 Emby 实例 "+instance.Name+" 匹配到媒体", "system:"+w.id)
+			if err == nil {
+				_, err = tx.Exec(ctx, `INSERT INTO media_request_events(request_id,event_type,from_status,to_status,actor,reason,details) VALUES($1,'emby_matched',$2,'completed',$3,$4,$5)`, request.id, request.status, "system:"+w.id, "Emby media matched", jsonBytes(map[string]any{"instance_id": instance.ID, "remote_item_id": remoteID}))
+			}
+			if err == nil {
+				err = notifyRequestSubscribersTx(ctx, tx, request.id, "media_request.status", "求片已入库", media.Title+" 已可在 "+instance.Name+" 播放")
+			}
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	w.markInstanceSuccess(ctx, instance.ID)
+	return map[string]any{"media_id": mediaID, "instance_id": instance.ID, "status": status, "remote_item_id": remoteID}, nil
+}
+
+func (w *Worker) submitMoviePilot(ctx context.Context, task claimedTask) (map[string]any, error) {
+	jobID, err := uuid.Parse(fmt.Sprint(task.Payload["moviepilot_job_id"]))
+	if err != nil {
+		return nil, PermanentError{Err: errors.New("MoviePilot task has invalid job id")}
+	}
+	var mediaID uuid.UUID
+	var status string
+	if err = w.db.QueryRow(ctx, `SELECT media_id,status FROM moviepilot_jobs WHERE id=$1`, jobID).Scan(&mediaID, &status); err != nil {
+		return nil, PermanentError{Err: notFound(err)}
+	}
+	if status == "submitted" || status == "downloading" || status == "completed" {
+		return map[string]any{"moviepilot_job_id": jobID, "replayed": true}, nil
+	}
+	if status != "pending" && status != "failed" && status != "submitting" {
+		return nil, PermanentError{Err: errors.New("MoviePilot job is not submitable")}
+	}
+	if _, err = w.db.Exec(ctx, `UPDATE moviepilot_jobs SET status='submitting',attempts=attempts+1,last_error=NULL,updated_at=NOW() WHERE id=$1`, jobID); err != nil {
+		return nil, err
+	}
+	media, err := w.service.GetMedia(ctx, mediaID)
+	if err != nil {
+		return nil, PermanentError{Err: err}
+	}
+	credentialName := w.service.dynamicString(ctx, "moviepilot.credential_name", "moviepilot.api_token")
+	token, err := w.service.credentialSecret(ctx, credentialName)
+	if err != nil {
+		return nil, PermanentError{Err: err}
+	}
+	base := strings.TrimRight(w.service.dynamicString(ctx, "moviepilot.api_base_url", "http://moviepilot:3000"), "/")
+	var jobPayloadRaw []byte
+	if err = w.db.QueryRow(ctx, `SELECT payload FROM moviepilot_jobs WHERE id=$1`, jobID).Scan(&jobPayloadRaw); err != nil {
+		return nil, err
+	}
+	jobPayload := decodeJSON(jobPayloadRaw)
+	resource, _ := jobPayload["resource"].(map[string]any)
+	downloadPayload := moviePilotDownloadPayload(resource, media, jobID)
+	path := normalizedUpstreamPath(w.service.dynamicString(ctx, "moviepilot.submit_path", "/api/v1/download/add"), "/api/v1/download/add")
+	result, err := postJSON(ctx, base+path, token, downloadPayload)
+	if err != nil {
+		return nil, err
+	}
+	if success, ok := result["success"].(bool); ok && !success {
+		return nil, fmt.Errorf("MoviePilot rejected the download task")
+	}
+	externalID := stringValue(result["job_id"])
+	if externalID == "" {
+		externalID = stringValue(result["id"])
+	}
+	if data, ok := result["data"].(map[string]any); ok {
+		if externalID == "" {
+			externalID = stringValue(data["download_id"])
+		}
+		if externalID == "" {
+			externalID = stringValue(data["job_id"])
+		}
+	}
+	if externalID == "" {
+		return nil, fmt.Errorf("MoviePilot accepted the request without returning a download id")
+	}
+	tx, err := w.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var requestID *uuid.UUID
+	if err = tx.QueryRow(ctx, `UPDATE moviepilot_jobs SET status='submitted',external_job_id=$2,result=$3,last_error=NULL,submitted_at=NOW(),updated_at=NOW() WHERE id=$1 RETURNING request_id`, jobID, externalID, jsonBytes(result)).Scan(&requestID); err != nil {
+		return nil, err
+	}
+	if requestID != nil {
+		var previous string
+		if err = tx.QueryRow(ctx, `SELECT status FROM media_requests WHERE id=$1 FOR UPDATE`, *requestID).Scan(&previous); err != nil {
+			return nil, err
+		}
+		if previous != "completed" {
+			if _, err = tx.Exec(ctx, `UPDATE media_requests SET status='downloading',revision=revision+1,updated_at=NOW() WHERE id=$1`, *requestID); err != nil {
+				return nil, err
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO media_request_events(request_id,event_type,from_status,to_status,actor,reason,details) VALUES($1,'moviepilot_submitted',$2,'downloading',$3,'MoviePilot accepted the task',$4)`, *requestID, previous, "system:"+w.id, jsonBytes(map[string]any{"job_id": jobID, "external_job_id": externalID})); err != nil {
+				return nil, err
+			}
+			if err = notifyRequestSubscribersTx(ctx, tx, *requestID, "media_request.status", "求片开始下载", media.Title+" 已提交 MoviePilot"); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return map[string]any{"moviepilot_job_id": jobID, "external_job_id": externalID, "status": "submitted"}, nil
+}
+
+func moviePilotDownloadPayload(resource map[string]any, media Media, jobID uuid.UUID) map[string]any {
+	torrent, ok := resource["torrent_info"].(map[string]any)
+	if !ok || len(torrent) == 0 {
+		torrent = resource
+	}
+	payload := make(map[string]any, len(torrent)+6)
+	for key, value := range torrent {
+		payload[key] = value
+	}
+	payload["torrent_in"] = torrent
+	payload["tmdb_id"] = media.ExternalID
+	payload["media_type"] = media.MediaType
+	payload["title"] = media.Title
+	payload["idempotency_key"] = jobID.String()
+	return payload
+}
+
 func (w *Worker) finish(ctx context.Context, task claimedTask, result map[string]any) error {
 	_, err := w.db.Exec(ctx, `UPDATE platform_tasks SET status='succeeded',result=$2,last_error=NULL,lease_owner=NULL,lease_expires_at=NULL,finished_at=NOW(),updated_at=NOW() WHERE id=$1 AND lease_owner=$3`, task.ID, jsonBytes(result), w.id)
 	return err
@@ -645,6 +838,18 @@ func (w *Worker) fail(ctx context.Context, task claimedTask, failure error) erro
 			if err == nil {
 				_, err = tx.Exec(ctx, `INSERT INTO risk_event_timeline(event_id,event_type,actor,reason,details) SELECT event_id,$2,$3,$4,$5 FROM risk_actions WHERE id=$1`, actionID, timelineType, "system:"+w.id, message, jsonBytes(map[string]any{"action_id": actionID, "task_id": task.ID, "attempt": task.Attempts, "task_status": status}))
 			}
+		}
+	}
+	if err == nil && task.Type == "moviepilot.submit" {
+		if jobID, parseErr := uuid.Parse(fmt.Sprint(task.Payload["moviepilot_job_id"])); parseErr == nil {
+			_, err = tx.Exec(ctx, `UPDATE moviepilot_jobs SET status='failed',last_error=$2,updated_at=NOW() WHERE id=$1`, jobID, message)
+		}
+	}
+	if err == nil && task.Type == "media.match" {
+		mediaID, mediaErr := uuid.Parse(fmt.Sprint(task.Payload["media_id"]))
+		instanceID, instanceErr := uuid.Parse(fmt.Sprint(task.Payload["instance_id"]))
+		if mediaErr == nil && instanceErr == nil {
+			_, err = tx.Exec(ctx, `UPDATE media_matches SET status='failed',last_error=$3,last_checked_at=NOW(),updated_at=NOW() WHERE media_id=$1 AND instance_id=$2`, mediaID, instanceID, message)
 		}
 	}
 	if err != nil {

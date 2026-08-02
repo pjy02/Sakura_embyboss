@@ -756,6 +756,237 @@ paths:
       tags: [Administration, Risk]
       security: [{cookieAuth: [], csrfHeader: []}]
       responses: {"202": {description: Pending action canceled or reversible action queued for restoration}}
+  /api/v3/media/search:
+    get:
+      operationId: searchTMDBMedia
+      tags: [Media]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: TMDB title results cached as internal selectable media; clients never submit a TMDB id}}
+  /api/v3/media:
+    get:
+      operationId: listMediaCatalog
+      tags: [Media]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Cached media catalog with Emby availability}}
+  /api/v3/media/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getMedia
+      tags: [Media]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Media metadata and availability summary}}
+  /api/v3/me/media-requests:
+    get:
+      operationId: listMyMediaRequests
+      tags: [Media Requests]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Requests subscribed by the current account}}
+    post:
+      operationId: createMediaRequest
+      tags: [Media Requests]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Canonical request created or an existing request subscribed}}
+  /api/v3/me/media-requests/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getMyMediaRequest
+      tags: [Media Requests]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: A request subscribed by the current account}}
+  /api/v3/admin/media/{id}/matches:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: listMediaMatches
+      tags: [Administration, Media]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Per-Emby-instance media matching state}}
+  /api/v3/admin/media/{id}/match-tasks:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: refreshMediaMatches
+      tags: [Administration, Media]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"202": {description: Isolated Emby matching tasks queued}}
+  /api/v3/admin/media-requests:
+    get:
+      operationId: listMediaRequests
+      tags: [Administration, Media Requests]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: All canonical media requests and subscriber counts}}
+  /api/v3/admin/media-requests/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getMediaRequest
+      tags: [Administration, Media Requests]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Canonical request detail}}
+  /api/v3/admin/media-requests/{id}/status:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateMediaRequestStatus
+      tags: [Administration, Media Requests]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Request state changed with optimistic revision and subscriber notification}}
+  /api/v3/admin/media-requests/{id}/moviepilot/resources:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: searchMoviePilotResources
+      tags: [Administration, Media Requests]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: MoviePilot resources searched from the selected catalog title}}
+  /api/v3/admin/media-requests/{id}/moviepilot:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    post:
+      operationId: submitMoviePilotResource
+      tags: [Administration, Media Requests]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"202": {description: Durable idempotent MoviePilot download task queued}}
+  /api/v3/admin/moviepilot-jobs:
+    get:
+      operationId: listMoviePilotJobs
+      tags: [Administration, Media Requests]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: MoviePilot submission and retry state}}
+  /api/v3/me/tickets:
+    get:
+      operationId: listMyTickets
+      tags: [Tickets]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Tickets owned by the current account}}
+    post:
+      operationId: createTicket
+      tags: [Tickets]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Ticket and first public message created}}
+  /api/v3/me/tickets/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getMyTicket
+      tags: [Tickets]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Ticket owned by the current account}}
+  /api/v3/me/tickets/{id}/messages:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: listMyTicketMessages
+      tags: [Tickets]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Public messages only; internal staff notes are always excluded}}
+    post:
+      operationId: replyToMyTicket
+      tags: [Tickets]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Public user reply created}}
+  /api/v3/admin/tickets:
+    get:
+      operationId: listTickets
+      tags: [Administration, Tickets]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Ticket operations queue}}
+  /api/v3/admin/tickets/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: getTicket
+      tags: [Administration, Tickets]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Ticket detail}}
+    put:
+      operationId: updateTicket
+      tags: [Administration, Tickets]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Ticket state, priority and assignment updated}}
+  /api/v3/admin/tickets/{id}/messages:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    get:
+      operationId: listTicketMessages
+      tags: [Administration, Tickets]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Public replies and internal notes}}
+    post:
+      operationId: addTicketMessage
+      tags: [Administration, Tickets]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Public reply or internal staff note created}}
+  /api/v3/reviews:
+    get:
+      operationId: listPublicReviews
+      tags: [Reviews]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Approved media reviews}}
+  /api/v3/me/reviews:
+    get:
+      operationId: listMyReviews
+      tags: [Reviews]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Current account reviews including moderation state}}
+    post:
+      operationId: submitReview
+      tags: [Reviews]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Review submitted for moderation}}
+  /api/v3/admin/reviews:
+    get:
+      operationId: listReviewsForModeration
+      tags: [Administration, Reviews]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Review moderation queue}}
+  /api/v3/admin/reviews/{id}/moderation:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: moderateReview
+      tags: [Administration, Reviews]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Review moderation result saved and notified}}
+  /api/v3/me/notification-preferences:
+    get:
+      operationId: listNotificationPreferences
+      tags: [Notifications]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Effective per-event and per-channel preferences}}
+  /api/v3/me/notification-preferences/{event}/{channel}:
+    parameters:
+      - {name: event, in: path, required: true, schema: {type: string}}
+      - {name: channel, in: path, required: true, schema: {type: string, enum: [in_app, telegram]}}
+    put:
+      operationId: setNotificationPreference
+      tags: [Notifications]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Notification preference updated}}
+  /api/v3/admin/broadcasts:
+    get:
+      operationId: listBroadcasts
+      tags: [Administration, Notifications]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Broadcasts with durable batch progress}}
+    post:
+      operationId: createBroadcast
+      tags: [Administration, Notifications]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"202": {description: Preference-aware broadcast batch queued}}
+  /api/v3/admin/automation-rules:
+    get:
+      operationId: listAutomationRules
+      tags: [Administration, Automation]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Event-driven automation rules}}
+    post:
+      operationId: createAutomationRule
+      tags: [Administration, Automation]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"201": {description: Automation rule created}}
+  /api/v3/admin/automation-rules/{id}:
+    parameters: [{$ref: "#/components/parameters/ID"}]
+    put:
+      operationId: updateAutomationRule
+      tags: [Administration, Automation]
+      security: [{cookieAuth: [], csrfHeader: []}]
+      responses: {"200": {description: Automation rule updated with optimistic revision}}
+  /api/v3/admin/automation-executions:
+    get:
+      operationId: listAutomationExecutions
+      tags: [Administration, Automation]
+      security: [{cookieAuth: []}]
+      responses: {"200": {description: Idempotent automation execution history including failures}}
   /open/v1/system/info:
     get:
       operationId: getOpenSystemInfo

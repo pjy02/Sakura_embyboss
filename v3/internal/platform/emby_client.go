@@ -172,6 +172,21 @@ func (c *embyClient) sessions(ctx context.Context) ([]embyPlaybackSession, error
 	return out, nil
 }
 
+func (c *embyClient) mediaByTMDB(ctx context.Context, externalID int64, mediaType string) ([]map[string]any, error) {
+	include := "Movie"
+	if mediaType == "tv" {
+		include = "Series"
+	}
+	fragment := "Items?Recursive=true&AnyProviderIdEquals=" + url.QueryEscape(fmt.Sprintf("tmdb.%d", externalID)) + "&IncludeItemTypes=" + include + "&Fields=ProviderIds,Path,PremiereDate"
+	var body struct {
+		Items []map[string]any `json:"Items"`
+	}
+	if err := c.request(ctx, http.MethodGet, fragment, nil, &body); err != nil {
+		return nil, err
+	}
+	return body.Items, nil
+}
+
 func (c *embyClient) createUser(ctx context.Context, username string) (embyUser, error) {
 	var user embyUser
 	if err := c.request(ctx, http.MethodPost, "Users/New", map[string]string{"Name": username}, &user); err != nil {

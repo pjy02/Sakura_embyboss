@@ -122,7 +122,7 @@ go vet ./...
 go build ./...
 ```
 
-设置 `SAKURA_V3_TEST_DATABASE_URL` 后，测试会在独立 PostgreSQL schema 中真实运行迁移，并验收幂等建号、失败重试、多实例绑定、远端导入、认领与快照。
+设置 `SAKURA_V3_TEST_DATABASE_URL` 后，测试会在独立 PostgreSQL schema 中真实运行迁移，并验收幂等建号、失败重试、多实例绑定、远端导入、认领与快照，以及影片匹配、重复求片、MoviePilot 去重、通知重试和工单备注隔离。
 
 完整 HTTP 合同见运行时 `/openapi.yaml` 或 [api/openapi.yaml](api/openapi.yaml)。
 
@@ -137,3 +137,17 @@ Worker 会按 `playback.sync_interval_seconds` 为每个已启用的 Emby 实例
 - 管理员标记误判时，未执行动作会被取消；已经执行的账号禁用会创建 `risk.revert` 补偿任务并恢复处置前状态。正在执行的动作会拒绝并发撤销，待动作完成后可再次提交。
 - 风险 Telegram 接收账号通过动态设置 `risk.telegram_alert_account_ids` 配置；`risk.notify_affected_account` 控制是否同时通知已绑定 Telegram 的受影响账号。消息复用可靠通知队列。
 - 每个 Emby 实例独立累计失败并开启熔断，阈值和冷却时间由 `risk.max_instance_failures`、`risk.circuit_cooldown_seconds` 控制。一个实例请求失败只会重试该实例的任务，其他实例仍会继续采集。
+
+## 影片、求片、工单、影评与通知
+
+用户在 `GET /api/v3/media/search?q=片名` 中按名称搜索 TMDB。API 会把结果缓存为内部影片项，用户随后只提交内部 `media_id`，不需要查找或手工填写 TMDB ID。新求片会为每个已启用 Emby 实例创建独立匹配任务；只要任一实例命中，求片即标记为已入库并通知所有订阅者。
+
+- 同一影片同时只能有一条活动求片。Web 与 Bot 重复提交时会订阅同一条求片并返回 `duplicate=true`，不会创建重复运营单。
+- 管理员先调用 `GET /api/v3/admin/media-requests/{id}/moviepilot/resources`，系统自动使用影片标题搜索 MoviePilot；选择资源后调用对应的 `POST .../moviepilot`。同一影片只保留一个活动或已完成下载任务，外部提交由 Worker 重试并携带稳定幂等键。
+- 在凭据中心创建 `tmdb.api_token` 和 `moviepilot.api_token`。动态设置 `tmdb.api_base_url`、`tmdb.language`、`moviepilot.api_base_url`、`moviepilot.search_path`、`moviepilot.submit_path` 可适配代理和不同 MoviePilot 版本；密钥本身不会写入动态设置。
+- 工单公开回复和内部备注共用一个时间线，但用户查询始终附带账号归属过滤并强制排除 `is_internal=true`；用户接口也不能创建内部备注。
+- 影评默认进入待审核状态。管理员审核结果使用乐观版本控制，并按用户通知偏好写入站内信和 Telegram 可靠队列。
+- 广播复用可暂停、重试、审计的批量任务。用户可按事件与渠道关闭通知；被偏好过滤的目标会记录为已跳过，不会被当作发送失败。
+- 自动化规则订阅持久化业务事件，目前支持通知账号、提交 MoviePilot 和变更求片状态。每个“事件 + 规则”最多成功执行一次，失败会记录原因并按退避策略重试。
+
+Telegram 通知由 Bot 进程租约领取。发送失败后会保存错误、递增尝试次数并延迟重试；Worker、API 或 Bot 重启不会丢失待发送消息。

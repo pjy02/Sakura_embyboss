@@ -35,6 +35,12 @@ func TestOpenAPIIsValidYAMLWithRequiredPaths(t *testing.T) {
 		"/api/v3/admin/playback/online", "/api/v3/admin/playback/history", "/api/v3/admin/devices",
 		"/api/v3/admin/device-rules", "/api/v3/admin/risk-rules", "/api/v3/admin/risk-events",
 		"/api/v3/admin/risk-events/{id}/false-positive",
+		"/api/v3/media/search", "/api/v3/media", "/api/v3/me/media-requests", "/api/v3/me/media-requests/{id}",
+		"/api/v3/admin/media/{id}/matches", "/api/v3/admin/media-requests", "/api/v3/admin/media-requests/{id}", "/api/v3/admin/media-requests/{id}/moviepilot/resources",
+		"/api/v3/admin/media-requests/{id}/moviepilot", "/api/v3/admin/moviepilot-jobs",
+		"/api/v3/me/tickets", "/api/v3/me/tickets/{id}/messages", "/api/v3/admin/tickets", "/api/v3/admin/tickets/{id}/messages",
+		"/api/v3/reviews", "/api/v3/me/reviews", "/api/v3/admin/reviews", "/api/v3/admin/reviews/{id}/moderation",
+		"/api/v3/me/notification-preferences", "/api/v3/admin/broadcasts", "/api/v3/admin/automation-rules", "/api/v3/admin/automation-executions",
 	} {
 		if _, ok := document.Paths[path]; !ok {
 			t.Fatalf("OpenAPI is missing %s", path)

@@ -167,11 +167,16 @@ func (s *Service) validateBatchPayload(ctx context.Context, operationType string
 		title := strings.TrimSpace(fmt.Sprint(payload["title"]))
 		body := strings.TrimSpace(fmt.Sprint(payload["body"]))
 		channel := normalize(fmt.Sprint(payload["channel"]))
+		eventKey := normalize(fmt.Sprint(payload["event_key"]))
 		if channel == "" {
 			channel = "in_app"
 			payload["channel"] = channel
 		}
-		if title == "" || len(title) > 160 || body == "" || len(body) > 4000 || channel != "in_app" && channel != "telegram" {
+		if eventKey == "" {
+			eventKey = "broadcast.general"
+			payload["event_key"] = eventKey
+		}
+		if title == "" || len(title) > 160 || body == "" || len(body) > 4000 || len(eventKey) > 80 || channel != "in_app" && channel != "telegram" {
 			return identity.ErrInvalid
 		}
 	default:
@@ -471,13 +476,25 @@ func (s *Service) processBatchItem(ctx context.Context, operation BatchOperation
 		if channel == "" {
 			channel = "in_app"
 		}
-		if channel == "telegram" {
+		eventKey := normalize(fmt.Sprint(operation.Payload["event_key"]))
+		if eventKey == "" {
+			eventKey = "broadcast.general"
+		}
+		allowed, preferenceErr := notificationAllowedTx(ctx, tx, accountID, eventKey, channel)
+		if preferenceErr != nil {
+			return preferenceErr
+		}
+		if !allowed {
+			_, err = tx.Exec(ctx, `UPDATE batch_operation_items SET result=result||$2::jsonb WHERE id=$1`, itemID, jsonBytes(map[string]any{"notification_skipped": true, "event_key": eventKey}))
+		} else if channel == "telegram" {
 			var telegramSubject string
 			if lookupErr := tx.QueryRow(ctx, `SELECT subject FROM account_identities WHERE account_id=$1 AND kind='telegram' AND NOT disabled`, accountID).Scan(&telegramSubject); lookupErr != nil {
 				return identity.ErrNotFound
 			}
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO account_notifications(id,account_id,batch_operation_id,title,body,channel,delivery_status,metadata) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $6='in_app' THEN 'sent' ELSE 'pending' END,$7) ON CONFLICT(batch_operation_id,account_id,channel) DO NOTHING`, uuid.New(), accountID, operation.ID, fmt.Sprint(operation.Payload["title"]), fmt.Sprint(operation.Payload["body"]), channel, jsonBytes(map[string]any{"batch": true}))
+		if err == nil && allowed {
+			_, err = tx.Exec(ctx, `INSERT INTO account_notifications(id,account_id,batch_operation_id,title,body,channel,delivery_status,metadata) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $6='in_app' THEN 'sent' ELSE 'pending' END,$7) ON CONFLICT(batch_operation_id,account_id,channel) DO NOTHING`, uuid.New(), accountID, operation.ID, fmt.Sprint(operation.Payload["title"]), fmt.Sprint(operation.Payload["body"]), channel, jsonBytes(map[string]any{"batch": true, "event_key": eventKey}))
+		}
 	default:
 		return PermanentError{Err: identity.ErrInvalid}
 	}

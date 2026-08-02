@@ -30,6 +30,12 @@ func TestEmbyClientUsesTokenAndSupportsUsers(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode([]any{map[string]any{"Id": "s1", "UserId": "u1", "Client": "Emby Web", "NowPlayingItem": map[string]any{"Id": "m1", "Name": "Movie"}}})
 	})
+	mux.HandleFunc("GET /prefix/emby/Items", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("AnyProviderIdEquals") != "tmdb.123" || r.URL.Query().Get("IncludeItemTypes") != "Movie" {
+			t.Fatalf("unexpected media query: %s", r.URL.RawQuery)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"Items": []any{map[string]any{"Id": "m123", "Name": "Matched", "Type": "Movie"}}})
+	})
 	mux.HandleFunc("POST /prefix/emby/Sessions/s1/Playing/Stop", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -57,5 +63,9 @@ func TestEmbyClientUsesTokenAndSupportsUsers(t *testing.T) {
 	}
 	if err = client.stopSession(context.Background(), "s1"); err != nil {
 		t.Fatalf("stop session failed: %v", err)
+	}
+	items, err := client.mediaByTMDB(context.Background(), 123, "movie")
+	if err != nil || len(items) != 1 || items[0]["Id"] != "m123" {
+		t.Fatalf("media match failed: %#v %v", items, err)
 	}
 }
