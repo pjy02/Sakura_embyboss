@@ -19,7 +19,7 @@ func TestOpenAPIIsValidYAMLWithRequiredPaths(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/health/live", "/health/ready", "/api/v3/system/info", "/openapi.yaml",
-		"/api/v3/auth/register", "/api/v3/auth/login", "/api/v3/me",
+		"/api/v3/auth/register", "/api/v3/auth/login", "/api/v3/auth/context", "/api/v3/me",
 		"/api/v3/me/telegram/link-requests", "/api/v3/admin/accounts", "/api/v3/admin/accounts/{id}",
 		"/api/v3/admin/roles", "/api/v3/admin/permissions", "/api/v3/admin/settings", "/api/v3/admin/credentials",
 		"/api/v3/admin/api-clients", "/api/v3/admin/audit", "/open/v1/system/info",
@@ -41,6 +41,7 @@ func TestOpenAPIIsValidYAMLWithRequiredPaths(t *testing.T) {
 		"/api/v3/me/tickets", "/api/v3/me/tickets/{id}/messages", "/api/v3/admin/tickets", "/api/v3/admin/tickets/{id}/messages",
 		"/api/v3/reviews", "/api/v3/me/reviews", "/api/v3/admin/reviews", "/api/v3/admin/reviews/{id}/moderation",
 		"/api/v3/me/notification-preferences", "/api/v3/admin/broadcasts", "/api/v3/admin/automation-rules", "/api/v3/admin/automation-executions",
+		"/api/v3/me/realtime", "/api/v3/admin/realtime", "/api/v3/internal/bot/actions",
 	} {
 		if _, ok := document.Paths[path]; !ok {
 			t.Fatalf("OpenAPI is missing %s", path)

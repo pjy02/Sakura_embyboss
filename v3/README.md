@@ -11,6 +11,7 @@ Sakura v3 是与 v2 并行开发的 Go 重构版本。API、Worker、Bot、迁�
 | `cmd/bot` | Telegram 适配器，只调用内部 API | 否 | 否 | 否 | 否 |
 | `cmd/migrate` | 串行、校验并执行数据库迁移 | 是 | 否 | 否 | 是 |
 | `cmd/import-v2` | v2 MySQL 账号导入，默认只预检 | 按模式 | 否 | 否 | 否 |
+| `cmd/reconcile-v2` | v2/v3 账号、余额、账本和 Emby 对账门禁 | 是 | 否 | 否 | 否 |
 
 停止 Worker 不影响 API 的账号查询与后台浏览；API 或 Bot 启动也不会隐式执行迁移。
 
@@ -111,6 +112,10 @@ export SAKURA_V3_DATABASE_URL='postgres://sakura:password@postgres:5432/sakura?s
 ./sakura-import-v2 --apply
 ```
 
+第 8 阶段的生产副本演练、加密备份恢复、压测、故障演练、蓝绿发布和正式切换见
+[`../docs/v3/phase-8-cutover-runbook.md`](../docs/v3/phase-8-cutover-runbook.md)。所有生产部署都应使用 Docker Hub 工作流生成的 digest 固定镜像。
+对账命令会扫描生产 MySQL 的全部真实表；未知或尚未实现活动域迁移且非空的表会返回退出码 2，阻止维护窗口继续。
+
 随后先添加对应 Emby 实例，再调用 `POST /api/v3/admin/emby/instances/{id}/adopt-legacy`。正式切换前仍应同时备份旧 MySQL 与新 PostgreSQL。
 
 ## 开发检查
@@ -151,3 +156,31 @@ Worker 会按 `playback.sync_interval_seconds` 为每个已启用的 Emby 实例
 - 自动化规则订阅持久化业务事件，目前支持通知账号、提交 MoviePilot 和变更求片状态。每个“事件 + 规则”最多成功执行一次，失败会记录原因并按退避策略重试。
 
 Telegram 通知由 Bot 进程租约领取。发送失败后会保存错误、递增尝试次数并延迟重试；Worker、API 或 Bot 重启不会丢失待发送消息。
+
+## 第 7 阶段 Web 与 Bot
+
+最终 Web 位于 `web/`，使用 Vue 3、TypeScript、Pinia 和 Vue Router。它只通过由 `api/openapi.yaml` 生成的客户端访问 API，不连接 PostgreSQL、Redis 或 Bot，也不复制会员、交易、求片、风控等业务判断。登录后 API 返回当前账号的有效权限，前端仅据此展示可访问的管理模块，服务端仍对每一次操作执行 RBAC 与审计。
+
+生产环境执行 `docker compose --env-file .env up -d --build` 后：
+
+- Web 默认监听 `127.0.0.1:8088`，通过 Nginx 将 `/api/` 和 SSE 实时数据流转发给 API；
+- API 默认监听 `127.0.0.1:8080`，不启动 Web、Bot、Worker 或迁移；
+- Web 只依赖 API，不依赖 Bot；Bot 只依赖内部 API，不依赖 Web；
+- 停止 `bot` 后，本地注册、登录、Emby、交易、求片、工单和管理后台仍可使用；
+- 停止 `web` 后，Bot 命令、按钮、管理查询和可靠 Telegram 通知仍可使用。
+
+Bot 用户命令包括 `/start`、`/media`、`/request`、`/requests`、`/tickets`、`/ticket`、`/notifications`、`/bind`、`/register` 与 `/register-status`；拥有对应 RBAC 权限的账号还可使用 `/admin`、`/users`、`/tasks`、`/risks` 和 `/broadcast`。命令与内联按钮均调用 `/api/v3/internal/bot/actions` 共享业务门面，Bot 本身不持有业务规则或数据库权限。
+
+前端开发与验收：
+
+```bash
+cd v3/web
+npm ci
+npm run generate:api
+npm run typecheck
+npm run test
+npm exec vite build
+npm run test:e2e
+```
+
+`generate:api` 直接读取唯一 OpenAPI 合同；CI 会重新生成并检查差异。Playwright 同时覆盖桌面和移动端，验证独立本地登录、用户中心、权限化管理后台和响应式导航。

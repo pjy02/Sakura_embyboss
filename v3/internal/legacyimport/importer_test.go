@@ -13,3 +13,15 @@ func TestAnalyzeReportsDeterministicImportConflicts(t *testing.T) {
 		t.Fatalf("expected three preflight conflicts, got %v", conflicts)
 	}
 }
+
+func TestLegacyValueNormalization(t *testing.T) {
+	if got := normalizeCurrency("coins"); got != "POINTS" {
+		t.Fatalf("coins normalized to %q", got)
+	}
+	if got := legacyPlanCode(7, ""); got != "v2-plan-7" {
+		t.Fatalf("empty plan code normalized to %q", got)
+	}
+	if got := legacyPlanCode(7, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-extra"); len(got) != 64 {
+		t.Fatalf("plan code length = %d", len(got))
+	}
+}

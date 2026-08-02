@@ -22,3 +22,9 @@ bot-env
 !v3/.env.example
 web/node_modules/
 web/dist/
+v3/web/node_modules/
+v3/web/dist/
+v3/web/test-results/
+v3/web/playwright-report/
+v3/.state/
+v3/backups/

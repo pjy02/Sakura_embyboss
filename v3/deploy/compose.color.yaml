@@ -1,0 +1,83 @@
+name: sakura-v3-${SAKURA_V3_COLOR:?set SAKURA_V3_COLOR}
+
+x-common: &common
+  SAKURA_V3_ENVIRONMENT: ${SAKURA_V3_ENVIRONMENT:-production}
+  SAKURA_V3_LOG_LEVEL: ${SAKURA_V3_LOG_LEVEL:-info}
+  SAKURA_V3_DATABASE_URL: ${SAKURA_V3_DATABASE_URL:?set external SAKURA_V3_DATABASE_URL}
+  SAKURA_V3_REDIS_ADDRESS: ${SAKURA_V3_REDIS_ADDRESS:-redis:6379}
+  SAKURA_V3_REDIS_PASSWORD: ${SAKURA_V3_REDIS_PASSWORD:?set SAKURA_V3_REDIS_PASSWORD}
+  SAKURA_V3_REDIS_DATABASE: ${SAKURA_V3_REDIS_DATABASE:-0}
+  SAKURA_V3_CREDENTIAL_MASTER_KEY: ${SAKURA_V3_CREDENTIAL_MASTER_KEY:?set SAKURA_V3_CREDENTIAL_MASTER_KEY}
+  SAKURA_V3_INTERNAL_BOT_TOKEN: ${SAKURA_V3_INTERNAL_BOT_TOKEN:?set SAKURA_V3_INTERNAL_BOT_TOKEN}
+
+services:
+  api:
+    image: ${SAKURA_V3_IMAGE:?set immutable SAKURA_V3_IMAGE tag or digest}
+    restart: unless-stopped
+    command: ["/app/sakura-api"]
+    environment:
+      <<: *common
+      SAKURA_V3_HTTP_ADDR: :8080
+      SAKURA_V3_SESSION_TTL: ${SAKURA_V3_SESSION_TTL:-168h}
+      SAKURA_V3_SESSION_COOKIE: ${SAKURA_V3_SESSION_COOKIE:-sakura_v3_session}
+      SAKURA_V3_COOKIE_SECURE: ${SAKURA_V3_COOKIE_SECURE:-true}
+    ports:
+      - 127.0.0.1:${SAKURA_V3_COLOR_API_PORT:?set color API port}:8080
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    networks: [shared, color]
+
+  web:
+    image: ${SAKURA_V3_WEB_IMAGE:?set immutable SAKURA_V3_WEB_IMAGE tag or digest}
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:${SAKURA_V3_COLOR_WEB_PORT:?set color Web port}:8080
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [color]
+
+  worker:
+    profiles: [active]
+    image: ${SAKURA_V3_IMAGE:?set immutable SAKURA_V3_IMAGE tag or digest}
+    restart: unless-stopped
+    command: ["/app/sakura-worker"]
+    environment:
+      <<: *common
+      SAKURA_V3_HEALTH_ADDR: :8081
+      SAKURA_V3_WORKER_POLL_INTERVAL: ${SAKURA_V3_WORKER_POLL_INTERVAL:-1s}
+      SAKURA_V3_WORKER_LEASE_DURATION: ${SAKURA_V3_WORKER_LEASE_DURATION:-90s}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8081/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    networks: [shared]
+
+  bot:
+    profiles: [active]
+    image: ${SAKURA_V3_IMAGE:?set immutable SAKURA_V3_IMAGE tag or digest}
+    restart: unless-stopped
+    command: ["/app/sakura-bot"]
+    environment:
+      SAKURA_V3_ENVIRONMENT: ${SAKURA_V3_ENVIRONMENT:-production}
+      SAKURA_V3_LOG_LEVEL: ${SAKURA_V3_LOG_LEVEL:-info}
+      SAKURA_V3_HEALTH_ADDR: :8082
+      SAKURA_V3_INTERNAL_API_URL: http://api:8080
+      SAKURA_V3_INTERNAL_BOT_TOKEN: ${SAKURA_V3_INTERNAL_BOT_TOKEN:?set SAKURA_V3_INTERNAL_BOT_TOKEN}
+      SAKURA_V3_TELEGRAM_BOT_TOKEN: ${SAKURA_V3_TELEGRAM_BOT_TOKEN:-}
+      SAKURA_V3_TELEGRAM_API_BASE: ${SAKURA_V3_TELEGRAM_API_BASE:-https://api.telegram.org}
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [color]
+
+networks:
+  shared:
+    external: true
+    name: ${SAKURA_V3_SHARED_NETWORK:-sakura-v3-shared}
+  color:
+    driver: bridge

@@ -162,6 +162,40 @@ func (s *Service) AuthenticateSession(ctx context.Context, token string) (Princi
 	return principal, rows.Err()
 }
 
+// AuthenticateTelegram resolves a Telegram adapter request to the same account
+// and RBAC permissions used by Web sessions. It does not create a session and is
+// only exposed through the separately authenticated internal Bot API.
+func (s *Service) AuthenticateTelegram(ctx context.Context, telegramUserID int64) (Principal, error) {
+	if telegramUserID <= 0 {
+		return Principal{}, ErrInvalidCredentials
+	}
+	var accountID uuid.UUID
+	var status string
+	err := s.db.QueryRow(ctx, `SELECT a.id,a.status FROM account_identities i JOIN accounts a ON a.id=i.account_id WHERE i.kind='telegram' AND i.subject=$1 AND NOT i.disabled`, fmt.Sprint(telegramUserID)).Scan(&accountID, &status)
+	if err != nil || status != "active" {
+		return Principal{}, ErrInvalidCredentials
+	}
+	principal := Principal{
+		Actor:       Actor{Kind: "telegram", ID: fmt.Sprint(telegramUserID)},
+		AccountID:   &accountID,
+		Permissions: map[string]bool{},
+		Scopes:      map[string]bool{},
+	}
+	rows, err := s.db.Query(ctx, `SELECT DISTINCT rp.permission_code FROM account_roles ar JOIN role_permissions rp ON rp.role_id=ar.role_id WHERE ar.account_id=$1`, accountID)
+	if err != nil {
+		return Principal{}, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var permission string
+		if err = rows.Scan(&permission); err != nil {
+			return Principal{}, err
+		}
+		principal.Permissions[permission] = true
+	}
+	return principal, rows.Err()
+}
+
 func (s *Service) AuthenticateAPIClient(ctx context.Context, token string) (Principal, error) {
 	var id uuid.UUID
 	var scopes []string

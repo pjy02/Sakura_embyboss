@@ -1,0 +1,23 @@
+name: ${SAKURA_RESTORE_PROJECT:-sakura-restore-drill}
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: sakura
+      MYSQL_ROOT_PASSWORD: ${SAKURA_DRILL_MYSQL_PASSWORD:-restore-drill-only}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: sakura
+      POSTGRES_USER: sakura
+      POSTGRES_PASSWORD: ${SAKURA_DRILL_POSTGRES_PASSWORD:-restore-drill-only}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sakura -d sakura"]
+      interval: 3s
+      timeout: 3s
+      retries: 30

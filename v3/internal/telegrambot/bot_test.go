@@ -3,6 +3,7 @@ package telegrambot
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,6 +19,8 @@ func TestBindCommandUsesInternalAPIWithoutDatabase(t *testing.T) {
 	var sent atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.Contains(r.URL.Path, "/setMyCommands"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 		case strings.Contains(r.URL.Path, "/getUpdates"):
 			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": []any{map[string]any{
 				"update_id": 1,
@@ -87,6 +90,44 @@ func TestRegisterCommandUsesSharedProvisioningAPI(t *testing.T) {
 	result, err := bot.requestProvision(context.Background(), 42, "tester", "emby_user", "invite-code", "", "same-request")
 	if err != nil || !requested.Load() || result.Task.ID != "task-1" {
 		t.Fatalf("result=%+v requested=%v err=%v", result, requested.Load(), err)
+	}
+}
+
+func TestStartCommandUsesSharedDashboardAndInlineButtons(t *testing.T) {
+	var actions []string
+	var sent map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v3/internal/bot/actions":
+			if r.Header.Get("Authorization") != "Bearer internal-test-token" {
+				t.Fatal("missing scoped internal token")
+			}
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			action := fmt.Sprint(body["action"])
+			actions = append(actions, action)
+			if action == "dashboard" {
+				_ = json.NewEncoder(w).Encode(map[string]any{"membership": map[string]any{"plan_name": "Premium"}, "wallet": map[string]any{"balance": 88}, "emby_bindings": []any{map[string]any{"id": "binding-1"}}})
+			} else {
+				_ = json.NewEncoder(w).Encode(map[string]any{"account": map[string]any{"display_name": "Tester"}, "permissions": []string{"dashboard.read"}})
+			}
+		case strings.Contains(r.URL.Path, "/sendMessage"):
+			_ = json.NewDecoder(r.Body).Decode(&sent)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	bot := New(Config{APIBase: server.URL, InternalAPIURL: server.URL, InternalAPIToken: "internal-test-token", RequestTimeout: time.Second}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	item := update{ID: 7, Message: &message{ID: 3, Text: "/start"}}
+	item.Message.Chat.ID, item.Message.Chat.Type, item.Message.From.ID = 42, "private", 42
+	bot.handleUpdate(context.Background(), "telegram-token", item)
+	if strings.Join(actions, ",") != "dashboard,context" {
+		t.Fatalf("shared actions = %v", actions)
+	}
+	if sent["reply_markup"] == nil || !strings.Contains(fmt.Sprint(sent["text"]), "Premium") {
+		t.Fatalf("dashboard response has no content or inline keyboard: %#v", sent)
 	}
 }
 

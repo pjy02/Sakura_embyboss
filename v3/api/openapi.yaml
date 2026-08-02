@@ -84,6 +84,15 @@ paths:
       responses:
         "200": {description: Current account}
         "401": {$ref: "#/components/responses/Unauthorized"}
+  /api/v3/auth/context:
+    get:
+      operationId: getAccessContext
+      tags: [Authentication]
+      summary: Return the current account and its effective permissions.
+      security: [{cookieAuth: []}]
+      responses:
+        "200": {description: Current account and effective RBAC permissions}
+        "401": {$ref: "#/components/responses/Unauthorized"}
   /api/v3/auth/logout:
     post:
       operationId: logout
@@ -987,6 +996,52 @@ paths:
       tags: [Administration, Automation]
       security: [{cookieAuth: []}]
       responses: {"200": {description: Idempotent automation execution history including failures}}
+  /api/v3/me/realtime:
+    get:
+      operationId: streamUserRealtime
+      tags: [Realtime]
+      summary: Stream user task, request, ticket and notification snapshots.
+      security: [{cookieAuth: []}]
+      responses:
+        "200":
+          description: Server-sent event stream.
+          content:
+            text/event-stream:
+              schema: {type: string}
+  /api/v3/admin/realtime:
+    get:
+      operationId: streamAdminRealtime
+      tags: [Administration, Realtime]
+      summary: Stream operational task, batch, automation and risk snapshots.
+      security: [{cookieAuth: []}]
+      responses:
+        "200":
+          description: Server-sent event stream.
+          content:
+            text/event-stream:
+              schema: {type: string}
+  /api/v3/internal/bot/actions:
+    post:
+      operationId: executeBotAction
+      tags: [Internal]
+      summary: Execute one shared business action for an authenticated Telegram identity.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [telegram_user_id, action]
+              properties:
+                telegram_user_id: {type: integer, format: int64}
+                action: {type: string}
+                arguments: {type: object, additionalProperties: {type: string}}
+                idempotency_key: {type: string}
+      responses:
+        "200": {description: Shared business action result}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
   /open/v1/system/info:
     get:
       operationId: getOpenSystemInfo

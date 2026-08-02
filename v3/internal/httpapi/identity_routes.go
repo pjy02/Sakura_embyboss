@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,19 @@ func registerIdentityRoutes(mux *http.ServeMux, o Options) {
 	mux.Handle("GET /api/v3/auth/session", session(o, "", false, func(w http.ResponseWriter, r *http.Request, p identity.Principal) {
 		a, err := s.GetAccount(r.Context(), *p.AccountID)
 		respond(w, http.StatusOK, a, err)
+	}))
+	mux.Handle("GET /api/v3/auth/context", session(o, "", false, func(w http.ResponseWriter, r *http.Request, p identity.Principal) {
+		a, err := s.GetAccount(r.Context(), *p.AccountID)
+		if err != nil {
+			respond(w, 0, nil, err)
+			return
+		}
+		permissions := make([]string, 0, len(p.Permissions))
+		for permission := range p.Permissions {
+			permissions = append(permissions, permission)
+		}
+		sort.Strings(permissions)
+		respond(w, http.StatusOK, map[string]any{"account": a, "permissions": permissions}, nil)
 	}))
 	mux.Handle("POST /api/v3/auth/logout", session(o, "", true, func(w http.ResponseWriter, r *http.Request, p identity.Principal) {
 		err := s.RevokeSession(r.Context(), p)

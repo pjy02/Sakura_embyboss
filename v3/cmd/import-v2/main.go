@@ -39,6 +39,12 @@ func main() {
 		fatal(err.Error())
 	}
 	defer importer.Close()
+	v2Master, v3Master := os.Getenv("SAKURA_V2_CREDENTIAL_MASTER_KEY"), os.Getenv("SAKURA_V3_CREDENTIAL_MASTER_KEY")
+	if v2Master != "" || v3Master != "" {
+		if err = importer.ConfigureCredentials(v2Master, v3Master); err != nil {
+			fatal(err.Error())
+		}
+	}
 	report, err := importer.Run(context.Background())
 	if err != nil {
 		fatal(err.Error())

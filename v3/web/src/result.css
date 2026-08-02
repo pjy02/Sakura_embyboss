@@ -1,0 +1,15 @@
+.result-output { width: 100%; margin: 12px 0 20px; text-align: left; }
+.result-output pre { max-height: 240px; overflow: auto; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: #07131a; color: #aadfce; font-size: 10px; white-space: pre-wrap; }
+.result-output .secondary-button { float: right; margin-top: 8px; }
+.command-search { border: 0; background: none; }
+.command-panel { width: min(620px, 100%); align-self: start; margin-top: 12vh; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #0b1820; box-shadow: 0 30px 90px rgba(0,0,0,.5); }
+.command-panel > label { display: grid; grid-template-columns: 24px 1fr 30px; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--line); color: var(--muted); }
+.command-panel input { border: 0; outline: 0; background: none; color: #edf5f4; font-size: 15px; }
+.command-panel label button { border: 0; background: none; color: var(--muted); }
+.command-panel > div { max-height: 55vh; overflow: auto; padding: 8px; }
+.command-panel a { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-radius: 10px; }
+.command-panel a:hover { background: rgba(118,228,196,.07); }
+.command-panel a span { display: grid; gap: 3px; }
+.command-panel a strong { font-size: 13px; }
+.command-panel a small { color: var(--muted); font-size: 10px; }
+.command-panel a kbd { color: var(--mint); font-size: 11px; }

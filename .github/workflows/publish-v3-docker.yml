@@ -1,0 +1,145 @@
+name: Publish Sakura v3 Docker images
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example 3.0.0-rc.1
+        required: true
+        type: string
+      publish_latest:
+        description: Also update v3-latest and v3-web-latest
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-v3-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_DB: sakura_test, POSTGRES_USER: sakura, POSTGRES_PASSWORD: sakura-test-password }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U sakura -d sakura_test" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      SAKURA_V3_TEST_DATABASE_URL: postgres://sakura:sakura-test-password@127.0.0.1:5432/sakura_test?sslmode=disable
+      SAKURA_V3_TEST_REDIS_ADDRESS: 127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate release input
+        env: { VERSION: "${{ inputs.version }}" }
+        run: '[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]'
+      - uses: actions/setup-go@v6
+        with: { go-version-file: v3/go.mod, cache-dependency-path: v3/go.sum }
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: npm, cache-dependency-path: v3/web/package-lock.json }
+      - name: Go quality gate
+        working-directory: v3
+        run: go test -race ./... && go vet ./...
+      - name: Web quality gate
+        working-directory: v3/web
+        run: npm ci && npm run generate:api && git diff --exit-code -- src/generated/client.ts && npm run typecheck && npm run test && npm exec vite build
+
+  publish:
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify Docker Hub credentials
+        env:
+          USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          TOKEN: ${{ secrets.DOCKER_TOKEN || secrets.DOCKER_PASSWORD }}
+        run: test -n "$USERNAME" && test -n "$TOKEN"
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN || secrets.DOCKER_PASSWORD }}
+      - name: App metadata
+        id: app-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/sakura_embyboss
+          flavor: latest=false
+          tags: |
+            type=raw,value=v3-${{ inputs.version }}
+            type=raw,value=v3-sha-${{ github.sha }}
+            type=raw,value=v3-latest,enable=${{ inputs.publish_latest }}
+      - name: Web metadata
+        id: web-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/sakura_embyboss
+          flavor: latest=false
+          tags: |
+            type=raw,value=v3-web-${{ inputs.version }}
+            type=raw,value=v3-web-sha-${{ github.sha }}
+            type=raw,value=v3-web-latest,enable=${{ inputs.publish_latest }}
+      - name: Build and push v3 application
+        id: app
+        uses: docker/build-push-action@v7
+        with:
+          context: ./v3
+          file: ./v3/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.app-meta.outputs.tags }}
+          labels: ${{ steps.app-meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ inputs.version }}
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ fromJSON(steps.app-meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          cache-from: type=gha,scope=v3-release
+          cache-to: type=gha,mode=max,scope=v3-release
+          provenance: mode=max
+          sbom: true
+      - name: Build and push v3 Web
+        id: web
+        uses: docker/build-push-action@v7
+        with:
+          context: ./v3
+          file: ./v3/web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.web-meta.outputs.tags }}
+          labels: ${{ steps.web-meta.outputs.labels }}
+          cache-from: type=gha,scope=v3-web-release
+          cache-to: type=gha,mode=max,scope=v3-web-release
+          provenance: mode=max
+          sbom: true
+      - name: Create digest-pinned deployment environment
+        env:
+          REPOSITORY: ${{ secrets.DOCKER_USERNAME }}/sakura_embyboss
+          APP_DIGEST: ${{ steps.app.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          mkdir release
+          printf 'SAKURA_V3_IMAGE=%s@%s\nSAKURA_V3_WEB_IMAGE=%s@%s\nSAKURA_RELEASE_COMMIT=%s\n' "$REPOSITORY" "$APP_DIGEST" "$REPOSITORY" "$WEB_DIGEST" "$GITHUB_SHA" > release/v3-images.env
+          sha256sum release/v3-images.env > release/v3-images.env.sha256
+      - uses: actions/upload-artifact@v6
+        with:
+          name: sakura-v3-${{ inputs.version }}-deployment
+          path: release/
+          retention-days: 90
+      - name: Publish summary
+        run: |
+          echo '### Sakura v3 images published' >> "$GITHUB_STEP_SUMMARY"
+          echo '- App digest: `${{ steps.app.outputs.digest }}`' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Web digest: `${{ steps.web.outputs.digest }}`' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Deploy with the digest-pinned `v3-images.env` artifact.' >> "$GITHUB_STEP_SUMMARY"

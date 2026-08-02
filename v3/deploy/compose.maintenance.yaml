@@ -1,0 +1,10 @@
+name: sakura-v3-maintenance
+services:
+  maintenance:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:${SAKURA_MAINTENANCE_PORT:-18090}:8080
+    volumes:
+      - ./maintenance.html:/usr/share/nginx/html/index.html:ro
+      - ./maintenance-nginx.conf:/etc/nginx/conf.d/default.conf:ro

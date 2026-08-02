@@ -116,6 +116,24 @@ func TestStage6MigrationContainsMediaCommunityAndAutomationState(t *testing.T) {
 	}
 }
 
+func TestStage7MigrationContainsWebBotExperienceState(t *testing.T) {
+	migrations, err := Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stage7 string
+	for _, migration := range migrations {
+		if migration.Version == 7 {
+			stage7 = migration.SQL
+		}
+	}
+	for _, invariant := range []string{"dashboard.read", "ui.site_name", "ui.support_url", "bot.commands_enabled", "bot.admin_commands_enabled"} {
+		if !strings.Contains(stage7, invariant) {
+			t.Fatalf("stage 7 migration is missing experience invariant %s", invariant)
+		}
+	}
+}
+
 func TestRunIsIdempotent(t *testing.T) {
 	databaseURL := os.Getenv("SAKURA_V3_TEST_DATABASE_URL")
 	if databaseURL == "" {

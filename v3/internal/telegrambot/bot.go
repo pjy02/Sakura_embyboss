@@ -47,6 +47,9 @@ func (b *Bot) Run(ctx context.Context) error {
 		}
 	}
 	b.logger.Info("Telegram adapter started")
+	if err := b.setCommands(ctx, token); err != nil {
+		b.logger.Warn("Telegram command menu setup failed", "error", err)
+	}
 	for ctx.Err() == nil {
 		updates, err := b.getUpdates(ctx, token)
 		if err != nil {
@@ -131,10 +134,12 @@ func (b *Bot) deliverNextNotification(ctx context.Context, token string) (bool, 
 }
 
 type update struct {
-	ID      int64    `json:"update_id"`
-	Message *message `json:"message"`
+	ID            int64          `json:"update_id"`
+	Message       *message       `json:"message"`
+	CallbackQuery *callbackQuery `json:"callback_query"`
 }
 type message struct {
+	ID   int64 `json:"message_id"`
 	Chat struct {
 		ID   int64  `json:"id"`
 		Type string `json:"type"`
@@ -146,8 +151,27 @@ type message struct {
 	Text string `json:"text"`
 }
 
+type callbackQuery struct {
+	ID   string `json:"id"`
+	From struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+	} `json:"from"`
+	Message *message `json:"message"`
+	Data    string   `json:"data"`
+}
+
+type inlineButton struct {
+	Text         string `json:"text"`
+	CallbackData string `json:"callback_data"`
+}
+
+type inlineKeyboard struct {
+	InlineKeyboard [][]inlineButton `json:"inline_keyboard"`
+}
+
 func (b *Bot) getUpdates(ctx context.Context, token string) ([]update, error) {
-	endpoint := fmt.Sprintf("%s/bot%s/getUpdates?timeout=25&offset=%d&allowed_updates=%%5B%%22message%%22%%5D", b.config.APIBase, token, b.offset)
+	endpoint := fmt.Sprintf("%s/bot%s/getUpdates?timeout=25&offset=%d&allowed_updates=%%5B%%22message%%22%%2C%%22callback_query%%22%%5D", b.config.APIBase, token, b.offset)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -172,6 +196,10 @@ func (b *Bot) getUpdates(ctx context.Context, token string) ([]update, error) {
 }
 
 func (b *Bot) handleUpdate(ctx context.Context, token string, item update) {
+	if item.CallbackQuery != nil {
+		b.handleCallback(ctx, token, item)
+		return
+	}
 	if item.Message == nil || item.Message.Chat.Type != "private" {
 		return
 	}
@@ -181,7 +209,85 @@ func (b *Bot) handleUpdate(ctx context.Context, token string, item update) {
 	}
 	command := strings.Split(fields[0], "@")[0]
 	var reply string
+	var keyboard *inlineKeyboard
 	switch command {
+	case "/start", "/menu":
+		reply, keyboard = b.dashboardReply(ctx, item.Message.From.ID)
+	case "/help":
+		reply = botHelpText()
+		keyboard = mainKeyboard(false)
+	case "/me", "/wallet", "/membership", "/emby":
+		reply, keyboard = b.dashboardReply(ctx, item.Message.From.ID)
+	case "/media":
+		if len(fields) < 2 {
+			reply = "用法：/media <影片名称>"
+			break
+		}
+		var results []map[string]any
+		err := b.botAction(ctx, item.Message.From.ID, "media_search", map[string]string{"query": strings.Join(fields[1:], " ")}, fmt.Sprintf("tg-media-%d", item.ID), &results)
+		if err != nil {
+			reply = "影片搜索失败，请确认 TMDB 已配置后重试。"
+		} else {
+			reply, keyboard = formatMediaResults(results)
+		}
+	case "/request":
+		if len(fields) != 2 {
+			reply = "用法：/request <搜索结果中的影片ID>"
+			break
+		}
+		reply = b.createMediaRequestReply(ctx, item.Message.From.ID, fields[1], fmt.Sprintf("tg-request-%d", item.ID))
+		keyboard = mainKeyboard(false)
+	case "/requests":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "requests", "我的求片", formatRequestLine)
+		keyboard = mainKeyboard(false)
+	case "/tickets":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "tickets", "我的工单", formatTicketLine)
+		keyboard = mainKeyboard(false)
+	case "/ticket":
+		payload := strings.TrimSpace(strings.TrimPrefix(item.Message.Text, fields[0]))
+		parts := strings.SplitN(payload, "|", 2)
+		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			reply = "用法：/ticket 主题 | 问题描述"
+			break
+		}
+		var ticket map[string]any
+		err := b.botAction(ctx, item.Message.From.ID, "ticket_create", map[string]string{"subject": parts[0], "body": parts[1], "category": "general", "priority": "normal"}, fmt.Sprintf("tg-ticket-%d", item.ID), &ticket)
+		if err != nil {
+			reply = "工单创建失败，请稍后重试。"
+		} else {
+			reply = "工单已创建：" + stringField(ticket, "ticket_no") + "\n客服回复后会通过通知中心同步。"
+		}
+		keyboard = mainKeyboard(false)
+	case "/notifications":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "notifications", "未读通知", formatNotificationLine)
+		keyboard = mainKeyboard(false)
+	case "/admin":
+		reply = b.adminDashboardReply(ctx, item.Message.From.ID)
+		keyboard = adminKeyboard()
+	case "/users":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "admin_accounts", "最近账号", formatAccountLine)
+		keyboard = adminKeyboard()
+	case "/tasks":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "admin_tasks", "后台任务", formatTaskLine)
+		keyboard = adminKeyboard()
+	case "/risks":
+		reply = b.collectionReply(ctx, item.Message.From.ID, "admin_risks", "风险事件", formatRiskLine)
+		keyboard = adminKeyboard()
+	case "/broadcast":
+		payload := strings.TrimSpace(strings.TrimPrefix(item.Message.Text, fields[0]))
+		parts := strings.SplitN(payload, "|", 2)
+		if len(parts) != 2 {
+			reply = "用法：/broadcast 标题 | 内容"
+			break
+		}
+		var result map[string]any
+		err := b.botAction(ctx, item.Message.From.ID, "admin_broadcast", map[string]string{"title": parts[0], "body": parts[1], "channel": "telegram"}, fmt.Sprintf("tg-broadcast-%d", item.ID), &result)
+		if err != nil {
+			reply = "广播创建失败：请确认管理员权限和目标账号。"
+		} else {
+			reply = "广播任务已创建，将由 Worker 可靠发送。"
+		}
+		keyboard = adminKeyboard()
 	case "/bind":
 		if len(fields) != 2 {
 			reply = "用法：/bind Web 页面显示的一次性绑定码"
@@ -225,9 +331,253 @@ func (b *Bot) handleUpdate(ctx context.Context, token string, item update) {
 			reply = formatProvision(result)
 		}
 	default:
+		reply = "未识别的命令。发送 /help 查看可用功能。"
+		keyboard = mainKeyboard(false)
+	}
+	_ = b.sendMessageWithKeyboard(ctx, token, item.Message.Chat.ID, reply, keyboard)
+}
+
+func (b *Bot) handleCallback(ctx context.Context, token string, item update) {
+	query := item.CallbackQuery
+	if query == nil || query.Message == nil || query.Message.Chat.Type != "private" {
 		return
 	}
-	_ = b.sendMessage(ctx, token, item.Message.Chat.ID, reply)
+	_ = b.answerCallback(ctx, token, query.ID)
+	var reply string
+	var keyboard *inlineKeyboard
+	switch {
+	case query.Data == "nav:home":
+		reply, keyboard = b.dashboardReply(ctx, query.From.ID)
+	case query.Data == "nav:requests":
+		reply = b.collectionReply(ctx, query.From.ID, "requests", "我的求片", formatRequestLine)
+		keyboard = mainKeyboard(false)
+	case query.Data == "nav:tickets":
+		reply = b.collectionReply(ctx, query.From.ID, "tickets", "我的工单", formatTicketLine)
+		keyboard = mainKeyboard(false)
+	case query.Data == "nav:notifications":
+		reply = b.collectionReply(ctx, query.From.ID, "notifications", "未读通知", formatNotificationLine)
+		keyboard = mainKeyboard(false)
+	case query.Data == "nav:admin":
+		reply = b.adminDashboardReply(ctx, query.From.ID)
+		keyboard = adminKeyboard()
+	case query.Data == "admin:users":
+		reply = b.collectionReply(ctx, query.From.ID, "admin_accounts", "最近账号", formatAccountLine)
+		keyboard = adminKeyboard()
+	case query.Data == "admin:tasks":
+		reply = b.collectionReply(ctx, query.From.ID, "admin_tasks", "后台任务", formatTaskLine)
+		keyboard = adminKeyboard()
+	case query.Data == "admin:risks":
+		reply = b.collectionReply(ctx, query.From.ID, "admin_risks", "风险事件", formatRiskLine)
+		keyboard = adminKeyboard()
+	case strings.HasPrefix(query.Data, "request:"):
+		reply = b.createMediaRequestReply(ctx, query.From.ID, strings.TrimPrefix(query.Data, "request:"), fmt.Sprintf("tg-callback-%d", item.ID))
+		keyboard = mainKeyboard(false)
+	default:
+		reply = "按钮已失效，请发送 /menu 重新打开。"
+		keyboard = mainKeyboard(false)
+	}
+	_ = b.sendMessageWithKeyboard(ctx, token, query.Message.Chat.ID, reply, keyboard)
+}
+
+func (b *Bot) dashboardReply(ctx context.Context, telegramID int64) (string, *inlineKeyboard) {
+	var dashboard map[string]any
+	if err := b.botAction(ctx, telegramID, "dashboard", nil, "", &dashboard); err != nil {
+		return "尚未绑定统一账号。请先在 Web 用户中心生成绑定码，再发送：\n/bind 绑定码", mainKeyboard(false)
+	}
+	var access map[string]any
+	_ = b.botAction(ctx, telegramID, "context", nil, "", &access)
+	account, _ := access["account"].(map[string]any)
+	membership, _ := dashboard["membership"].(map[string]any)
+	wallet, _ := dashboard["wallet"].(map[string]any)
+	bindings, _ := dashboard["emby_bindings"].([]any)
+	administrator := false
+	if permissions, ok := access["permissions"].([]any); ok {
+		for _, permission := range permissions {
+			if fmt.Sprint(permission) == "dashboard.read" {
+				administrator = true
+			}
+		}
+	}
+	name := stringField(account, "display_name")
+	if name == "" {
+		name = "Sakura 用户"
+	}
+	plan := stringField(membership, "plan_name")
+	if plan == "" {
+		plan = "暂无会员"
+	}
+	reply := fmt.Sprintf("🌸 %s，欢迎回来\n\n会员：%s\n积分：%s\nEmby 账号：%d\n\nWeb 与 Bot 使用同一业务 API，操作结果会实时同步。", name, plan, numberText(wallet["balance"]), len(bindings))
+	return reply, mainKeyboard(administrator)
+}
+
+func (b *Bot) adminDashboardReply(ctx context.Context, telegramID int64) string {
+	var dashboard map[string]any
+	if err := b.botAction(ctx, telegramID, "admin_dashboard", nil, "", &dashboard); err != nil {
+		return "没有后台管理权限，或管理 API 暂时不可用。"
+	}
+	return fmt.Sprintf("🛡 Sakura 管理中心\n\n后台任务：%d\n批量任务：%d\n自动化执行：%d\n风险事件：%d\n\n所有操作都会经过 RBAC 和审计记录。", sliceLength(dashboard["tasks"]), sliceLength(dashboard["batch_operations"]), sliceLength(dashboard["automation_executions"]), sliceLength(dashboard["risk_events"]))
+}
+
+func (b *Bot) createMediaRequestReply(ctx context.Context, telegramID int64, mediaID, key string) string {
+	var result map[string]any
+	err := b.botAction(ctx, telegramID, "media_request", map[string]string{"media_id": mediaID}, key, &result)
+	if err != nil {
+		return "求片提交失败：影片 ID 无效、影片已入库，或账号状态不允许操作。"
+	}
+	duplicate := boolField(result, "duplicate")
+	message := "求片已提交"
+	if duplicate {
+		message = "已订阅现有求片，系统不会重复下载"
+	}
+	return fmt.Sprintf("%s\n编号：%s\n状态：%s", message, stringField(result, "request_no"), stringField(result, "status"))
+}
+
+func (b *Bot) collectionReply(ctx context.Context, telegramID int64, action, title string, format func(map[string]any) string) string {
+	var items []map[string]any
+	if err := b.botAction(ctx, telegramID, action, nil, "", &items); err != nil {
+		return title + "查询失败：账号未绑定、权限不足或服务暂时不可用。"
+	}
+	if len(items) == 0 {
+		return title + "\n\n暂无记录。"
+	}
+	if len(items) > 10 {
+		items = items[:10]
+	}
+	lines := []string{title, ""}
+	for _, item := range items {
+		lines = append(lines, format(item))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatMediaResults(items []map[string]any) (string, *inlineKeyboard) {
+	if len(items) == 0 {
+		return "没有找到匹配影片，请换一个关键词。", mainKeyboard(false)
+	}
+	if len(items) > 6 {
+		items = items[:6]
+	}
+	lines := []string{"TMDB 影片搜索", ""}
+	keyboard := &inlineKeyboard{}
+	for index, item := range items {
+		available := "可求片"
+		if boolField(item, "available") {
+			available = "已入库"
+		}
+		title := stringField(item, "title")
+		lines = append(lines, fmt.Sprintf("%d. %s · %s · %s", index+1, title, stringField(item, "media_type"), available))
+		if !boolField(item, "available") {
+			keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, []inlineButton{{Text: "求片 · " + truncateRunes(title, 22), CallbackData: "request:" + stringField(item, "id")}})
+		}
+	}
+	keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, []inlineButton{{Text: "返回首页", CallbackData: "nav:home"}})
+	return strings.Join(lines, "\n"), keyboard
+}
+
+func formatRequestLine(item map[string]any) string {
+	media, _ := item["media"].(map[string]any)
+	return fmt.Sprintf("• %s｜%s｜%s", stringField(media, "title"), stringField(item, "status"), stringField(item, "request_no"))
+}
+
+func formatTicketLine(item map[string]any) string {
+	return fmt.Sprintf("• %s｜%s｜%s", stringField(item, "subject"), stringField(item, "status"), stringField(item, "ticket_no"))
+}
+
+func formatNotificationLine(item map[string]any) string {
+	return fmt.Sprintf("• %s：%s", stringField(item, "title"), truncateRunes(stringField(item, "body"), 45))
+}
+
+func formatAccountLine(item map[string]any) string {
+	return fmt.Sprintf("• %s｜%s｜%s", stringField(item, "display_name"), stringField(item, "status"), stringField(item, "id"))
+}
+
+func formatTaskLine(item map[string]any) string {
+	return fmt.Sprintf("• %s｜%s｜尝试 %s/%s", stringField(item, "task_type"), stringField(item, "status"), numberText(item["attempts"]), numberText(item["max_attempts"]))
+}
+
+func formatRiskLine(item map[string]any) string {
+	return fmt.Sprintf("• %s｜%s｜%s", stringField(item, "severity"), stringField(item, "status"), truncateRunes(stringField(item, "title"), 35))
+}
+
+func mainKeyboard(admin bool) *inlineKeyboard {
+	rows := [][]inlineButton{
+		{{Text: "我的首页", CallbackData: "nav:home"}, {Text: "我的求片", CallbackData: "nav:requests"}},
+		{{Text: "我的工单", CallbackData: "nav:tickets"}, {Text: "通知", CallbackData: "nav:notifications"}},
+	}
+	if admin {
+		rows = append(rows, []inlineButton{{Text: "管理中心", CallbackData: "nav:admin"}})
+	}
+	return &inlineKeyboard{InlineKeyboard: rows}
+}
+
+func adminKeyboard() *inlineKeyboard {
+	return &inlineKeyboard{InlineKeyboard: [][]inlineButton{
+		{{Text: "账号", CallbackData: "admin:users"}, {Text: "任务", CallbackData: "admin:tasks"}},
+		{{Text: "风险", CallbackData: "admin:risks"}, {Text: "用户首页", CallbackData: "nav:home"}},
+	}}
+}
+
+func botHelpText() string {
+	return "Sakura Bot 命令\n\n/start - 打开功能菜单\n/bind <绑定码> - 绑定 Web 账号\n/media <片名> - 搜索影片\n/request <影片ID> - 提交求片\n/requests - 我的求片\n/tickets - 我的工单\n/ticket 主题 | 描述 - 创建工单\n/notifications - 未读通知\n/register - 创建 Emby 账号\n/register-status - 查询建号任务\n\n管理员：/admin /users /tasks /risks /broadcast"
+}
+
+func stringField(item map[string]any, key string) string {
+	if item == nil {
+		return ""
+	}
+	value := item[key]
+	if value == nil {
+		return ""
+	}
+	return fmt.Sprint(value)
+}
+
+func boolField(item map[string]any, key string) bool {
+	value, _ := item[key].(bool)
+	return value
+}
+
+func numberText(value any) string {
+	if value == nil {
+		return "0"
+	}
+	return strings.TrimSuffix(fmt.Sprint(value), ".0")
+}
+
+func sliceLength(value any) int {
+	items, _ := value.([]any)
+	return len(items)
+}
+
+func truncateRunes(value string, maximum int) string {
+	runes := []rune(value)
+	if len(runes) <= maximum {
+		return value
+	}
+	return string(runes[:maximum]) + "…"
+}
+
+func (b *Bot) botAction(ctx context.Context, telegramID int64, action string, arguments map[string]string, key string, target any) error {
+	body, _ := json.Marshal(map[string]any{"telegram_user_id": telegramID, "action": action, "arguments": arguments, "idempotency_key": key})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, b.config.InternalAPIURL+"/api/v3/internal/bot/actions", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+b.config.InternalAPIToken)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := b.client.Do(request)
+	if err != nil {
+		return safeNetworkError("Bot business API", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+		return fmt.Errorf("Bot business API returned status %d", response.StatusCode)
+	}
+	if target == nil || response.StatusCode == http.StatusNoContent {
+		return nil
+	}
+	return json.NewDecoder(io.LimitReader(response.Body, 2<<20)).Decode(target)
 }
 
 type provisionResponse struct {
@@ -341,7 +691,15 @@ func (b *Bot) fetchCredential(ctx context.Context, name string) (string, error) 
 }
 
 func (b *Bot) sendMessage(ctx context.Context, token string, chatID int64, text string) error {
-	body, _ := json.Marshal(map[string]any{"chat_id": chatID, "text": text})
+	return b.sendMessageWithKeyboard(ctx, token, chatID, text, nil)
+}
+
+func (b *Bot) sendMessageWithKeyboard(ctx context.Context, token string, chatID int64, text string, keyboard *inlineKeyboard) error {
+	payload := map[string]any{"chat_id": chatID, "text": text}
+	if keyboard != nil && len(keyboard.InlineKeyboard) > 0 {
+		payload["reply_markup"] = keyboard
+	}
+	body, _ := json.Marshal(payload)
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, b.config.APIBase+"/bot"+token+"/sendMessage", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -355,6 +713,54 @@ func (b *Bot) sendMessage(ctx context.Context, token string, chatID int64, text 
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("Telegram sendMessage returned status %d", response.StatusCode)
+	}
+	return nil
+}
+
+func (b *Bot) answerCallback(ctx context.Context, token, callbackID string) error {
+	body, _ := json.Marshal(map[string]any{"callback_query_id": callbackID})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, b.config.APIBase+"/bot"+token+"/answerCallbackQuery", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := b.client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("Telegram answerCallbackQuery returned status %d", response.StatusCode)
+	}
+	return nil
+}
+
+func (b *Bot) setCommands(ctx context.Context, token string) error {
+	commands := []map[string]string{
+		{"command": "start", "description": "打开 Sakura 功能菜单"},
+		{"command": "media", "description": "搜索影片"},
+		{"command": "requests", "description": "查看我的求片"},
+		{"command": "tickets", "description": "查看我的工单"},
+		{"command": "notifications", "description": "查看未读通知"},
+		{"command": "register", "description": "创建 Emby 账号"},
+		{"command": "admin", "description": "打开管理中心"},
+		{"command": "help", "description": "查看完整命令帮助"},
+	}
+	body, _ := json.Marshal(map[string]any{"commands": commands})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, b.config.APIBase+"/bot"+token+"/setMyCommands", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := b.client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("Telegram setMyCommands returned status %d", response.StatusCode)
 	}
 	return nil
 }

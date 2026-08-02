@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -42,6 +43,37 @@ func TestProcessDependencyBoundaries(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestWebUsesGeneratedAPIClientWithoutServerBusinessImports(t *testing.T) {
+	root := repositoryRoot(t)
+	sourceRoot := filepath.Join(root, "web", "src")
+	generated, err := os.ReadFile(filepath.Join(sourceRoot, "generated", "client.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(generated), "Code generated from api/openapi.yaml") {
+		t.Fatal("Web API client must be generated from the OpenAPI contract")
+	}
+	err = filepath.WalkDir(sourceRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil || entry.IsDir() || (!strings.HasSuffix(path, ".ts") && !strings.HasSuffix(path, ".vue")) || strings.Contains(filepath.ToSlash(path), "/generated/") {
+			return walkErr
+		}
+		body, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		text := string(body)
+		for _, forbidden := range []string{"fetch(", "axios.", "internal/platform", "internal/identity", "SELECT ", "INSERT INTO ", "UPDATE accounts"} {
+			if strings.Contains(text, forbidden) {
+				t.Fatalf("%s bypasses the generated API/business boundary with %q", path, forbidden)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
