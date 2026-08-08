@@ -173,7 +173,7 @@ func TestRuntimeCompletionEntitlementsLinesReviewsFavoritesAndProbes(t *testing.
 		t.Fatal(err)
 	}
 	sample, err := service.ProbeLine(ctx, line.ID, actor)
-	if err != nil || sample.Status == "unhealthy" {
+	if err != nil || sample.Status != "degraded" || sample.HTTPStatus == nil || *sample.HTTPStatus != http.StatusUnauthorized {
 		t.Fatalf("line probe: %+v %v", sample, err)
 	}
 	mediaID := uuid.New()

@@ -392,11 +392,11 @@ func (s *Service) MarkRiskFalsePositive(ctx context.Context, id uuid.UUID, reaso
 		}
 	} else if err == nil && (actionStatus == "succeeded" || actionStatus == "failed" && remoteEffectApplied) && actionType == "disable_user" {
 		taskID := uuid.New()
-		if _, err = tx.Exec(ctx, `UPDATE risk_actions SET status='revert_pending',task_id=$2,updated_at=NOW() WHERE id=$1`, actionID, taskID); err != nil {
-			return RiskEventDetail{}, err
-		}
 		_, err = tx.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,max_attempts,created_by) VALUES($1,'risk.revert',$2,$3,8,$4)`, taskID, "risk-revert:"+actionID.String(), jsonBytes(map[string]any{"instance_id": instanceID.String(), "action_id": actionID.String()}), actor.Label())
 		if err != nil {
+			return RiskEventDetail{}, err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE risk_actions SET status='revert_pending',task_id=$2,updated_at=NOW() WHERE id=$1`, actionID, taskID); err != nil {
 			return RiskEventDetail{}, err
 		}
 		revertQueued = true
@@ -653,9 +653,9 @@ func createRiskEventTx(ctx context.Context, tx pgx.Tx, instance EmbyInstance, se
 	queued := false
 	if !observationOnly && recommendedAction != "none" {
 		actionID, taskID := uuid.New(), uuid.New()
-		_, err = tx.Exec(ctx, `INSERT INTO risk_actions(id,event_id,instance_id,task_id,action_type,reason,remote_session_id,remote_user_id) VALUES($1,$2,$3,$4,$5,$6,NULLIF($7,''),NULLIF($8,''))`, actionID, eventID, instance.ID, taskID, recommendedAction, reason, observation.Session.ID, observation.Session.UserID)
+		_, err = tx.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,max_attempts,created_by) VALUES($1,'risk.action',$2,$3,8,'system:risk-engine')`, taskID, "risk-action:"+actionID.String(), jsonBytes(map[string]any{"instance_id": instance.ID.String(), "action_id": actionID.String()}))
 		if err == nil {
-			_, err = tx.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,max_attempts,created_by) VALUES($1,'risk.action',$2,$3,8,'system:risk-engine')`, taskID, "risk-action:"+actionID.String(), jsonBytes(map[string]any{"instance_id": instance.ID.String(), "action_id": actionID.String()}))
+			_, err = tx.Exec(ctx, `INSERT INTO risk_actions(id,event_id,instance_id,task_id,action_type,reason,remote_session_id,remote_user_id) VALUES($1,$2,$3,$4,$5,$6,NULLIF($7,''),NULLIF($8,''))`, actionID, eventID, instance.ID, taskID, recommendedAction, reason, observation.Session.ID, observation.Session.UserID)
 		}
 		if err != nil {
 			return false, false, err

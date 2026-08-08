@@ -371,13 +371,21 @@ func (s *Service) ProbeLine(ctx context.Context, id uuid.UUID, actor identity.Ac
 		httpStatus = &code
 		response.Body.Close()
 	}
-	if probeErr != nil || response == nil || response.StatusCode < 200 || response.StatusCode >= 400 {
+	// A line probe measures transport reachability. Authentication and other
+	// client-side HTTP responses still prove that the endpoint is reachable,
+	// so keep them visible as degraded instead of declaring the line down.
+	if probeErr != nil {
 		status = "unhealthy"
-		if probeErr != nil {
-			message = truncateError(probeErr)
-		} else {
-			message = fmt.Sprintf("HTTP %d", response.StatusCode)
-		}
+		message = truncateError(probeErr)
+	} else if response == nil {
+		status = "unhealthy"
+		message = "probe returned no response"
+	} else if response.StatusCode >= 500 {
+		status = "unhealthy"
+		message = fmt.Sprintf("HTTP %d", response.StatusCode)
+	} else if response.StatusCode < 200 || response.StatusCode >= 400 {
+		status = "degraded"
+		message = fmt.Sprintf("HTTP %d", response.StatusCode)
 	} else if latency > 2000 {
 		status = "degraded"
 	}
