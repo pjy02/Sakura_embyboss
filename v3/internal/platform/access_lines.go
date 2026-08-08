@@ -212,7 +212,7 @@ func (s *Service) RevokeEntitlement(ctx context.Context, id uuid.UUID, reason st
 	}
 	defer tx.Rollback(ctx)
 	var bindingID *uuid.UUID
-	if err = tx.QueryRow(ctx, `UPDATE account_entitlements SET status='revoked',metadata=metadata||jsonb_build_object('revocation_reason',$2),updated_at=NOW() WHERE id=$1 AND status<>'revoked' RETURNING binding_id`, id, reason).Scan(&bindingID); err != nil {
+	if err = tx.QueryRow(ctx, `UPDATE account_entitlements SET status='revoked',metadata=metadata||jsonb_build_object('revocation_reason',$2::text),updated_at=NOW() WHERE id=$1 AND status<>'revoked' RETURNING binding_id`, id, reason).Scan(&bindingID); err != nil {
 		return AccountEntitlement{}, notFound(err)
 	}
 	if bindingID != nil {

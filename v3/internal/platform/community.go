@@ -416,7 +416,7 @@ func queuePreferredNotificationTx(ctx context.Context, tx pgx.Tx, accountID uuid
 				continue
 			}
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO account_notifications(id,account_id,title,body,channel,delivery_status,metadata) VALUES($1,$2,$3,$4,$5,CASE WHEN $5='in_app' THEN 'sent' ELSE 'pending' END,$6)`, uuid.New(), accountID, title, body, channel, jsonBytes(notificationMetadata))
+		_, err = tx.Exec(ctx, `INSERT INTO account_notifications(id,account_id,title,body,channel,delivery_status,metadata) VALUES($1,$2,$3,$4,$5::varchar,CASE WHEN $5::varchar='in_app' THEN 'sent' ELSE 'pending' END,$6)`, uuid.New(), accountID, title, body, channel, jsonBytes(notificationMetadata))
 		if err != nil {
 			return err
 		}
@@ -710,10 +710,10 @@ func executeAutomationActionTx(ctx context.Context, tx pgx.Tx, eventID uuid.UUID
 		jobID, taskID := uuid.New(), uuid.New()
 		key := "automation:" + rule.ID.String() + ":" + eventID.String()
 		resource, _ := action["resource"].(map[string]any)
-		if _, err = tx.Exec(ctx, `INSERT INTO moviepilot_jobs(id,media_id,request_id,task_id,idempotency_key,payload,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)`, jobID, mediaID, requestID, taskID, key, jsonBytes(map[string]any{"request_id": requestID, "resource": resource}), "system:"+workerID); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,max_attempts,created_by) VALUES($1,'moviepilot.submit',$2,$3,8,$4)`, taskID, key, jsonBytes(map[string]any{"moviepilot_job_id": jobID.String()}), "system:"+workerID); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,max_attempts,created_by) VALUES($1,'moviepilot.submit',$2,$3,8,$4)`, taskID, key, jsonBytes(map[string]any{"moviepilot_job_id": jobID.String()}), "system:"+workerID)
+		_, err = tx.Exec(ctx, `INSERT INTO moviepilot_jobs(id,media_id,request_id,task_id,idempotency_key,payload,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)`, jobID, mediaID, requestID, taskID, key, jsonBytes(map[string]any{"request_id": requestID, "resource": resource}), "system:"+workerID)
 		if err == nil {
 			_, err = tx.Exec(ctx, `UPDATE media_requests SET status=CASE WHEN status IN ('requested','approved') THEN 'queued' ELSE status END,revision=revision+1,updated_at=NOW() WHERE id=$1`, requestID)
 		}

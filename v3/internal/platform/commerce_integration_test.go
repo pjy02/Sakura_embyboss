@@ -200,7 +200,8 @@ func TestStage4LedgerCommerceAndBatchAcceptance(t *testing.T) {
 	}
 	notificationDone, err := service.GetBatch(ctx, notificationBatch.ID)
 	if err != nil || notificationDone.Status != "succeeded" {
-		t.Fatalf("notification batch=%+v err=%v", notificationDone, err)
+		items, itemsErr := service.ListBatchItems(ctx, notificationBatch.ID, "", 10)
+		t.Fatalf("notification batch=%+v err=%v items=%+v items_err=%v", notificationDone, err, items, itemsErr)
 	}
 	notifications, err := service.ListNotifications(ctx, second.ID, "unread", 10)
 	if err != nil || len(notifications) != 1 {

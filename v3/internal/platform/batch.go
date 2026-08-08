@@ -493,7 +493,7 @@ func (s *Service) processBatchItem(ctx context.Context, operation BatchOperation
 			}
 		}
 		if err == nil && allowed {
-			_, err = tx.Exec(ctx, `INSERT INTO account_notifications(id,account_id,batch_operation_id,title,body,channel,delivery_status,metadata) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $6='in_app' THEN 'sent' ELSE 'pending' END,$7) ON CONFLICT(batch_operation_id,account_id,channel) DO NOTHING`, uuid.New(), accountID, operation.ID, fmt.Sprint(operation.Payload["title"]), fmt.Sprint(operation.Payload["body"]), channel, jsonBytes(map[string]any{"batch": true, "event_key": eventKey}))
+			_, err = tx.Exec(ctx, `INSERT INTO account_notifications(id,account_id,batch_operation_id,title,body,channel,delivery_status,metadata) VALUES($1,$2,$3,$4,$5,$6::varchar,CASE WHEN $6::varchar='in_app' THEN 'sent' ELSE 'pending' END,$7) ON CONFLICT(batch_operation_id,account_id,channel) DO NOTHING`, uuid.New(), accountID, operation.ID, fmt.Sprint(operation.Payload["title"]), fmt.Sprint(operation.Payload["body"]), channel, jsonBytes(map[string]any{"batch": true, "event_key": eventKey}))
 		}
 	default:
 		return PermanentError{Err: identity.ErrInvalid}

@@ -513,12 +513,12 @@ func (s *Service) SubmitMoviePilot(ctx context.Context, requestID uuid.UUID, res
 	}
 	jobID, taskID := uuid.New(), uuid.New()
 	fullKey := "moviepilot:" + mediaID.String() + ":" + idempotencyKey
-	_, err = tx.Exec(ctx, `INSERT INTO moviepilot_jobs(id,media_id,request_id,task_id,idempotency_key,payload,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)`, jobID, mediaID, requestID, taskID, fullKey, jsonBytes(map[string]any{"request_id": requestID, "resource": resource}), actor.Label())
+	_, err = tx.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,max_attempts,created_by) VALUES($1,'moviepilot.submit',$2,$3,8,$4)`, taskID, fullKey, jsonBytes(map[string]any{"moviepilot_job_id": jobID.String()}), actor.Label())
 	if err == nil {
-		_, err = tx.Exec(ctx, `INSERT INTO platform_tasks(id,task_type,idempotency_key,payload,max_attempts,created_by) VALUES($1,'moviepilot.submit',$2,$3,8,$4)`, taskID, fullKey, jsonBytes(map[string]any{"moviepilot_job_id": jobID.String()}), actor.Label())
+		_, err = tx.Exec(ctx, `INSERT INTO moviepilot_jobs(id,media_id,request_id,task_id,idempotency_key,payload,created_by) VALUES($1,$2,$3,$4,$5,$6,$7)`, jobID, mediaID, requestID, taskID, fullKey, jsonBytes(map[string]any{"request_id": requestID, "resource": resource}), actor.Label())
 	}
 	if err != nil {
-		return MoviePilotJob{}, identity.ErrConflict
+		return MoviePilotJob{}, fmt.Errorf("queue moviepilot job: %w", err)
 	}
 	if requestStatus == "requested" || requestStatus == "approved" {
 		if _, err = tx.Exec(ctx, `UPDATE media_requests SET status='queued',revision=revision+1,updated_at=NOW() WHERE id=$1`, requestID); err != nil {
